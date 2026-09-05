@@ -2,8 +2,12 @@ import { Button, Select, Switch } from "@mantine/core"
 import { useLocalStorage } from "../hooks"
 import { useDibIt } from "../models"
 import { Dropzone } from "@mantine/dropzone"
+import { tabs } from "../tabs"
 
-const Settings = () => {
+const Settings = ({ hiddenTabs, onHiddenTabsChange }: {
+  hiddenTabs: string[]
+  onHiddenTabsChange: (tabs: string[]) => void
+}) => {
   const [dibIt, setDibIt] = useDibIt()
   const [compactView, setCompactView] = useLocalStorage<boolean>({
     key: "Compact View",
@@ -12,6 +16,18 @@ const Settings = () => {
 
   return (
     <div style={{ maxWidth: 600, marginBottom: 20 }}>
+      <p>לשוניות מוצגות</p>
+      {tabs.filter(({ id }) => id !== "settings").map(({ id, label }) => (
+        <Switch
+          key={id}
+          mb="xs"
+          label={label}
+          checked={!hiddenTabs.includes(id)}
+          onChange={(event) => onHiddenTabsChange(event.currentTarget.checked
+            ? hiddenTabs.filter((tab) => tab !== id)
+            : [...hiddenTabs, id])}
+        />
+      ))}
       <p>תצוגת מערכת</p>
       <Switch
         label={compactView ? "קומפקטי" : "רחב"}

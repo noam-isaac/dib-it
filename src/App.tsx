@@ -13,7 +13,8 @@ import Schedule from "./components/Schedule"
 import Settings from "./components/Settings"
 import Sidebar from "./components/Sidebar"
 import StudyPlan from "./components/StudyPlan"
-import { cachedFetch } from "./hooks"
+import { cachedFetch, useLocalStorage } from "./hooks"
+import { visibleTabs } from "./tabs"
 import { DibIt, useDibIt } from "./models"
 import { FIRST_SEMESTER } from "./utilities"
 
@@ -45,6 +46,10 @@ const startDateString = `date=${encodeURIComponent(new Date().toDateString())}`
 const App = () => {
   const colorScheme = useColorScheme()
   const [dibIt, setDibIt] = useDibIt()
+  const [hiddenTabs, setHiddenTabs] = useLocalStorage<string[]>({
+    key: "Hidden Tabs",
+    defaultValue: [],
+  })
   const [courses, setCourses] = useState<SemesterCourses>({}) // this is tau-tools scraped jsons from arazim project website
   const [prefetching, setPrefetching] = useState(false)
 
@@ -86,7 +91,12 @@ const App = () => {
     }
   }, [dibIt.semester])
 
-  const tab = dibIt.tab ?? "schedule"
+  const shownTabs = visibleTabs(hiddenTabs)
+  const tab = shownTabs.find(({ id }) => id === dibIt.tab)?.id ?? shownTabs[0].id
+
+  useEffect(() => {
+    if (dibIt.tab && dibIt.tab !== tab) setDibIt({ ...dibIt, tab })
+  }, [dibIt.tab, tab])
 
   return (
     <MantineProvider
@@ -134,70 +144,19 @@ const App = () => {
                     <Button.Group
                       style={{ maxWidth: "100%", overflow: "auto" }}
                     >
-                      <Button
-                        flex="none"
-                        className="dont-print"
-                        size="md"
-                        variant={tab === "schedule" ? "light" : "subtle"}
-                        leftSection={<i className="fa-solid fa-calendar" />}
-                        onClick={() => setDibIt({ ...dibIt, tab: "schedule" })}
-                      >
-                        מערכת
-                      </Button>
-                      <Button
-                        flex="none"
-                        className="dont-print"
-                        size="md"
-                        variant={tab === "exams" ? "light" : "subtle"}
-                        leftSection={<i className="fa-solid fa-list-check" />}
-                        onClick={() => setDibIt({ ...dibIt, tab: "exams" })}
-                      >
-                        מבחנים
-                      </Button>
-                      <Button
-                        flex="none"
-                        className="dont-print"
-                        size="md"
-                        variant={tab === "study-plan" ? "light" : "subtle"}
-                        leftSection={<i className="fa-solid fa-table-list" />}
-                        onClick={() =>
-                          setDibIt({ ...dibIt, tab: "study-plan" })
-                        }
-                      >
-                        תוכנית
-                      </Button>
-                      <Button
-                        flex="none"
-                        className="dont-print"
-                        size="md"
-                        variant={tab === "practice" ? "light" : "subtle"}
-                        leftSection={
-                          <i className="fa-solid fa-graduation-cap" />
-                        }
-                        onClick={() => setDibIt({ ...dibIt, tab: "practice" })}
-                      >
-                        תרגול מבחנים
-                      </Button>
-                      <Button
-                        flex="none"
-                        className="dont-print"
-                        size="md"
-                        variant={tab === "guide" ? "light" : "subtle"}
-                        leftSection={<i className="fa-solid fa-info-circle" />}
-                        onClick={() => setDibIt({ ...dibIt, tab: "guide" })}
-                      >
-                        מדריך
-                      </Button>
-                      <Button
-                        flex="none"
-                        className="dont-print"
-                        size="md"
-                        variant={tab === "settings" ? "light" : "subtle"}
-                        leftSection={<i className="fa-solid fa-gears" />}
-                        onClick={() => setDibIt({ ...dibIt, tab: "settings" })}
-                      >
-                        הגדרות
-                      </Button>
+                      {shownTabs.map(({ id, label, icon }) => (
+                        <Button
+                          key={id}
+                          flex="none"
+                          className="dont-print"
+                          size="md"
+                          variant={tab === id ? "light" : "subtle"}
+                          leftSection={<i className={`fa-solid fa-${icon}`} />}
+                          onClick={() => setDibIt({ ...dibIt, tab: id })}
+                        >
+                          {label}
+                        </Button>
+                      ))}
                     </Button.Group>
                     <div style={{ flexGrow: 1 }} />
                     <p style={{ fontSize: 22 }}>שעות: {hours}</p>
@@ -206,7 +165,9 @@ const App = () => {
                     {tab === "schedule" && <Schedule />}
                     {tab === "exams" && <Exams key={dibIt.semester} />}
                     {tab === "study-plan" && <StudyPlan />}
-                    {tab === "settings" && <Settings />}
+                    {tab === "settings" && (
+                      <Settings hiddenTabs={hiddenTabs} onHiddenTabsChange={setHiddenTabs} />
+                    )}
                     {tab === "guide" && <Guide />}
                     {tab === "practice" && <Practice />}
                   </div>
