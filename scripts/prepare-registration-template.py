@@ -78,6 +78,7 @@ def slots_for_form():
     digits("department", 1, 4, 2, 4)
     add("degree", 1, 5, 2, 24)
     digits("registeringDepartment", 1, 6, 2, 4)
+    add("registeringDepartmentName", 1, 6, 6, 100)
     for i in range(14):
         prefix, row = f"rows.{i}", i+2
         add(prefix+".semesterCode", 2, row, 1)
@@ -121,7 +122,9 @@ def main():
     script = work / "prepare.applescript"
     script.write_text("\n".join(lines), encoding="utf8")
     subprocess.run(["open", "-a", "Microsoft Word", str(input_path)], check=True)
-    result = subprocess.run(["osascript", str(script)], check=True, capture_output=True, text=True)
+    result = subprocess.run(["osascript", str(script)], capture_output=True, text=True)
+    if result.returncode:
+        raise SystemExit(f"Word preparation failed: {result.stderr.strip()}\nInspect temporary artifacts: {work}")
     positions = [int(value.strip()) for value in result.stdout.split(",")]
     assert len(positions) == len(slots)
     data = bytearray(output_path.read_bytes())

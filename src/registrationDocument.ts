@@ -1,6 +1,6 @@
 import JSZip from "jszip"
 import manifest from "./assets/registration-template.json"
-import type { RegistrationDetails, RegistrationRow } from "./registration"
+import { getRegistrationDepartments, registrationCourseName, type RegistrationDepartment, type RegistrationDetails, type RegistrationRow } from "./registration"
 
 export const REGISTRATION_ROWS_PER_FORM = 14
 const templateUrl = new URL("./assets/registration-template.doc", import.meta.url).href
@@ -25,19 +25,23 @@ const validate = (details: RegistrationDetails, rows: RegistrationRow[]) => {
   if (!rows.length) error("יש לבחור קבוצות לימוד לפני יצירת הטופס.")
   if (!/^20\d{2}$/.test(details.academicYear) || !/^[0123]$/.test(details.semesterCode))
     error("שנה או סמסטר אינם תקינים.")
+  if (!checkText(details.studentName)) error("יש להזין שם תלמיד/ה.")
+  if (!checkText(details.registeringDepartmentName)) error("יש להזין את שם החוג הרושם.")
+  if (!checkText(details.degree)) error("יש להזין תואר.")
   for (const [value, length, label] of [
     [details.studentId, 9, "תעודת הזהות"],
     [details.department, 4, "חוג הלימודים"],
     [details.registeringDepartment, 4, "החוג הרושם"],
     [details.framework, 3, "המסגרת"],
   ] as const) {
-    if (value && !new RegExp(`^[0-9]{${length}}$`).test(value))
-      error(`${label}: יש להזין ${length} ספרות או להשאיר ריק.`)
+    if (!new RegExp(`^[0-9]{${length}}$`).test(value))
+      error(`${label}: יש להזין ${length} ספרות.`)
   }
   for (const row of rows) {
     if (!/^\d{8}$/.test(row.courseId) || !/^\d{2}$/.test(row.group))
       error(`מספר הקורס או הקבוצה אינם מתאימים למשבצות הטופס: ${row.courseId}/${row.group}.`)
-    checkText(row.name)
+    if (!checkText(row.name) || !checkText(row.lessonType))
+      error(`יש להשלים את שם הקורס וסוג השיעור: ${row.courseId}/${row.group}.`)
   }
   checkText(details.studentName)
   checkText(details.degree)
@@ -49,7 +53,7 @@ const slotValue = (key: string, details: RegistrationDetails, rows: Registration
   if (parts[0] === "rows") {
     const row = rows[Number(parts[1])]
     if (!row) return ""
-    values = { ...row, year: values.year, semesterCode: details.semesterCode, framework: details.framework }
+    values = { ...row, name: registrationCourseName(row), year: values.year, semesterCode: details.semesterCode, framework: details.framework }
     parts.splice(0, 2)
   }
   const value = values[parts[0]] ?? ""
@@ -96,21 +100,38 @@ export const createRegistrationDownload = async (
   details: RegistrationDetails,
   rows: RegistrationRow[],
   template?: ArrayBuffer,
+  departmentOverrides?: Record<string, RegistrationDepartment>,
 ): Promise<{ filename: string; blob: Blob }> => {
-  validate(details, rows)
+  if (!rows.length) error("יש לבחור קבוצות לימוד לפני יצירת הטופס.")
+  const departments = departmentOverrides ?? getRegistrationDepartments(rows)
+  const forms: { details: RegistrationDetails; rows: RegistrationRow[]; suffix: string }[] = []
+  for (const prefix of new Set(rows.map(row => row.courseId.slice(0, 4)))) {
+    const department = departments[prefix]
+    if (!department) error("יש להשלים את פרטי החוג הרושם.")
+    const formDetails = {
+      ...details,
+      registeringDepartment: department.code,
+      registeringDepartmentName: department.name,
+    }
+    const departmentRows = rows.filter(row => row.courseId.startsWith(prefix))
+    for (let i = 0; i < departmentRows.length; i += REGISTRATION_ROWS_PER_FORM) {
+      const pageRows = departmentRows.slice(i, i + REGISTRATION_ROWS_PER_FORM)
+      validate(formDetails, pageRows)
+      forms.push({ details: formDetails, rows: pageRows, suffix: `${prefix}-${i / REGISTRATION_ROWS_PER_FORM + 1}` })
+    }
+  }
   if (!template) {
     const response = await fetch(templateUrl)
     if (!response.ok) error("לא ניתן לטעון את הטופס המקורי. נסו שוב.")
     template = await response.arrayBuffer()
   }
   const stem = `dibit-registration-${details.academicYear}-${details.semesterCode}`
-  if (rows.length <= REGISTRATION_ROWS_PER_FORM)
-    return { filename: `${stem}.doc`, blob: await fillRegistrationTemplate(template, details, rows) }
-  // Each additional page is another copy of the exact form, with its 14 rows.
+  if (forms.length === 1)
+    return { filename: `${stem}.doc`, blob: await fillRegistrationTemplate(template, forms[0].details, forms[0].rows) }
   const zip = new JSZip()
-  for (let i = 0; i < rows.length; i += REGISTRATION_ROWS_PER_FORM) {
-    const blob = await fillRegistrationTemplate(template, details, rows.slice(i, i + REGISTRATION_ROWS_PER_FORM))
-    zip.file(`${stem}-${i / REGISTRATION_ROWS_PER_FORM + 1}.doc`, await blob.arrayBuffer())
+  for (const form of forms) {
+    const blob = await fillRegistrationTemplate(template, form.details, form.rows)
+    zip.file(`${stem}-${form.suffix}.doc`, await blob.arrayBuffer())
   }
   return { filename: `${stem}.zip`, blob: await zip.generateAsync({ type: "blob", compression: "DEFLATE" }) }
 }

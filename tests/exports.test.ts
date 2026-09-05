@@ -13,6 +13,12 @@ const template = async () => {
 import { getGoogleConfig } from "../src/googleConfig"
 import { isScheduleBackup } from "../src/scheduleBackup"
 
+const completedDetails = (semester: string) => ({
+  ...registrationDefaults(semester), studentName: "ישראל ישראלי", studentId: "012345678",
+  registeringDepartment: "0123", registeringDepartmentName: "חוג בדיקה",
+})
+const testDepartments = { "0123": { code: "0123", name: "חוג בדיקה" } }
+
 const courses = [
   { id: "01234567", groups: ["01", "02", "01", "stale"] },
   { id: "unselected" },
@@ -21,8 +27,8 @@ const info = {
   "01234567": {
     name: "מבוא ל-AI & לוגיקה",
     groups: [
-      { group: "01", lessons: [{ day: "א", time: "09:30-11:15" }] },
-      { group: "02" },
+      { group: "01", lessons: [{ day: "א", time: "09:30-11:15", type: "שיעור" }] },
+      { group: "02", lessons: [{ type: "תרגיל" }] },
     ],
   },
   unselected: { name: "לא נבחר", groups: [{ group: "01" }] },
@@ -93,8 +99,8 @@ describe("registration Word export", () => {
         info,
       ),
     ).toEqual([
-      { courseId: "01234567", group: "01", name: "מבוא ל-AI & לוגיקה" },
-      { courseId: "01234567", group: "02", name: "מבוא ל-AI & לוגיקה" },
+      { courseId: "01234567", group: "01", name: "מבוא ל-AI & לוגיקה", lessonType: "שיעור" },
+      { courseId: "01234567", group: "02", name: "מבוא ל-AI & לוגיקה", lessonType: "תרגיל" },
     ])
   })
   test("current academic year and semester replace stale template values", () => {
@@ -115,7 +121,7 @@ describe("registration Word export", () => {
     const original = await template()
     const before = new Uint8Array(original.slice(0))
     const file = await fillRegistrationTemplate(original, {
-      ...registrationDefaults("2027a"), studentName: 'בדיקה <שם> & "טקסט"', studentId: "012345678",
+      ...completedDetails("2027a"), studentName: 'בדיקה <שם> & "טקסט"', studentId: "012345678",
     }, getRegistrationRows(courses, info))
     expect(file.type).toBe("application/msword")
     const result = new Uint8Array(await file.arrayBuffer())
@@ -132,15 +138,15 @@ describe("registration Word export", () => {
     }
     expect(value("studentName")).toBe('בדיקה <שם> & "טקסט"')
     expect(Array.from({length:9}, (_, i) => value(`studentId.${i}`)).join("")).toBe("012345678")
-    expect(value("rows.0.name")).toBe("מבוא ל-AI & לוגיקה")
+    expect(value("rows.0.name")).toBe("מבוא ל-AI & לוגיקה - (שיעור)")
     expect(value("rows.1.group.1")).toBe("2")
     expect(value("rows.2.name")).toBe("")
     expect(value("rows.13.courseId.0")).toBe("")
     expect(new Uint8Array(original)).toEqual(before)
   })
   test("15 groups produce two intact DOC forms instead of adding rows or dropping data", async () => {
-    const rows = Array.from({length:15}, (_, i) => ({courseId:"01234567",group:String(i+1).padStart(2,"0"),name:`קורס ${i+1}`}))
-    const download = await createRegistrationDownload(registrationDefaults("2027a"), rows, await template())
+    const rows = Array.from({length:15}, (_, i) => ({courseId:"01234567",group:String(i+1).padStart(2,"0"),name:`קורס ${i+1}`,lessonType:"שיעור"}))
+    const download = await createRegistrationDownload(completedDetails("2027a"), rows, await template(), testDepartments)
     expect(download.filename.endsWith(".zip")).toBe(true)
     const zip = await JSZip.loadAsync(await download.blob.arrayBuffer())
     expect(Object.keys(zip.files)).toHaveLength(2)
@@ -148,14 +154,14 @@ describe("registration Word export", () => {
       expect(file.name.endsWith(".doc")).toBe(true)
       expect((await file.async("uint8array")).length).toBe(manifest.byteLength)
     }
-    const second = await zip.file("dibit-registration-2027-1-2.doc")!.async("uint8array")
+    const second = await zip.file("dibit-registration-2027-1-0123-2.doc")!.async("uint8array")
     const slot = manifest.slots.find(s => s.key === "rows.0.group.1")!
     expect(second[slot.offsets[0]]).toBe("5".charCodeAt(0))
-    const single = await createRegistrationDownload(registrationDefaults("2027a"), rows.slice(0,14), await template())
+    const single = await createRegistrationDownload(completedDetails("2027a"), rows.slice(0,14), await template(), testDepartments)
     expect(single.filename.endsWith(".doc")).toBe(true)
   })
   test("refuses corrupt templates, structural control characters, oversized fields and invalid digit boxes", async () => {
-    const data = await template(), details = registrationDefaults("2027a"), rows = getRegistrationRows(courses, info)
+    const data = await template(), details = completedDetails("2027a"), rows = getRegistrationRows(courses, info)
     const corrupt = data.slice(0); new Uint8Array(corrupt)[100] ^= 1
     await expect(fillRegistrationTemplate(corrupt, details, rows)).rejects.toThrow("תבנית")
     await expect(fillRegistrationTemplate(data, {...details,studentName:"a\u0007b"}, rows)).rejects.toThrow("בקרה")
@@ -206,4 +212,53 @@ describe("Google configuration and backup compatibility", () => {
     ).toBe(false)
     expect(isScheduleBackup(null)).toBe(false)
   })
+})
+
+import examples from "./fixtures/registration-examples.json"
+import { getRegistrationDepartments, registrationCourseName } from "../src/registration"
+
+const readSlot = (bytes: Uint8Array, key: string) => {
+  const slot = manifest.slots.find(slot => slot.key === key)!
+  return String.fromCharCode(...Array.from({length: slot.length}, (_, i) =>
+    bytes[slot.offsets[i*2]] | bytes[slot.offsets[i*2+1]] << 8)).replace(/[\u200b\u202a\u202c]/g, "")
+}
+
+test("all six supplied forms retain their courses, lesson types, departments and leading zeroes", async () => {
+  const catalog: SemesterCourses = {}, selected: {id: string; groups: string[]}[] = []
+  const expected = Object.values(examples).flat()
+  for (const row of expected) {
+    const [, name, type] = row.name.match(/^(.*) - \((.*)\)$/)!
+    catalog[row.courseId] ??= { name, groups: [] }
+    catalog[row.courseId]!.groups!.push({ group: row.group, lessons: [{type}] })
+    selected.push({id: row.courseId, groups: [row.group]})
+  }
+  const rows = getRegistrationRows(selected, catalog)
+  expect(rows.map(registrationCourseName)).toEqual(expected.map(row => row.name))
+  const departments = getRegistrationDepartments(rows)
+  expect(departments["0627"].name).toBe("בלשנות")
+  const download = await createRegistrationDownload(completedDetails("2025b"), rows, await template())
+  const zip = await JSZip.loadAsync(await download.blob.arrayBuffer())
+  expect(Object.keys(zip.files)).toHaveLength(6)
+  for (const expectedRows of Object.values(examples)) {
+    const code = expectedRows[0].courseId.slice(0,4)
+    const bytes = await zip.file(`dibit-registration-2025-2-${code}-1.doc`)!.async("uint8array")
+    expect(readSlot(bytes, "studentName")).toBe("ישראל ישראלי")
+    expect(readSlot(bytes, "registeringDepartmentName")).toBe(departments[code].name)
+    expect(Array.from({length:4}, (_,i) => readSlot(bytes, `registeringDepartment.${i}`)).join("")).toBe(code)
+    for (const [i, row] of expectedRows.entries()) {
+      expect(readSlot(bytes, `rows.${i}.name`)).toBe(row.name)
+      expect(Array.from({length:8}, (_,j) => readSlot(bytes, `rows.${i}.courseId.${j}`)).join("")).toBe(row.courseId)
+      expect(Array.from({length:2}, (_,j) => readSlot(bytes, `rows.${i}.group.${j}`)).join("")).toBe(row.group)
+      expect(readSlot(bytes, `rows.${i}.semesterCode`)).toBe(row.semesterCode)
+      expect(readSlot(bytes, `rows.${i}.year.0`) + readSlot(bytes, `rows.${i}.year.1`)).toBe("25")
+    }
+  }
+})
+
+test("missing identity, unknown departments and absent lesson types must be supplied", async () => {
+  const rows = getRegistrationRows(courses, info), data = await template()
+  await expect(fillRegistrationTemplate(data, {...completedDetails("2027a"), studentName: " "}, rows)).rejects.toThrow("שם תלמיד")
+  await expect(fillRegistrationTemplate(data, {...completedDetails("2027a"), studentId: ""}, rows)).rejects.toThrow("9")
+  await expect(createRegistrationDownload(completedDetails("2027a"), rows, data)).rejects.toThrow("שם החוג")
+  await expect(fillRegistrationTemplate(data, completedDetails("2027a"), [{...rows[0], lessonType: ""}])).rejects.toThrow("סוג השיעור")
 })

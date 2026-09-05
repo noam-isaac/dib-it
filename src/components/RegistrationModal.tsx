@@ -11,7 +11,7 @@ import {
 import { notifications } from "@mantine/notifications"
 import { useState } from "react"
 import type { DibItCourse } from "../models"
-import { getRegistrationRows, registrationDefaults } from "../registration"
+import { getRegistrationDepartments, getRegistrationRows, registrationDefaults } from "../registration"
 import { downloadBlob, formatSemesterInHebrew } from "../utilities"
 
 const RegistrationModal = ({
@@ -26,7 +26,14 @@ const RegistrationModal = ({
   const [details, setDetails] = useState(() => registrationDefaults(semester))
   const [advanced, setAdvanced] = useState(false)
   const [busy, setBusy] = useState(false)
-  const rows = getRegistrationRows(courses, info)
+  const [departments, setDepartments] = useState(() => getRegistrationDepartments(getRegistrationRows(courses, info)))
+  const [courseNames, setCourseNames] = useState<Record<string, string>>({})
+  const [lessonTypes, setLessonTypes] = useState<Record<string, string>>({})
+  const baseRows = getRegistrationRows(courses, info)
+  const rows = baseRows.map(row => ({
+    ...row, name: courseNames[row.courseId] ?? row.name, lessonType: lessonTypes[`${row.courseId}/${row.group}`] ?? row.lessonType,
+  }))
+  const multipleForms = Object.keys(departments).length > 1 || rows.length > 14
   const field = (key: keyof typeof details) => ({
     value: details[key],
     onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -41,11 +48,11 @@ const RegistrationModal = ({
         try {
           const { createRegistrationDownload } =
             await import("../registrationDocument")
-          const { filename, blob } = await createRegistrationDownload(details, rows)
+          const { filename, blob } = await createRegistrationDownload(details, rows, undefined, departments)
           downloadBlob(filename, blob)
           notifications.show({
             title: "הטופס מוכן",
-            message: rows.length > 14
+            message: multipleForms
               ? "הורד ZIP עם מספר טפסי Word מקוריים. כל טופס מכיל עד 14 קבוצות."
               : "הטופס המקורי מולא והורד כקובץ DOC. בדקו את הפרטים לפני ההגשה.",
             color: "green",
@@ -68,16 +75,18 @@ const RegistrationModal = ({
         </Text>
         <Text size="xs" c="dimmed">
           הכותרת, הסמלים ומשבצות הטופס המקורי נשמרים. בדקו ששנת הטופס מתאימה
-          לרישום שלכם. מעל 14 קבוצות יתקבל ZIP עם מספר טפסי DOC.
+          לרישום שלכם. נוצר טופס לכל חוג רושם, עד 14 קבוצות בטופס. מספר טפסים יורדו ב-ZIP.
         </Text>
         <Group grow>
           <TextInput
+            required
             label="שם התלמיד/ה"
             autoComplete="name"
             maxLength={100}
             {...field("studentName")}
           />
           <TextInput
+            required
             label="מספר ת״ז"
             dir="ltr"
             inputMode="numeric"
@@ -87,9 +96,23 @@ const RegistrationModal = ({
           />
         </Group>
         <Text size="xs" c="dimmed">
-          אפשר להשאיר פרטים ריקים ולהשלימם ב-Word. הפרטים האישיים אינם נשמרים
-          באתר.
+          השלימו את הפרטים האישיים כדי שיופיעו בטופס. הפרטים אינם נשמרים באתר.
         </Text>
+        <Text size="sm">בדקו את החוגים הרושמים. הקוד מוצע לפי ארבע הספרות הראשונות של הקורס.</Text>
+        {Object.entries(departments).map(([prefix, department]) => (
+          <Group grow key={prefix}>
+            <TextInput
+              required label={`קוד החוג הרושם (${prefix})`} dir="ltr"
+              value={department.code} maxLength={4} inputMode="numeric" pattern="[0-9]{4}"
+              onChange={event => setDepartments({ ...departments, [prefix]: { ...department, code: event.currentTarget.value } })}
+            />
+            <TextInput
+              required label={`שם החוג הרושם (${prefix})`}
+              value={department.name} maxLength={100}
+              onChange={event => setDepartments({ ...departments, [prefix]: { ...department, name: event.currentTarget.value } })}
+            />
+          </Group>
+        ))}
         <Button
           variant="subtle"
           size="xs"
@@ -104,13 +127,6 @@ const RegistrationModal = ({
               <TextInput
                 label="חוג לימודים"
                 {...field("department")}
-                maxLength={4}
-                inputMode="numeric"
-                pattern="[0-9]{4}"
-              />
-              <TextInput
-                label="חוג רושם"
-                {...field("registeringDepartment")}
                 maxLength={4}
                 inputMode="numeric"
                 pattern="[0-9]{4}"
@@ -144,14 +160,25 @@ const RegistrationModal = ({
                   <Table.Th>קורס</Table.Th>
                   <Table.Th>מספר</Table.Th>
                   <Table.Th>קבוצה</Table.Th>
+                  <Table.Th>סוג השיעור</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {rows.map((row) => (
                   <Table.Tr key={`${row.courseId}/${row.group}`}>
-                    <Table.Td>{row.name}</Table.Td>
+                    <Table.Td>{info[row.courseId]?.name?.trim() ? row.name : (
+                      <TextInput required aria-label={`שם הקורס ${row.courseId}`} placeholder="השלימו שם קורס"
+                        value={row.name} onChange={event => setCourseNames({ ...courseNames, [row.courseId]: event.currentTarget.value })} />
+                    )}</Table.Td>
                     <Table.Td dir="ltr">{row.courseId}</Table.Td>
                     <Table.Td dir="ltr">{row.group}</Table.Td>
+                    <Table.Td>
+                      <TextInput
+                        required aria-label={`סוג השיעור ${row.courseId}/${row.group}`}
+                        placeholder="השלימו סוג שיעור" value={row.lessonType}
+                        onChange={event => setLessonTypes({ ...lessonTypes, [`${row.courseId}/${row.group}`]: event.currentTarget.value })}
+                      />
+                    </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
@@ -166,7 +193,7 @@ const RegistrationModal = ({
           disabled={!rows.length}
           leftSection={<i className="fa-solid fa-file-word" />}
         >
-          {rows.length > 14 ? "הורדת טפסי Word (ZIP)" : "הורדת הטופס המקורי (DOC)"}
+          {multipleForms ? "הורדת טפסי Word (ZIP)" : "הורדת הטופס המקורי (DOC)"}
         </Button>
       </Stack>
     </form>

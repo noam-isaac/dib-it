@@ -20,7 +20,7 @@ bun test
 bun run build
 ```
 
-The script works on a temporary copy and leaves the source untouched. Its reader is intentionally limited to this known CFB/FIB shape and refuses unsupported structures. After preparation, open actual browser downloads in Word and render them before committing updated assets. Check a short Hebrew example, mixed Hebrew/English, all 14 rows, and a second form after overflow. Compare image bytes, page dimensions, margins, table grids, properties and the original unfilled document. Never accept a Word repair warning.
+The script works on a temporary copy and leaves the source untouched. Word can finish a save after an AppleEvent timeout; if this occurs, inspect the reported temporary folder and recover the saved document’s cell offsets before validating the manifest. Do not ship partially prepared assets. Its reader is intentionally limited to this known CFB/FIB shape and refuses unsupported structures. After preparation, open actual browser downloads in Word and render them before committing updated assets. Check a short Hebrew example, mixed Hebrew/English, all 14 rows, and a second form after overflow. Compare image bytes, page dimensions, margins, table grids, properties and the original unfilled document. Never accept a Word repair warning.
 
 Format references used to locate text without rebuilding the file:
 
@@ -28,4 +28,4 @@ Format references used to locate text without rebuilding the file:
 - [Microsoft MS-DOC: FcCompressed](https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-doc/aa2e55a2-f4f2-4795-bab5-6d9d7a0ed249)
 - [Microsoft MS-DOC: Pcd](https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-doc/498993c9-0a2d-47aa-8ada-fed27616e275)
 
-Inputs cannot contain Word structural control characters or exceed the reserved capacity. Names reserve 100 UTF-16 units for the student and 160 per course; degree reserves 24. Mixed Latin runs consume additional invisible direction markers. Long text can naturally wrap in the original cells; nothing is silently truncated. More than 14 groups produce multiple original forms inside a ZIP.
+Inputs cannot contain Word structural control characters or exceed the reserved capacity. Names reserve 100 UTF-16 units each for the student and registering-department name, and 160 per course (including lesson type); degree reserves 24. Mixed Latin runs consume additional invisible direction markers. Long text can naturally wrap in the original cells; nothing is silently truncated. Separate departments and more than 14 groups produce multiple original forms inside a ZIP.
