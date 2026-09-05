@@ -26,7 +26,6 @@ const Header = () => {
       <a href="/">
         <img
           className="logo"
-          alt="ארזים"
           src="https://arazim-project.com/logo.png"
           height={40}
           style={{ marginLeft: 10, marginRight: 20 }}
@@ -109,7 +108,6 @@ const AuthControls = () => {
             {currentUser.photoURL !== null && (
               <img
                 src={currentUser.photoURL}
-                alt=""
                 height={30}
                 style={{ borderRadius: "50%", marginInlineStart: 5 }}
               />

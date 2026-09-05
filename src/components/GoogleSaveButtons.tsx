@@ -41,16 +41,20 @@ const EnabledGoogleSaveButtons = () => {
         await setDoc(reference, JSON.parse(JSON.stringify(getDibIt())))
       }
       notifications.show({
-        title: restore ? "השחזור מגוגל הושלם" : "השמירה בגוגל הושלמה",
+        title: restore ? "העדכון מגוגל בוצע בהצלחה" : "השמירה בגוגל בוצעה בהצלחה",
         message: restore
-          ? "המערכות התעדכנו בהתאם לגיבוי שלכם."
-          : "המערכות זמינות לשחזור במכשירים אחרים.",
+          ? "המערכות שלכם התעדכנו בהתאם למה ששמור במשתמש שלכם"
+          : "המערכות שלכם זמינות כעת להורדה במכשירים אחרים",
+        style: { direction: "rtl" },
+        icon: <i className="fa-solid fa-check" />,
         color: "green",
       })
     } catch (error) {
       notifications.show({
-        title: restore ? "השחזור מגוגל נכשל" : "השמירה בגוגל נכשלה",
+        title: restore ? "שגיאה בעדכון מגוגל" : "שגיאה בשמירה בגוגל",
         message: error instanceof Error ? error.message : "נסו שוב מאוחר יותר.",
+        style: { direction: "rtl" },
+        icon: <i className="fa-solid fa-exclamation" />,
         color: "red",
       })
     } finally {
@@ -59,7 +63,7 @@ const EnabledGoogleSaveButtons = () => {
   }
   return (
     <>
-      <Tooltip label="פעולה זו תחליף את הגיבוי ששמור כרגע בגוגל.">
+      <Tooltip label="פעולה זו תדרוס את כל מה ששמור כרגע בגוגל!">
         <Menu.Item
           disabled={busy}
           color="green"
@@ -69,7 +73,7 @@ const EnabledGoogleSaveButtons = () => {
           גיבוי בגוגל
         </Menu.Item>
       </Tooltip>
-      <Tooltip label="פעולה זו תחליף את המערכות המקומיות. מומלץ להוריד גיבוי קודם.">
+      <Tooltip label="פעולה זו תדרוס את כל המערכות שלכם כרגע! מומלץ לגבות לפני כדי שתוכלו לשחזר.">
         <Menu.Item
           disabled={busy}
           color="green"

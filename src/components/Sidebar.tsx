@@ -33,7 +33,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
   })
   const [dibIt, setDibIt] = useDibIt()
   const [generalInfo] = useURLValue<GeneralInfo>(
-    "https://arazim-project.com/data/info.json",
+    "https://arazim-project.com/data/info.json"
   )
 
   let currentCourses: DibItCourse[] = []
@@ -118,7 +118,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
                   downloadFile(
                     "dibit.json",
                     "data:text/json;charset=utf-8," +
-                      encodeURIComponent(JSON.stringify(dibIt)),
+                      encodeURIComponent(JSON.stringify(dibIt))
                   )
                 }
               >
@@ -147,7 +147,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
                   downloadFile(
                     "calendar.ics",
                     "data:text/calendar;charset=utf-8," +
-                      encodeURIComponent(ics),
+                      encodeURIComponent(ics)
                   )
                   notifications.show({
                     title: "הייצוא הושלם בהצלחה",
@@ -160,7 +160,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
                     onClick: () => {
                       window.open(
                         "https://calendar.google.com/calendar/u/0/r/settings/export",
-                        "_blank",
+                        "_blank"
                       )
                     },
                   })
