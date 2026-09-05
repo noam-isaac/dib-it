@@ -49,11 +49,13 @@ The personal exam list, practice list, exam-spacing suggestions, and calendar ex
 
 The **מבחנים** tab keeps the original personal exam list, spacing indicator, and calendar. Click **חיפוש קורסים לפי תאריך בחינה**, or a day in the calendar, to discover exams across the selected semester. Choose a single date or an inclusive range using the date fields. Course and faculty filters are under **סינון לפי קורס או פקולטה**. Add a matching course to the sidebar to choose its groups. All exam sittings are included; entries without a valid date are skipped.
 
-## Saved plans
+## Saved schedules
 
-Use **תוכנית שמורה** above the semester selector to switch between named alternative schedules. **חדשה** starts an empty plan; the adjacent menu duplicates, renames, or deletes a plan. Deletion requires confirmation, and the final plan cannot be deleted. Each plan keeps independent course/group selections, colors, and degree settings across all semesters. Theme, custom course catalogs, and exam practice history are shared.
+Open the three-dot menu next to the semester and choose **מערכות שעות** to switch between named alternative schedules. The dialog also creates, duplicates, renames, or deletes a schedule. Deletion requires confirmation, and the final schedule cannot be deleted. Each schedule keeps independent course/group selections, colors, and degree settings across all semesters. Theme, custom course catalogs, and exam practice history are shared.
 
 Existing schedules and older backups become the first plan automatically. Local JSON and Google backups include every plan and the active selection. Calendar and registration exports use only the active plan and selected semester. Restore replaces all local plans; use a backup first if you want to keep them.
+
+In the **תוכנית** tab, choose an academic program and click **שמירה למעבר מהיר**. Save additional programs, then use **מעבר מהיר בין תוכניות** to restore their faculty and program without changing your courses or degree start year. These shortcuts are kept with each schedule and included in backups.
 
 ## Registration forms
 

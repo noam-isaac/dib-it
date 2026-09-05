@@ -1,6 +1,6 @@
 import type { DibIt } from "./models"
 
-type PlanData = Pick<DibIt, "courses" | "school" | "studyPlan" | "degreeStartYear">
+type PlanData = Pick<DibIt, "courses" | "school" | "studyPlan" | "savedStudyPlans" | "degreeStartYear">
 export interface SchedulePlan extends PlanData {
   id: string
   name: string
@@ -12,12 +12,16 @@ export interface PlanWorkspace extends Omit<DibIt, keyof PlanData | "activePlanI
 
 /** Legacy schedules become the first plan without losing any semesters. */
 export const normalizePlans = (data: DibIt | PlanWorkspace): PlanWorkspace => {
-  if ("plans" in data) return data
-  const { courses, school, studyPlan, degreeStartYear, activePlanId: _, ...shared } = data
+  if ("plans" in data) return {
+    ...data,
+    plans: data.plans.map(plan => plan.id === "default" && plan.name === "התוכנית שלי"
+      ? { ...plan, name: "מערכת השעות שלי" } : plan),
+  }
+  const { courses, school, studyPlan, savedStudyPlans, degreeStartYear, activePlanId: _, ...shared } = data
   return {
     ...shared,
     activePlanId: "default",
-    plans: [{ id: "default", name: "התוכנית שלי", courses, school, studyPlan, degreeStartYear }],
+    plans: [{ id: "default", name: "מערכת השעות שלי", courses, school, studyPlan, savedStudyPlans, degreeStartYear }],
   }
 }
 
@@ -30,12 +34,12 @@ export const activePlanView = (workspace: PlanWorkspace): DibIt => {
 export const updateActivePlan = (workspace: PlanWorkspace, view: DibIt): PlanWorkspace => {
   // A callback from a plan that was switched away from must not overwrite the new plan.
   if (view.activePlanId && view.activePlanId !== workspace.activePlanId) return workspace
-  const { courses, school, studyPlan, degreeStartYear, activePlanId: _, ...shared } = view
+  const { courses, school, studyPlan, savedStudyPlans, degreeStartYear, activePlanId: _, ...shared } = view
   return {
     ...workspace,
     ...shared,
     plans: workspace.plans.map(plan => plan.id === workspace.activePlanId
-      ? { ...plan, courses, school, studyPlan, degreeStartYear } : plan),
+      ? { ...plan, courses, school, studyPlan, savedStudyPlans, degreeStartYear } : plan),
   }
 }
 
@@ -44,7 +48,8 @@ export const addPlan = (workspace: PlanWorkspace, name: string, duplicate = fals
   const source = workspace.plans.find(plan => plan.id === workspace.activePlanId)!
   const plan: SchedulePlan = {
     ...(duplicate ? structuredClone(source) : {
-      courses: {}, school: source.school, studyPlan: source.studyPlan, degreeStartYear: source.degreeStartYear,
+      courses: {}, school: source.school, studyPlan: source.studyPlan,
+      savedStudyPlans: structuredClone(source.savedStudyPlans), degreeStartYear: source.degreeStartYear,
     }),
     id: crypto.randomUUID(),
     name: name.trim(),
@@ -62,4 +67,10 @@ export const deletePlan = (workspace: PlanWorkspace, id: string): PlanWorkspace 
   if (workspace.plans.length <= 1) return workspace
   const plans = workspace.plans.filter(plan => plan.id !== id)
   return { ...workspace, plans, activePlanId: workspace.activePlanId === id ? plans[0].id : workspace.activePlanId }
+}
+
+export const saveStudyPlan = (view: DibIt): DibIt => {
+  const { school, studyPlan, savedStudyPlans = [] } = view
+  if (!school || !studyPlan || savedStudyPlans.some(plan => plan.school === school && plan.studyPlan === studyPlan)) return view
+  return { ...view, savedStudyPlans: [...savedStudyPlans, { school, studyPlan }] }
 }

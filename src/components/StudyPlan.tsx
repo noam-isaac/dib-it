@@ -12,6 +12,7 @@ import { useCourseInfo } from "../CourseInfoContext"
 import hash from "../color-hash"
 import { useLocalStorage, useURLValue } from "../hooks"
 import { useDibIt } from "../models"
+import { saveStudyPlan } from "../plans"
 import {
   checkPrerequisites,
   FIRST_SEMESTER,
@@ -33,6 +34,9 @@ const StudyPlan = () => {
     defaultValue: false,
   })
   const courseInfo = useCourseInfo()
+  const savedStudyPlans = dibIt.savedStudyPlans ?? []
+  const savedIndex = savedStudyPlans.findIndex(plan =>
+    plan.school === dibIt.school && plan.studyPlan === dibIt.studyPlan)
   const [allTimeCourseInfo, loadingAllTimeCourseInfo] =
     useURLValue<AllTimeCourses>("https://arazim-project.com/data/courses.json")
   const [generalInfo] = useURLValue<GeneralInfo>(
@@ -161,6 +165,22 @@ const StudyPlan = () => {
           <Loader size="sm" ml="xs" /> טוען מידע על קורסים מכל השנים...
         </p>
       )}
+      {savedStudyPlans.length > 0 && (
+        <Select
+          label="מעבר מהיר בין תוכניות"
+          placeholder="בחירת תוכנית"
+          searchable
+          allowDeselect={false}
+          value={savedIndex < 0 ? null : String(savedIndex)}
+          data={savedStudyPlans.map((plan, index) => ({
+            value: String(index), label: `${plan.studyPlan} — ${plan.school}`,
+          }))}
+          onChange={value => {
+            const plan = value === null ? undefined : savedStudyPlans[Number(value)]
+            if (plan) setDibIt({ ...dibIt, school: plan.school, studyPlan: plan.studyPlan })
+          }}
+        />
+      )}
       <Select
         mt="xs"
         allowDeselect
@@ -180,6 +200,7 @@ const StudyPlan = () => {
       <Select
         mt="xs"
         label="פקולטה"
+        searchable
         leftSection={<i className="fa-solid fa-school" />}
         data={Object.keys(plans).sort()}
         value={dibIt.school}
@@ -206,6 +227,16 @@ const StudyPlan = () => {
           maxDropdownHeight={200}
         />
       )}
+      <Button
+        mt="xs"
+        size="compact-sm"
+        variant="subtle"
+        leftSection={<i className="fa-solid fa-bookmark" aria-hidden="true" />}
+        disabled={savedIndex >= 0 || !plans[dibIt.school ?? ""]?.[dibIt.studyPlan ?? ""]}
+        onClick={() => setDibIt(saveStudyPlan(dibIt))}
+      >
+        {savedIndex >= 0 ? "נשמרה למעבר מהיר" : "שמירה למעבר מהיר"}
+      </Button>
 
       <Switch
         mt="xs"

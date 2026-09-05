@@ -16,6 +16,10 @@ const isLegacySchedule = (value: unknown): value is DibIt => {
   ]) {
     if (value[key] !== undefined && typeof value[key] !== "string") return false
   }
+  if (value.savedStudyPlans !== undefined &&
+    (!Array.isArray(value.savedStudyPlans) || !value.savedStudyPlans.every(plan =>
+      object(plan) && typeof plan.school === "string" && !!plan.school.trim() &&
+      typeof plan.studyPlan === "string" && !!plan.studyPlan.trim()))) return false
   if (
     value.courses !== undefined &&
     (!object(value.courses) ||

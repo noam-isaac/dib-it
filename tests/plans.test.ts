@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { activePlanView, addPlan, deletePlan, normalizePlans, renamePlan, updateActivePlan } from "../src/plans"
+import { activePlanView, addPlan, deletePlan, normalizePlans, renamePlan, saveStudyPlan, updateActivePlan } from "../src/plans"
 import { isScheduleBackup } from "../src/scheduleBackup"
 
 const legacy = {
@@ -14,11 +14,37 @@ const legacy = {
 }
 
 describe("saved schedule plans", () => {
+  test("academic shortcuts retain faculty, survive backups, and stay independent across schedules", () => {
+    const first = saveStudyPlan(legacy)
+    const second = saveStudyPlan({ ...first, school: "פקולטה אחרת" })
+    expect(second.savedStudyPlans).toEqual([
+      { school: legacy.school, studyPlan: legacy.studyPlan },
+      { school: "פקולטה אחרת", studyPlan: legacy.studyPlan },
+    ])
+    expect(saveStudyPlan(second)).toBe(second)
+    expect(saveStudyPlan({ school: "פקולטה" }).savedStudyPlans).toBeUndefined()
+    const workspace = addPlan(normalizePlans(second), "מערכת נוספת", true)
+    const switched = { ...activePlanView(workspace), ...second.savedStudyPlans![0] }
+    expect(switched.courses).toEqual(legacy.courses)
+    expect(switched.school).toBe(legacy.school)
+    const updated = updateActivePlan(workspace, saveStudyPlan({ ...switched, studyPlan: "תוכנית נוספת" }))
+    expect(updated.plans[0].savedStudyPlans).toHaveLength(2)
+    expect(updated.plans[1].savedStudyPlans).toHaveLength(3)
+    const restored = JSON.parse(JSON.stringify(updated))
+    expect(isScheduleBackup(restored)).toBe(true)
+    expect(activePlanView(restored).savedStudyPlans).toEqual(updated.plans[1].savedStudyPlans)
+    expect(addPlan(updated, "ריקה").plans[2].savedStudyPlans).toEqual(updated.plans[1].savedStudyPlans)
+    for (const savedStudyPlans of [null, {}, [null], [{ school: 1, studyPlan: "x" }], [{ school: "x", studyPlan: "" }]]) {
+      expect(isScheduleBackup({ ...restored, plans: [{ ...restored.plans[0], savedStudyPlans }], activePlanId: "default" })).toBe(false)
+    }
+  })
+
   test("legacy data preserves all semesters, selections and shared settings without mutating the source", () => {
     const before = structuredClone(legacy)
     const workspace = normalizePlans(legacy)
     expect(activePlanView(workspace)).toEqual({ ...legacy, activePlanId: "default" })
     expect(normalizePlans(workspace)).toEqual(workspace)
+    expect(normalizePlans({ ...workspace, plans: [{ ...workspace.plans[0], name: "התוכנית שלי" }] }).plans[0].name).toBe("מערכת השעות שלי")
     expect(legacy).toEqual(before)
     expect(isScheduleBackup(workspace)).toBe(true)
   })

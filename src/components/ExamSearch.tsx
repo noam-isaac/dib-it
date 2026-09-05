@@ -14,6 +14,7 @@ import { useCourseInfo } from "../CourseInfoContext"
 import { collectExams, filterExamDates, isCourseScheduled } from "../exams"
 import { getDibIt, useDibIt } from "../models"
 import { getColor } from "../utilities"
+import { searchItems } from "../search"
 
 const PAGE_SIZE = 30
 
@@ -47,18 +48,12 @@ const ExamSearch = ({ initialDate }: { initialDate: string }) => {
       ].sort(),
     [info],
   )
-  const results = filterExamDates(exams, start, end).filter((exam) => {
-    const text =
-      `${info[exam.course.id]?.name ?? ""} ${exam.course.id}`.toLowerCase()
-    return (
-      (!faculty || info[exam.course.id]?.faculty === faculty) &&
-      query
-        .trim()
-        .toLowerCase()
-        .split(/\s+/)
-        .every((word) => text.includes(word))
-    )
-  })
+  const matchingCourses = useMemo(() => new Set(searchItems(
+    Object.entries(info).map(([id, course]) => ({ id, label: `${course?.name ?? ""} ${id}` })),
+    query,
+  ).map(course => course.id)), [info, query])
+  const results = filterExamDates(exams, start, end).filter(exam =>
+    (!faculty || info[exam.course.id]?.faculty === faculty) && matchingCourses.has(exam.course.id))
   const totalPages = Math.max(1, Math.ceil(results.length / PAGE_SIZE))
   const visiblePage = Math.min(page, totalPages)
   const addCourse = (id: string) => {

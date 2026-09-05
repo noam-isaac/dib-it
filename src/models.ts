@@ -40,6 +40,8 @@ export interface DibIt {
   school?: string
   /** The study plan of the user, like 'תוכנית דו-חוגית במתמטיקה ובמדעי המחשב' */
   studyPlan?: string
+  /** Academic programs saved for quick switching within this schedule. */
+  savedStudyPlans?: { school: string; studyPlan: string }[]
   /** The degree start year of the user, like "2024" */
   degreeStartYear?: string
   /** The user's theme */
