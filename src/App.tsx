@@ -94,6 +94,10 @@ const App = () => {
   const shownTabs = visibleTabs(hiddenTabs)
   const tab = shownTabs.find(({ id }) => id === dibIt.tab)?.id ?? shownTabs[0].id
 
+  useEffect(() => {
+    if (dibIt.tab && dibIt.tab !== tab) setDibIt({ ...dibIt, tab })
+  }, [dibIt.tab, tab])
+
   return (
     <MantineProvider
       forceColorScheme={colorScheme}
