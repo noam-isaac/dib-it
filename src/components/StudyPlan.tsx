@@ -1,3 +1,4 @@
+import { isCourseScheduled } from "../exams"
 import {
   Autocomplete,
   Badge,
@@ -63,6 +64,7 @@ const StudyPlan = () => {
 
   let courseDates: number[] = []
   for (const course of currentCourses) {
+    if (!isCourseScheduled(course, courseInfo[course.id])) continue
     const examDates = courseInfo[course.id]?.exams
     if (examDates?.length !== undefined && examDates.length > 0) {
       for (const date of examDates) {
@@ -77,6 +79,7 @@ const StudyPlan = () => {
   courseDates.sort()
 
   const getDayDifference = (courseId: string) => {
+    if (courseDates.length === 0) return
     const date = courseInfo[courseId]?.exams
     if (!date || date.length === 0 || date[0].date === "") {
       return

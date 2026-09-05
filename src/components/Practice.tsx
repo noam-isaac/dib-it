@@ -10,6 +10,7 @@ import { useCourseInfo } from "../CourseInfoContext"
 import { useURLValue } from "../hooks"
 import { DibItCourse, useDibIt } from "../models"
 import { formatSemester, getColor, parseDateString } from "../utilities"
+import { isCourseScheduled } from "../exams"
 
 const PracticeInfo = ({
   course,
@@ -133,6 +134,7 @@ const Practice = () => {
   }[] = []
 
   for (const course of currentCourses) {
+    if (!isCourseScheduled(course, courseInfo[course.id])) continue
     for (const date of courseInfo[course.id]?.exams ?? []) {
       const parsedDate = parseDateString(date.date!)
       if (parsedDate === undefined) {

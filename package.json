@@ -8,7 +8,8 @@
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "deploy": "yarn build && firebase deploy"
+    "deploy": "npm run build && npx vercel deploy --prod",
+    "test": "bun test"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.7.2",
@@ -20,9 +21,11 @@
     "@mantine/notifications": "^8.0.2",
     "color-hash": "^2.0.2",
     "dayjs": "^1.11.13",
+    "docx": "^9.7.1",
     "firebase": "^11.9.0",
     "ics": "^3.8.1",
     "jewish-date": "^2.0.20",
+    "jszip": "^3.10.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-error-boundary": "^6.0.0",

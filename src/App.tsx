@@ -204,7 +204,7 @@ const App = () => {
                   </div>
                   <div>
                     {tab === "schedule" && <Schedule />}
-                    {tab === "exams" && <Exams />}
+                    {tab === "exams" && <Exams key={dibIt.semester} />}
                     {tab === "study-plan" && <StudyPlan />}
                     {tab === "settings" && <Settings />}
                     {tab === "guide" && <Guide />}

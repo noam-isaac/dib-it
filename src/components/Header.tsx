@@ -1,4 +1,6 @@
 import { Button } from "@mantine/core"
+import { notifications } from "@mantine/notifications"
+import { useState } from "react"
 import { GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth"
 import { useAuthState } from "react-firebase-hooks/auth"
 import { auth } from "../firebase"
@@ -6,8 +8,6 @@ import { auth } from "../firebase"
 const google = new GoogleAuthProvider()
 
 const Header = () => {
-  const [currentUser] = useAuthState(auth)
-
   return (
     <div
       id="header"
@@ -26,6 +26,7 @@ const Header = () => {
       <a href="/">
         <img
           className="logo"
+          alt="ארזים"
           src="https://arazim-project.com/logo.png"
           height={40}
           style={{ marginLeft: 10, marginRight: 20 }}
@@ -47,12 +48,55 @@ const Header = () => {
         />
       </a>
       <div style={{ flexGrow: 1 }} />
+      {auth ? (
+        <AuthControls />
+      ) : (
+        <span style={{ marginInline: 16, fontSize: 13 }}>
+          שמירה מקומית בדפדפן
+        </span>
+      )}
+    </div>
+  )
+}
+
+const AuthControls = () => {
+  const [currentUser, loading] = useAuthState(auth!)
+  const [busy, setBusy] = useState(false)
+  const authenticate = async (signingOut = false) => {
+    setBusy(true)
+    try {
+      if (signingOut) await signOut(auth!)
+      else await signInWithPopup(auth!, google)
+    } catch (error) {
+      const code = (error as { code?: string }).code
+      if (
+        code !== "auth/popup-closed-by-user" &&
+        code !== "auth/cancelled-popup-request"
+      ) {
+        notifications.show({
+          title: "ההתחברות לגוגל לא הושלמה",
+          message:
+            code === "auth/popup-blocked"
+              ? "אפשרו חלונות קופצים עבור האתר ונסו שוב."
+              : code === "auth/unauthorized-domain"
+                ? "הכתובת הזו עדיין אינה מוגדרת להתחברות לגוגל. אפשר להמשיך לשמור מקומית."
+                : "לא ניתן להתחבר כרגע. נסו שוב מאוחר יותר.",
+          color: "red",
+        })
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <>
       {(currentUser === null || currentUser === undefined) && (
         <Button
           mx="xs"
           variant="white"
           leftSection={<i className="fa-solid fa-sign-in" />}
-          onClick={() => signInWithPopup(auth, google)}
+          loading={loading || busy}
+          onClick={() => authenticate()}
         >
           התחבר/י
         </Button>
@@ -65,6 +109,7 @@ const Header = () => {
             {currentUser.photoURL !== null && (
               <img
                 src={currentUser.photoURL}
+                alt=""
                 height={30}
                 style={{ borderRadius: "50%", marginInlineStart: 5 }}
               />
@@ -74,13 +119,14 @@ const Header = () => {
             mx="xs"
             variant="white"
             leftSection={<i className="fa-solid fa-sign-out" />}
-            onClick={() => signOut(auth)}
+            loading={busy}
+            onClick={() => authenticate(true)}
           >
             התנתק/י
           </Button>
         </>
       )}
-    </div>
+    </>
   )
 }
 

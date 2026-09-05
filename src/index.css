@@ -26,8 +26,18 @@ a {
 html,
 body,
 #root {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    "Open Sans",
+    "Helvetica Neue",
+    sans-serif;
   height: 100%;
   line-height: 1.5;
 }
@@ -225,3 +235,6 @@ body,
 .mantine-Modal-inner {
   z-index: 100000 !important;
 }
+
+.exam-search { padding: 8px 0 24px; }
+.exam-search-row { padding: 7px 0; border-bottom: 1px solid var(--mantine-color-default-border); }

@@ -22,6 +22,7 @@ import {
 import AutoBidModal from "./AutoBidModal"
 import CourseCard from "./CourseCard"
 import GoogleSaveButtons from "./GoogleSaveButtons"
+import RegistrationModal from "./RegistrationModal"
 
 const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
   const courseInfo = useCourseInfo()
@@ -32,7 +33,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
   })
   const [dibIt, setDibIt] = useDibIt()
   const [generalInfo] = useURLValue<GeneralInfo>(
-    "https://arazim-project.com/data/info.json"
+    "https://arazim-project.com/data/info.json",
   )
 
   let currentCourses: DibItCourse[] = []
@@ -102,7 +103,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
         <Menu>
           <Menu.Target>
             <Tooltip label="פעולות">
-              <ActionIcon size="lg" variant="light">
+              <ActionIcon size="lg" variant="light" aria-label="פעולות">
                 <i className="fa-solid fa-ellipsis-vertical" />
               </ActionIcon>
             </Tooltip>
@@ -117,7 +118,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
                   downloadFile(
                     "dibit.json",
                     "data:text/json;charset=utf-8," +
-                      encodeURIComponent(JSON.stringify(dibIt))
+                      encodeURIComponent(JSON.stringify(dibIt)),
                   )
                 }
               >
@@ -141,29 +142,61 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
               color="blue"
               leftSection={<i className="fa-solid fa-calendar" />}
               onClick={async () => {
-                const ics = await getICS(semester, currentCourses, courseInfo)
-                downloadFile(
-                  "calendar.ics",
-                  "data:text/calendar;charset=utf-8," + encodeURIComponent(ics)
-                )
-                notifications.show({
-                  title: "הייצוא הושלם בהצלחה",
-                  message:
-                    "כעת עליכם לבצע ייבוא לקובץ ה-ICS שהורד. לחצו כאן כדי לפתוח את חלון הייבוא של Google Calendar.",
-                  style: { direction: "rtl" },
-                  icon: <i className="fa-solid fa-check" />,
-                  color: "green",
-                  styles: { body: { cursor: "pointer" } },
-                  onClick: () => {
-                    window.open(
-                      "https://calendar.google.com/calendar/u/0/r/settings/export",
-                      "_blank"
-                    )
-                  },
-                })
+                try {
+                  const ics = await getICS(semester, currentCourses, courseInfo)
+                  downloadFile(
+                    "calendar.ics",
+                    "data:text/calendar;charset=utf-8," +
+                      encodeURIComponent(ics),
+                  )
+                  notifications.show({
+                    title: "הייצוא הושלם בהצלחה",
+                    message:
+                      "כעת עליכם לבצע ייבוא לקובץ ה-ICS שהורד. לחצו כאן כדי לפתוח את חלון הייבוא של Google Calendar.",
+                    style: { direction: "rtl" },
+                    icon: <i className="fa-solid fa-check" />,
+                    color: "green",
+                    styles: { body: { cursor: "pointer" } },
+                    onClick: () => {
+                      window.open(
+                        "https://calendar.google.com/calendar/u/0/r/settings/export",
+                        "_blank",
+                      )
+                    },
+                  })
+                } catch (error) {
+                  notifications.show({
+                    title: "הייצוא נכשל",
+                    message:
+                      error instanceof Error
+                        ? error.message
+                        : "לא ניתן לטעון את תאריכי הסמסטר. נסו שוב.",
+                    color: "red",
+                  })
+                }
               }}
             >
               ייצוא ל-Apple/Google Calendar
+            </Menu.Item>
+            <Menu.Item
+              color="blue"
+              leftSection={<i className="fa-solid fa-file-word" />}
+              onClick={() =>
+                modals.open({
+                  title: "טופס רישום לקורסים",
+                  size: "lg",
+                  centered: true,
+                  children: (
+                    <RegistrationModal
+                      semester={semester}
+                      courses={currentCourses}
+                      info={courseInfo}
+                    />
+                  ),
+                })
+              }
+            >
+              יצירת טופס רישום ב-Word
             </Menu.Item>
             <Menu.Item
               leftSection={<i className="fa-solid fa-print" />}
