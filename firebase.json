@@ -1,5 +1,8 @@
 {
   "firestore": {
+    "database": "(default)",
+    "location": "me-west1",
+    "edition": "standard",
     "rules": "firestore.rules"
   },
   "emulators": {

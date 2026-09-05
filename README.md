@@ -69,7 +69,7 @@ The Firebase project must allow authenticated users to read and write only their
 
 `firestore.rules` permits access only to the signed-in user's own backup. Collection listing, other users' backups, and subcollections are denied. Run `bun run test:firebase` with pnpm and Java 21 or newer to verify this against a local emulator. The suite uses the `demo-dibit` project and refuses to run without the expected localhost emulator address.
 
-For this fork, Google backup must use an unbilled **Spark** project. Do not link a billing account, activate trial credits, upgrade to Blaze, or add paid services. On Spark, quota exhaustion can interrupt backup; do not resolve it by enabling billing. Local storage, file backup, and calendar export remain available. See [Firebase's pricing-plan documentation](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans). The local emulator tests neither create nor configure a cloud project.
+For this fork, Google backup uses an unbilled **Spark** project with one free-tier Standard database in Tel Aviv (`me-west1`), as specified in `firebase.json`. Local Google sign-in uses `http://127.0.0.1:5175`. Do not link a billing account, activate trial credits, upgrade to Blaze, or add paid services. On Spark, quota exhaustion can interrupt backup; do not resolve it by enabling billing. Local storage, file backup, and calendar export remain available. See [Firebase's pricing-plan documentation](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans). The local emulator tests neither create nor configure a cloud project.
 
 ## Validation and Vercel
 
