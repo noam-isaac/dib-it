@@ -1,13 +1,26 @@
 import { getLocalStorage, setLocalStorage, useLocalStorage } from "./hooks"
+import { activePlanView, normalizePlans, updateActivePlan, PlanWorkspace } from "./plans"
 
-export const getDibIt = () => getLocalStorage<DibIt>("Dib It")
+export const getWorkspace = () => normalizePlans(getLocalStorage<DibIt | PlanWorkspace>("Dib It"))
+export const setWorkspace = (workspace: DibIt | PlanWorkspace, quiet = false) =>
+  setLocalStorage("Dib It", normalizePlans(workspace), { quiet })
+export const getDibIt = () => activePlanView(getWorkspace())
 export const setDibIt = (dibIt: DibIt, quiet = false) =>
-  setLocalStorage("Dib It", dibIt, { quiet })
-export const useDibIt = () =>
-  useLocalStorage<DibIt>({ key: "Dib It", defaultValue: {} })
+  setWorkspace(updateActivePlan(getWorkspace(), dibIt), quiet)
+export const useWorkspace = () => {
+  const [stored, setStored] = useLocalStorage<DibIt | PlanWorkspace>({ key: "Dib It", defaultValue: {} })
+  return [normalizePlans(stored), (workspace: DibIt | PlanWorkspace, quiet = false) =>
+    setStored(normalizePlans(workspace), quiet)] as const
+}
+export const useDibIt = () => {
+  const [workspace, save] = useWorkspace()
+  return [activePlanView(workspace), (dibIt: DibIt, quiet = false) =>
+    save(updateActivePlan(getWorkspace(), dibIt), quiet)] as const
+}
 
-/** All Dib It information for a given user (this is what's uploaded to Firestore when uploading/downloading). */
+/** The active plan and shared user settings consumed by the app. */
 export interface DibIt {
+  activePlanId?: string
   /** A mapping from a semester like '2024a' to a mapping from course IDs like '03661111' to course information stored on Dib It. */
   courses?: Record<string, DibItCourse[]>
 

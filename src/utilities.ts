@@ -57,14 +57,28 @@ export const downloadFile = (filename: string, contents: string) => {
   element.click()
 }
 
+export const downloadBlob = (filename: string, blob: Blob) => {
+  const url = URL.createObjectURL(blob)
+  downloadFile(filename, url)
+  // Give the browser time to start the download before releasing its bytes.
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
 export const uploadJson = (): Promise<any> => {
   return new Promise((resolve, reject) => {
     const element = document.getElementById("upload") as HTMLInputElement
+    element.value = ""
     element.onchange = () => {
+      if (!element.files?.[0]) return
       const reader = new FileReader()
       reader.addEventListener("load", (e) => {
-        resolve(JSON.parse(e.target!.result as string))
+        try {
+          resolve(JSON.parse(e.target!.result as string))
+        } catch (error) {
+          reject(error)
+        }
       })
+      reader.onerror = reject
       reader.readAsText(element.files![0])
     }
     element.onerror = reject
@@ -72,16 +86,7 @@ export const uploadJson = (): Promise<any> => {
   })
 }
 
-export const parseDateString = (date: string) => {
-  if (date === "") {
-    return
-  }
-  const [day, month, year] = date.split("/")
-  const d = new Date()
-  d.setFullYear(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10))
-
-  return d
-}
+export { parseDateString } from "./exams"
 
 export const formatSemester = (semester: string) =>
   semester.substring(0, 4) + (semester[4] === "a" ? "א'" : "ב'")

@@ -1,6 +1,8 @@
-import { Tooltip } from "@mantine/core"
+import { Button, Group, Text, Tooltip } from "@mantine/core"
 import { Calendar } from "@mantine/dates"
-import React from "react"
+import React, { useState } from "react"
+import ExamSearch from "./ExamSearch"
+import { isCourseScheduled } from "../exams"
 import { useCourseInfo } from "../CourseInfoContext"
 import { DibItCourse, useDibIt } from "../models"
 import { MILLISECONDS_IN_DAY, getColor, parseDateString } from "../utilities"
@@ -26,7 +28,7 @@ const stringifyDate = (d: Date) => {
   return d.getDate() + "/" + (d.getMonth() + 1)
 }
 
-const Exams = () => {
+const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void }) => {
   const courseInfo = useCourseInfo()
   const [dibIt] = useDibIt()
 
@@ -49,6 +51,7 @@ const Exams = () => {
   > = {}
 
   for (const course of currentCourses) {
+    if (!isCourseScheduled(course, courseInfo[course.id])) continue
     for (const date of courseInfo[course.id]?.exams ?? []) {
       const parsedDate = parseDateString(date.date!)
       if (parsedDate === undefined) {
@@ -76,7 +79,7 @@ const Exams = () => {
     examDates.length > 0 ? examDates[examDates.length - 1].date : undefined
 
   if (!firstExam) {
-    return <></>
+    return <Text c="dimmed" my="md">אין מבחנים להצגה. בחרו קבוצות לימוד בקורסים שבמערכת.</Text>
   }
 
   return (
@@ -147,7 +150,7 @@ const Exams = () => {
       <Calendar
         firstDayOfWeek={0}
         weekendDays={[]}
-        static
+        getDayProps={(day) => ({ onClick: () => onDateClick(day), "aria-label": `חיפוש מבחנים בתאריך ${day}` })}
         maxLevel="month"
         defaultDate={firstExam}
         minDate={firstExam}
@@ -215,4 +218,27 @@ const Exams = () => {
   )
 }
 
+const Exams = () => {
+  const [searchDate, setSearchDate] = useState<string | null>(null)
+  return (
+    <>
+      <Group justify="flex-end" className="dont-print">
+        <Button
+          variant="subtle"
+          size="sm"
+          onClick={() => setSearchDate(searchDate === null ? "" : null)}
+        >
+          {searchDate === null
+            ? "חיפוש קורסים לפי תאריך בחינה"
+            : "חזרה למבחנים שלי"}
+        </Button>
+      </Group>
+      {searchDate === null ? (
+        <PersonalExams onDateClick={setSearchDate} />
+      ) : (
+        <ExamSearch initialDate={searchDate} />
+      )}
+    </>
+  )
+}
 export default Exams

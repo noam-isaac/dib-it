@@ -121,7 +121,7 @@ const App = () => {
                   width: "calc(100% - 20px)",
                 }}
               >
-                <Sidebar prefetching={prefetching} />
+                <Sidebar key={dibIt.activePlanId} prefetching={prefetching} />
                 <div id="content">
                   <div
                     className="adaptive-flex"
@@ -202,9 +202,9 @@ const App = () => {
                     <div style={{ flexGrow: 1 }} />
                     <p style={{ fontSize: 22 }}>שעות: {hours}</p>
                   </div>
-                  <div>
+                  <div key={dibIt.activePlanId}>
                     {tab === "schedule" && <Schedule />}
-                    {tab === "exams" && <Exams />}
+                    {tab === "exams" && <Exams key={dibIt.semester} />}
                     {tab === "study-plan" && <StudyPlan />}
                     {tab === "settings" && <Settings />}
                     {tab === "guide" && <Guide />}

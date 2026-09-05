@@ -8,7 +8,9 @@
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "deploy": "yarn build && firebase deploy"
+    "deploy": "bun run build && bunx vercel deploy --prod",
+    "test": "bun test",
+    "test:firebase": "pnpm dlx firebase-tools@15.29.0 emulators:exec --project demo-dibit --only firestore \"node --test tests/integration/firestore-rules.mjs\""
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.7.2",
@@ -23,6 +25,7 @@
     "firebase": "^11.9.0",
     "ics": "^3.8.1",
     "jewish-date": "^2.0.20",
+    "jszip": "^3.10.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-error-boundary": "^6.0.0",
@@ -30,6 +33,7 @@
     "react-schedule-view": "github:arazimproject/react-schedule-view"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "4",
     "@types/color-hash": "^2.0.0",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.6",

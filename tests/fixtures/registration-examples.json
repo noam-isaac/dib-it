@@ -1,0 +1,26 @@
+{
+  "gender": [
+    {"semesterCode": "2", "academicYear": "2025", "group": "01", "courseId": "06075101", "framework": "999", "name": "תיאוריות מתקדמות: משפט וחברה - (שיעור)"}
+  ],
+  "biology": [
+    {"semesterCode": "2", "academicYear": "2025", "group": "01", "courseId": "04553066", "framework": "999", "name": "מבוא לביואינפורמטיקה - (שיעור)"}
+  ],
+  "math": [
+    {"semesterCode": "2", "academicYear": "2025", "group": "01", "courseId": "03661120", "framework": "999", "name": "אלגברה לינארית 2ב - (שיעור)"},
+    {"semesterCode": "2", "academicYear": "2025", "group": "02", "courseId": "03661120", "framework": "999", "name": "אלגברה לינארית 2ב - (תרגיל)"}
+  ],
+  "philosophy": [
+    {"semesterCode": "2", "academicYear": "2025", "group": "01", "courseId": "06181015", "framework": "999", "name": "מבוא לפילוסופיה של השפה - (שיעור)"},
+    {"semesterCode": "2", "academicYear": "2025", "group": "01", "courseId": "06181032", "framework": "999", "name": "מבוא לפילוסופיה חדשה - (שיעור)"}
+  ],
+  "cs": [
+    {"semesterCode": "2", "academicYear": "2025", "group": "09", "courseId": "03682158", "framework": "999", "name": "אלגברה לינארית 2ב - (שיעור)"},
+    {"semesterCode": "2", "academicYear": "2025", "group": "17", "courseId": "03682158", "framework": "999", "name": "אלגברה לינארית 2ב - (תרגיל)"}
+  ],
+  "linguistics": [
+    {"semesterCode": "2", "academicYear": "2025", "group": "01", "courseId": "06272117", "framework": "999", "name": "תחביר מתקדמים - (פרוסמינר)"},
+    {"semesterCode": "2", "academicYear": "2025", "group": "02", "courseId": "06272102", "framework": "999", "name": "תרגיל בתחביר מתקדמים - (תרגיל)"},
+    {"semesterCode": "2", "academicYear": "2025", "group": "01", "courseId": "06271022", "framework": "999", "name": "פונולוגיה מתחילים - (שיעור)"},
+    {"semesterCode": "2", "academicYear": "2025", "group": "04", "courseId": "06271021", "framework": "999", "name": "תרגיל בפונולוגיה מתחילים - (תרגיל)"}
+  ]
+}

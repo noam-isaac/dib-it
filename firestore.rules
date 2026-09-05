@@ -1,0 +1,11 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // A user may access one private backup, never another user's data.
+    match /users/{userId} {
+      allow get, create, update, delete:
+        if request.auth != null && request.auth.uid == userId;
+    }
+    // All other documents, subcollections and collection queries are denied.
+  }
+}

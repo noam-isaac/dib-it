@@ -11,7 +11,8 @@ import { notifications } from "@mantine/notifications"
 import { useEffect, useState } from "react"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useLocalStorage, useURLValue } from "../hooks"
-import { DibItCourse, useDibIt } from "../models"
+import { DibItCourse, getWorkspace, setWorkspace, useDibIt } from "../models"
+import { isScheduleBackup } from "../scheduleBackup"
 import { getICS } from "../serialize"
 import {
   downloadFile,
@@ -22,6 +23,8 @@ import {
 import AutoBidModal from "./AutoBidModal"
 import CourseCard from "./CourseCard"
 import GoogleSaveButtons from "./GoogleSaveButtons"
+import RegistrationModal from "./RegistrationModal"
+import PlanSelector from "./PlanSelector"
 
 const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
   const courseInfo = useCourseInfo()
@@ -69,6 +72,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
         transition: "300ms ease-in-out",
       }}
     >
+      <PlanSelector />
       {prefetching && (
         <p style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
           <Loader size="sm" ml="xs" /> טוען מראש את כל הקורסים כדי להאיץ את
@@ -102,7 +106,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
         <Menu>
           <Menu.Target>
             <Tooltip label="פעולות">
-              <ActionIcon size="lg" variant="light">
+              <ActionIcon size="lg" variant="light" aria-label="פעולות">
                 <i className="fa-solid fa-ellipsis-vertical" />
               </ActionIcon>
             </Tooltip>
@@ -117,7 +121,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
                   downloadFile(
                     "dibit.json",
                     "data:text/json;charset=utf-8," +
-                      encodeURIComponent(JSON.stringify(dibIt))
+                      encodeURIComponent(JSON.stringify(getWorkspace()))
                   )
                 }
               >
@@ -128,8 +132,13 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
               color="cyan"
               leftSection={<i className="fa-solid fa-upload" />}
               onClick={async () => {
-                const state = await uploadJson()
-                setDibIt(state)
+                try {
+                  const state = await uploadJson()
+                  if (!isScheduleBackup(state)) throw new Error("הקובץ אינו גיבוי תקין של Dib It.")
+                  setWorkspace(state)
+                } catch (error) {
+                  notifications.show({ title: "השחזור נכשל", message: error instanceof Error ? error.message : "לא ניתן לקרוא את הקובץ.", color: "red" })
+                }
               }}
             >
               שחזור
@@ -141,29 +150,61 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
               color="blue"
               leftSection={<i className="fa-solid fa-calendar" />}
               onClick={async () => {
-                const ics = await getICS(semester, currentCourses, courseInfo)
-                downloadFile(
-                  "calendar.ics",
-                  "data:text/calendar;charset=utf-8," + encodeURIComponent(ics)
-                )
-                notifications.show({
-                  title: "הייצוא הושלם בהצלחה",
-                  message:
-                    "כעת עליכם לבצע ייבוא לקובץ ה-ICS שהורד. לחצו כאן כדי לפתוח את חלון הייבוא של Google Calendar.",
-                  style: { direction: "rtl" },
-                  icon: <i className="fa-solid fa-check" />,
-                  color: "green",
-                  styles: { body: { cursor: "pointer" } },
-                  onClick: () => {
-                    window.open(
-                      "https://calendar.google.com/calendar/u/0/r/settings/export",
-                      "_blank"
-                    )
-                  },
-                })
+                try {
+                  const ics = await getICS(semester, currentCourses, courseInfo)
+                  downloadFile(
+                    "calendar.ics",
+                    "data:text/calendar;charset=utf-8," +
+                      encodeURIComponent(ics)
+                  )
+                  notifications.show({
+                    title: "הייצוא הושלם בהצלחה",
+                    message:
+                      "כעת עליכם לבצע ייבוא לקובץ ה-ICS שהורד. לחצו כאן כדי לפתוח את חלון הייבוא של Google Calendar.",
+                    style: { direction: "rtl" },
+                    icon: <i className="fa-solid fa-check" />,
+                    color: "green",
+                    styles: { body: { cursor: "pointer" } },
+                    onClick: () => {
+                      window.open(
+                        "https://calendar.google.com/calendar/u/0/r/settings/export",
+                        "_blank"
+                      )
+                    },
+                  })
+                } catch (error) {
+                  notifications.show({
+                    title: "הייצוא נכשל",
+                    message:
+                      error instanceof Error
+                        ? error.message
+                        : "לא ניתן לטעון את תאריכי הסמסטר. נסו שוב.",
+                    color: "red",
+                  })
+                }
               }}
             >
               ייצוא ל-Apple/Google Calendar
+            </Menu.Item>
+            <Menu.Item
+              color="blue"
+              leftSection={<i className="fa-solid fa-file-word" />}
+              onClick={() =>
+                modals.open({
+                  title: "טופס רישום לקורסים",
+                  size: "lg",
+                  centered: true,
+                  children: (
+                    <RegistrationModal
+                      semester={semester}
+                      courses={currentCourses}
+                      info={courseInfo}
+                    />
+                  ),
+                })
+              }
+            >
+              יצירת טופס רישום ב-Word
             </Menu.Item>
             <Menu.Item
               leftSection={<i className="fa-solid fa-print" />}

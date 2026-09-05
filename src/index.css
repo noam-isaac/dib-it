@@ -225,3 +225,6 @@ body,
 .mantine-Modal-inner {
   z-index: 100000 !important;
 }
+
+.exam-search { padding: 8px 0 24px; }
+.exam-search-row { padding: 7px 0; border-bottom: 1px solid var(--mantine-color-default-border); }

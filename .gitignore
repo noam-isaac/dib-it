@@ -6,3 +6,8 @@ src/firebase.json
 
 .DS_Store
 scripts/*.json
+.vercel
+.env*
+!.env.example
+.playwright-mcp/
+*-debug.log

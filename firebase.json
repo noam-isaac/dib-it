@@ -1,4 +1,15 @@
 {
+  "firestore": {
+    "database": "(default)",
+    "location": "me-west1",
+    "edition": "standard",
+    "rules": "firestore.rules"
+  },
+  "emulators": {
+    "firestore": { "host": "127.0.0.1", "port": 8086, "edition": "standard" },
+    "ui": { "enabled": false },
+    "singleProjectMode": true
+  },
   "hosting": {
     "public": "redirect",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
