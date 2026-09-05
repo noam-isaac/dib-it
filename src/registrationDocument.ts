@@ -81,7 +81,7 @@ export const fillRegistrationTemplate = async (
     if (slot.length > 1)
       value = value.replace(/[A-Za-z0-9]+(?:[./:@_-][A-Za-z0-9]+)*/g, "\u202a$&\u202c")
     if (value.length > slot.length)
-      error("אחד השמות ארוך מדי למשבצת בטופס המקורי. קצרו את השם המודפס ונסו שוב.")
+      error("אחד השמות ארוך יותר מקיבולת הטקסט הנתמכת כרגע בייצוא. הקובץ לא נוצר והשם לא קוצר.")
     value = value.padEnd(slot.length, invisiblePadding)
     for (let i = 0; i < slot.length; i++) {
       const low = slot.offsets[2 * i], high = slot.offsets[2 * i + 1]
