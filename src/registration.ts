@@ -59,20 +59,19 @@ export interface RegistrationDepartment {
   name: string
 }
 
-// Names confirmed by the supplied registration examples. Unknown names are requested.
-const departmentNames: Record<string, string> = {
-  "0607": "לימודי מגדר",
-  "0455": "ביולוגיה",
-  "0366": "מתמטיקה",
-  "0627": "בלשנות",
-  "0618": "פילוסופיה",
-  "0368": "מדעי המחשב",
+export const getRegistrationDepartments = (rows: RegistrationRow[], info: SemesterCourses): Record<string, RegistrationDepartment> => {
+  const names = new Map<string, Set<string>>()
+  for (const row of rows) {
+    const code = row.courseId.slice(0, 4)
+    if (!names.has(code)) names.set(code, new Set())
+    // The catalog stores "faculty/department". Missing or conflicting names stay blank.
+    const name = info[row.courseId]?.faculty?.split("/").slice(1).join("/").trim()
+    if (name) names.get(code)!.add(name)
+  }
+  return Object.fromEntries([...names].map(([code, values]) =>
+    [code, { code, name: values.size === 1 ? [...values][0] : "" }],
+  ))
 }
 
-export const getRegistrationDepartments = (rows: RegistrationRow[]) =>
-  Object.fromEntries([...new Set(rows.map(row => row.courseId.slice(0, 4)))].map(code =>
-    [code, { code, name: departmentNames[code] ?? "" }],
-  )) as Record<string, RegistrationDepartment>
-
 export const registrationCourseName = (row: RegistrationRow) =>
-  `${row.name} - (${row.lessonType})`
+  row.name.trim() ? [row.name, row.lessonType && `(${row.lessonType})`].filter(Boolean).join(" - ") : ""

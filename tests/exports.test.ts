@@ -17,7 +17,6 @@ const completedDetails = (semester: string) => ({
   ...registrationDefaults(semester), studentName: "ישראל ישראלי", studentId: "012345678",
   registeringDepartment: "0123", registeringDepartmentName: "חוג בדיקה",
 })
-const testDepartments = { "0123": { code: "0123", name: "חוג בדיקה" } }
 
 const courses = [
   { id: "01234567", groups: ["01", "02", "01", "stale"] },
@@ -25,6 +24,7 @@ const courses = [
 ]
 const info = {
   "01234567": {
+    faculty: "פקולטה לבדיקה/חוג בדיקה",
     name: "מבוא ל-AI & לוגיקה",
     groups: [
       { group: "01", lessons: [{ day: "א", time: "09:30-11:15", type: "שיעור" }] },
@@ -146,7 +146,7 @@ describe("registration Word export", () => {
   })
   test("15 groups produce two intact DOC forms instead of adding rows or dropping data", async () => {
     const rows = Array.from({length:15}, (_, i) => ({courseId:"01234567",group:String(i+1).padStart(2,"0"),name:`קורס ${i+1}`,lessonType:"שיעור"}))
-    const download = await createRegistrationDownload(completedDetails("2027a"), rows, await template(), testDepartments)
+    const download = await createRegistrationDownload(completedDetails("2027a"), rows, info, await template())
     expect(download.filename.endsWith(".zip")).toBe(true)
     const zip = await JSZip.loadAsync(await download.blob.arrayBuffer())
     expect(Object.keys(zip.files)).toHaveLength(2)
@@ -157,7 +157,7 @@ describe("registration Word export", () => {
     const second = await zip.file("dibit-registration-2027-1-0123-2.doc")!.async("uint8array")
     const slot = manifest.slots.find(s => s.key === "rows.0.group.1")!
     expect(second[slot.offsets[0]]).toBe("5".charCodeAt(0))
-    const single = await createRegistrationDownload(completedDetails("2027a"), rows.slice(0,14), await template(), testDepartments)
+    const single = await createRegistrationDownload(completedDetails("2027a"), rows.slice(0,14), info, await template())
     expect(single.filename.endsWith(".doc")).toBe(true)
   })
   test("refuses corrupt templates, structural control characters, oversized fields and invalid digit boxes", async () => {
@@ -215,6 +215,7 @@ describe("Google configuration and backup compatibility", () => {
 })
 
 import examples from "./fixtures/registration-examples.json"
+import catalogFixture from "./fixtures/registration-catalog-2025b.json"
 import { getRegistrationDepartments, registrationCourseName } from "../src/registration"
 
 const readSlot = (bytes: Uint8Array, key: string) => {
@@ -228,15 +229,15 @@ test("all six supplied forms retain their courses, lesson types, departments and
   const expected = Object.values(examples).flat()
   for (const row of expected) {
     const [, name, type] = row.name.match(/^(.*) - \((.*)\)$/)!
-    catalog[row.courseId] ??= { name, groups: [] }
+    catalog[row.courseId] ??= { name, faculty: (catalogFixture as SemesterCourses)[row.courseId]?.faculty, groups: [] }
     catalog[row.courseId]!.groups!.push({ group: row.group, lessons: [{type}] })
     selected.push({id: row.courseId, groups: [row.group]})
   }
   const rows = getRegistrationRows(selected, catalog)
   expect(rows.map(registrationCourseName)).toEqual(expected.map(row => row.name))
-  const departments = getRegistrationDepartments(rows)
+  const departments = getRegistrationDepartments(rows, catalog)
   expect(departments["0627"].name).toBe("בלשנות")
-  const download = await createRegistrationDownload(completedDetails("2025b"), rows, await template())
+  const download = await createRegistrationDownload(completedDetails("2025b"), rows, catalog, await template())
   const zip = await JSZip.loadAsync(await download.blob.arrayBuffer())
   expect(Object.keys(zip.files)).toHaveLength(6)
   for (const expectedRows of Object.values(examples)) {
@@ -255,10 +256,31 @@ test("all six supplied forms retain their courses, lesson types, departments and
   }
 })
 
-test("missing identity, unknown departments and absent lesson types must be supplied", async () => {
+test("missing identity is rejected; missing catalog text stays editable in Word", async () => {
   const rows = getRegistrationRows(courses, info), data = await template()
   await expect(fillRegistrationTemplate(data, {...completedDetails("2027a"), studentName: " "}, rows)).rejects.toThrow("שם תלמיד")
   await expect(fillRegistrationTemplate(data, {...completedDetails("2027a"), studentId: ""}, rows)).rejects.toThrow("9")
-  await expect(createRegistrationDownload(completedDetails("2027a"), rows, data)).rejects.toThrow("שם החוג")
-  await expect(fillRegistrationTemplate(data, completedDetails("2027a"), [{...rows[0], lessonType: ""}])).rejects.toThrow("סוג השיעור")
+  const download = await createRegistrationDownload(completedDetails("2027a"), [
+    {...rows[0], lessonType: ""}, {...rows[1], name: "", lessonType: "שיעור"},
+  ], {}, data)
+  const bytes = new Uint8Array(await download.blob.arrayBuffer())
+  expect(readSlot(bytes, "registeringDepartmentName")).toBe("")
+  expect(Array.from({length:4}, (_,i) => readSlot(bytes, `registeringDepartment.${i}`)).join("")).toBe("0123")
+  expect(readSlot(bytes, "rows.0.name")).toBe(rows[0].name)
+  expect(readSlot(bytes, "rows.1.name")).toBe("")
+  expect(readSlot(bytes, "rows.1.group.1")).toBe("2")
+  await expect(fillRegistrationTemplate(data, completedDetails("2027a"), [{...rows[0], lessonType: "\u0007"}])).rejects.toThrow("בקרה")
+})
+
+test("department names come from catalog data for any prefix, without guessing missing or conflicting names", () => {
+  const rows = [
+    {courseId: "01234567", name: "", lessonType: "", group: "01"},
+    {courseId: "01234568", name: "", lessonType: "", group: "01"},
+  ]
+  expect(getRegistrationDepartments(rows, info)["0123"]).toEqual({code: "0123", name: "חוג בדיקה"})
+  expect(getRegistrationDepartments(rows, {"01234567": {faculty: "פקולטה/שם חדש"}})["0123"].name).toBe("שם חדש")
+  expect(getRegistrationDepartments(rows, {"01234567": {faculty: "פקולטה בלבד"}})["0123"].name).toBe("")
+  const conflicting = {...info, "01234568": {faculty: "פקולטה/חוג אחר"}}
+  expect(getRegistrationDepartments(rows, conflicting)["0123"].name).toBe("")
+  expect(getRegistrationDepartments([...rows].reverse(), conflicting)["0123"].name).toBe("")
 })

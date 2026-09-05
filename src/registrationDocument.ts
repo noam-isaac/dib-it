@@ -1,6 +1,6 @@
 import JSZip from "jszip"
 import manifest from "./assets/registration-template.json"
-import { getRegistrationDepartments, registrationCourseName, type RegistrationDepartment, type RegistrationDetails, type RegistrationRow } from "./registration"
+import { getRegistrationDepartments, registrationCourseName, type RegistrationDetails, type RegistrationRow } from "./registration"
 
 export const REGISTRATION_ROWS_PER_FORM = 14
 const templateUrl = new URL("./assets/registration-template.doc", import.meta.url).href
@@ -26,7 +26,7 @@ const validate = (details: RegistrationDetails, rows: RegistrationRow[]) => {
   if (!/^20\d{2}$/.test(details.academicYear) || !/^[0123]$/.test(details.semesterCode))
     error("שנה או סמסטר אינם תקינים.")
   if (!checkText(details.studentName)) error("יש להזין שם תלמיד/ה.")
-  if (!checkText(details.registeringDepartmentName)) error("יש להזין את שם החוג הרושם.")
+  checkText(details.registeringDepartmentName)
   if (!checkText(details.degree)) error("יש להזין תואר.")
   for (const [value, length, label] of [
     [details.studentId, 9, "תעודת הזהות"],
@@ -40,8 +40,8 @@ const validate = (details: RegistrationDetails, rows: RegistrationRow[]) => {
   for (const row of rows) {
     if (!/^\d{8}$/.test(row.courseId) || !/^\d{2}$/.test(row.group))
       error(`מספר הקורס או הקבוצה אינם מתאימים למשבצות הטופס: ${row.courseId}/${row.group}.`)
-    if (!checkText(row.name) || !checkText(row.lessonType))
-      error(`יש להשלים את שם הקורס וסוג השיעור: ${row.courseId}/${row.group}.`)
+    checkText(row.name)
+    checkText(row.lessonType)
   }
   checkText(details.studentName)
   checkText(details.degree)
@@ -99,18 +99,17 @@ export const fillRegistrationTemplate = async (
 export const createRegistrationDownload = async (
   details: RegistrationDetails,
   rows: RegistrationRow[],
+  info: SemesterCourses,
   template?: ArrayBuffer,
-  departmentOverrides?: Record<string, RegistrationDepartment>,
 ): Promise<{ filename: string; blob: Blob }> => {
   if (!rows.length) error("יש לבחור קבוצות לימוד לפני יצירת הטופס.")
-  const departments = departmentOverrides ?? getRegistrationDepartments(rows)
+  const departments = getRegistrationDepartments(rows, info)
   const forms: { details: RegistrationDetails; rows: RegistrationRow[]; suffix: string }[] = []
   for (const prefix of new Set(rows.map(row => row.courseId.slice(0, 4)))) {
     const department = departments[prefix]
-    if (!department) error("יש להשלים את פרטי החוג הרושם.")
     const formDetails = {
       ...details,
-      registeringDepartment: department.code,
+      registeringDepartment: prefix,
       registeringDepartmentName: department.name,
     }
     const departmentRows = rows.filter(row => row.courseId.startsWith(prefix))
