@@ -2,7 +2,14 @@ import { describe, expect, test } from "bun:test"
 import JSZip from "jszip"
 import { createCalendar } from "../src/serialize"
 import { getRegistrationRows, registrationDefaults } from "../src/registration"
-import { createRegistrationDocument } from "../src/registrationDocument"
+import { createRegistrationDownload, fillRegistrationTemplate } from "../src/registrationDocument"
+import manifest from "../src/assets/registration-template.json"
+import { readFile } from "node:fs/promises"
+
+const template = async () => {
+  const data = await readFile(new URL("../src/assets/registration-template.doc", import.meta.url))
+  return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer
+}
 import { getGoogleConfig } from "../src/googleConfig"
 import { isScheduleBackup } from "../src/scheduleBackup"
 
@@ -97,40 +104,65 @@ describe("registration Word export", () => {
       department: "1821",
     })
   })
-  test("genuine DOCX has Hebrew typography, RTL tables, section and paragraphs, and escaped text", async () => {
-    const file = await createRegistrationDocument(
-      {
-        ...registrationDefaults("2027a"),
-        studentName: 'בדיקה <שם> & "טקסט"',
-        studentId: "012345678",
-      },
-      getRegistrationRows(courses, info),
-    )
-    expect(file.type).toBe(
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    )
-    const zip = await JSZip.loadAsync(await file.arrayBuffer())
-    expect(zip.file("[Content_Types].xml")).not.toBeNull()
-    const xml = await zip.file("word/document.xml")!.async("string")
-    expect(xml).toContain("01234567")
-    expect(xml).toContain("012345678")
-    expect(xml).toContain("&lt;")
-    expect(xml).not.toContain("לא נבחר")
-    expect(xml.match(/<w:bidiVisual\b/g)).toHaveLength(2)
-    expect(xml).toMatch(/<w:sectPr>[\s\S]*<w:bidi\/>[\s\S]*<\/w:sectPr>/)
-    expect(xml).not.toContain('w:jc w:val="right"')
-    for (const p of xml.match(/<w:p[ >][\s\S]*?<\/w:p>/g) ?? []) {
-      if (/[\u0590-\u05ff]/.test(p)) expect(p).toContain("<w:bidi/>")
-    }
-    expect(xml).toContain('w:cs="Arial"')
-    expect(xml).toContain("<w:szCs")
-    expect(xml).toContain("<w:bCs")
-    expect(xml).toContain("<w:tblHeader")
+  test("the retained source is exactly the user-supplied attachment", async () => {
+    const source = await readFile(new URL("../templates/registration-original.doc", import.meta.url))
+    const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", source)))
+      .map(byte => byte.toString(16).padStart(2,"0")).join("")
+    expect(hash).toBe("a7a94a59512fb9166a1947d743f1f41d7f41b63d63b231b8e3167c1a80e405fc")
+    expect(hash).toBe(manifest.sourceSha256)
   })
-  test("empty schedules do not create misleading forms", async () => {
-    expect(
-      createRegistrationDocument(registrationDefaults("2027a"), []),
-    ).rejects.toThrow("יש לבחור")
+  test("fills a real binary DOC and changes only allocated text bytes", async () => {
+    const original = await template()
+    const before = new Uint8Array(original.slice(0))
+    const file = await fillRegistrationTemplate(original, {
+      ...registrationDefaults("2027a"), studentName: 'בדיקה <שם> & "טקסט"', studentId: "012345678",
+    }, getRegistrationRows(courses, info))
+    expect(file.type).toBe("application/msword")
+    const result = new Uint8Array(await file.arrayBuffer())
+    expect(Array.from(result.slice(0, 8))).toEqual([208,207,17,224,161,177,26,225])
+    expect(result.length).toBe(before.length)
+    const allowed = new Set(manifest.slots.flatMap(slot => slot.offsets))
+    const changed = Array.from(result.keys()).filter(i => result[i] !== before[i])
+    expect(changed.length).toBeGreaterThan(0)
+    expect(changed.every(i => allowed.has(i))).toBe(true)
+    const value = (key: string) => {
+      const slot = manifest.slots.find(s => s.key === key)!
+      return String.fromCharCode(...Array.from({ length: slot.length }, (_, i) =>
+        result[slot.offsets[2*i]] | result[slot.offsets[2*i+1]] << 8)).replace(/[\u200b\u202a\u202c]/g, "")
+    }
+    expect(value("studentName")).toBe('בדיקה <שם> & "טקסט"')
+    expect(Array.from({length:9}, (_, i) => value(`studentId.${i}`)).join("")).toBe("012345678")
+    expect(value("rows.0.name")).toBe("מבוא ל-AI & לוגיקה")
+    expect(value("rows.1.group.1")).toBe("2")
+    expect(value("rows.2.name")).toBe("")
+    expect(value("rows.13.courseId.0")).toBe("")
+    expect(new Uint8Array(original)).toEqual(before)
+  })
+  test("15 groups produce two intact DOC forms instead of adding rows or dropping data", async () => {
+    const rows = Array.from({length:15}, (_, i) => ({courseId:"01234567",group:String(i+1).padStart(2,"0"),name:`קורס ${i+1}`}))
+    const download = await createRegistrationDownload(registrationDefaults("2027a"), rows, await template())
+    expect(download.filename.endsWith(".zip")).toBe(true)
+    const zip = await JSZip.loadAsync(await download.blob.arrayBuffer())
+    expect(Object.keys(zip.files)).toHaveLength(2)
+    for (const file of Object.values(zip.files)) {
+      expect(file.name.endsWith(".doc")).toBe(true)
+      expect((await file.async("uint8array")).length).toBe(manifest.byteLength)
+    }
+    const second = await zip.file("dibit-registration-2027-1-2.doc")!.async("uint8array")
+    const slot = manifest.slots.find(s => s.key === "rows.0.group.1")!
+    expect(second[slot.offsets[0]]).toBe("5".charCodeAt(0))
+    const single = await createRegistrationDownload(registrationDefaults("2027a"), rows.slice(0,14), await template())
+    expect(single.filename.endsWith(".doc")).toBe(true)
+  })
+  test("refuses corrupt templates, structural control characters, oversized fields and invalid digit boxes", async () => {
+    const data = await template(), details = registrationDefaults("2027a"), rows = getRegistrationRows(courses, info)
+    const corrupt = data.slice(0); new Uint8Array(corrupt)[100] ^= 1
+    await expect(fillRegistrationTemplate(corrupt, details, rows)).rejects.toThrow("תבנית")
+    await expect(fillRegistrationTemplate(data, {...details,studentName:"a\u0007b"}, rows)).rejects.toThrow("בקרה")
+    await expect(fillRegistrationTemplate(data, {...details,studentName:"א".repeat(101)}, rows)).rejects.toThrow("ארוך")
+    await expect(fillRegistrationTemplate(data, {...details,studentId:"123"}, rows)).rejects.toThrow("9")
+    await expect(fillRegistrationTemplate(data, details, [{...rows[0],group:"001"}])).rejects.toThrow("משבצות")
+    await expect(fillRegistrationTemplate(data, details, [])).rejects.toThrow("יש לבחור")
   })
 })
 

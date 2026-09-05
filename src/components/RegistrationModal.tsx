@@ -39,15 +39,15 @@ const RegistrationModal = ({
         event.preventDefault()
         setBusy(true)
         try {
-          const { createRegistrationDocument } =
+          const { createRegistrationDownload } =
             await import("../registrationDocument")
-          downloadBlob(
-            `dibit-registration-${semester}.docx`,
-            await createRegistrationDocument(details, rows),
-          )
+          const { filename, blob } = await createRegistrationDownload(details, rows)
+          downloadBlob(filename, blob)
           notifications.show({
             title: "הטופס מוכן",
-            message: "קובץ Word הורד. ניתן לערוך ולהשלים פרטים לפני ההגשה.",
+            message: rows.length > 14
+              ? "הורד ZIP עם מספר טפסי Word מקוריים. כל טופס מכיל עד 14 קבוצות."
+              : "הטופס המקורי מולא והורד כקובץ DOC. בדקו את הפרטים לפני ההגשה.",
             color: "green",
           })
         } catch (error) {
@@ -63,8 +63,12 @@ const RegistrationModal = ({
     >
       <Stack gap="sm">
         <Text size="sm">
-          טופס רישום לתכנית הבין-תחומית, לפי הטופס לדוגמה.{" "}
+          מילוי טופס הרישום המקורי לתכנית הבין-תחומית, תשפ״ז.{" "}
           {formatSemesterInHebrew(semester)} · {rows.length} קבוצות לימוד.
+        </Text>
+        <Text size="xs" c="dimmed">
+          הכותרת, הסמלים ומשבצות הטופס המקורי נשמרים. בדקו ששנת הטופס מתאימה
+          לרישום שלכם. מעל 14 קבוצות יתקבל ZIP עם מספר טפסי DOC.
         </Text>
         <Group grow>
           <TextInput
@@ -100,17 +104,21 @@ const RegistrationModal = ({
               <TextInput
                 label="חוג לימודים"
                 {...field("department")}
-                maxLength={80}
+                maxLength={4}
+                inputMode="numeric"
+                pattern="[0-9]{4}"
               />
               <TextInput
                 label="חוג רושם"
                 {...field("registeringDepartment")}
-                maxLength={80}
+                maxLength={4}
+                inputMode="numeric"
+                pattern="[0-9]{4}"
               />
             </Group>
             <Group grow>
-              <TextInput label="תואר" {...field("degree")} maxLength={50} />
-              <TextInput label="מסגרת" {...field("framework")} maxLength={20} />
+              <TextInput label="תואר" {...field("degree")} maxLength={24} />
+              <TextInput label="מסגרת" {...field("framework")} maxLength={3} inputMode="numeric" pattern="[0-9]{3}" />
               <Select
                 label="סמסטר בטופס"
                 value={details.semesterCode}
@@ -158,7 +166,7 @@ const RegistrationModal = ({
           disabled={!rows.length}
           leftSection={<i className="fa-solid fa-file-word" />}
         >
-          הורדת טופס Word
+          {rows.length > 14 ? "הורדת טפסי Word (ZIP)" : "הורדת הטופס המקורי (DOC)"}
         </Button>
       </Stack>
     </form>

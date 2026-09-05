@@ -12,3 +12,4 @@ scripts/*.json
 .env*
 !.env.example
 .playwright-mcp/
+*-debug.log
