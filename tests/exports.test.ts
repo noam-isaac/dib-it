@@ -261,7 +261,7 @@ test("missing identity is rejected; missing catalog text stays editable in Word"
   await expect(fillRegistrationTemplate(data, {...completedDetails("2027a"), studentName: " "}, rows)).rejects.toThrow("שם תלמיד")
   await expect(fillRegistrationTemplate(data, {...completedDetails("2027a"), studentId: ""}, rows)).rejects.toThrow("9")
   const download = await createRegistrationDownload(completedDetails("2027a"), [
-    {...rows[0], lessonType: ""}, {...rows[1], name: "", lessonType: ""},
+    {...rows[0], lessonType: ""}, {...rows[1], name: "", lessonType: "שיעור"},
   ], {}, data)
   const bytes = new Uint8Array(await download.blob.arrayBuffer())
   expect(readSlot(bytes, "registeringDepartmentName")).toBe("")

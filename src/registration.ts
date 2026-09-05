@@ -74,4 +74,4 @@ export const getRegistrationDepartments = (rows: RegistrationRow[], info: Semest
 }
 
 export const registrationCourseName = (row: RegistrationRow) =>
-  [row.name, row.lessonType && `(${row.lessonType})`].filter(Boolean).join(" - ")
+  row.name.trim() ? [row.name, row.lessonType && `(${row.lessonType})`].filter(Boolean).join(" - ") : ""

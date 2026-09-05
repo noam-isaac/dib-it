@@ -90,14 +90,18 @@ const RegistrationModal = ({
         <Text size="xs" c="dimmed">
           השלימו את הפרטים האישיים כדי שיופיעו בטופס. הפרטים אינם נשמרים באתר.
         </Text>
-        <Text size="sm">
-          חוגים רושמים: {Object.values(departments).map(({ code, name }) =>
-            name ? `${name} (${code})` : code,
-          ).join(" · ")}
-        </Text>
-        <Text size="xs" c="dimmed">
-          פרטי הקורסים והחוגים מתמלאים אוטומטית. פרטים חסרים ותיקונים אפשר להשלים ב-Word לאחר ההורדה.
-        </Text>
+        {rows.length > 0 && (
+          <>
+            <Text size="sm">
+              חוגים רושמים: {Object.values(departments).map(({ code, name }) =>
+                name ? `${name} (${code})` : code,
+              ).join(" · ")}
+            </Text>
+            <Text size="xs" c="dimmed">
+              פרטי הקורסים והחוגים מתמלאים אוטומטית. פרטים חסרים ותיקונים אפשר להשלים ב-Word לאחר ההורדה.
+            </Text>
+          </>
+        )}
         {rows.length ? (
           <Table.ScrollContainer minWidth={280} maxHeight={240}>
             <Table striped fz="sm" horizontalSpacing="xs">
