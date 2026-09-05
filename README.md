@@ -49,6 +49,12 @@ The personal exam list, practice list, exam-spacing suggestions, and calendar ex
 
 The **מבחנים** tab keeps the original personal exam list, spacing indicator, and calendar. Click **חיפוש קורסים לפי תאריך בחינה**, or a day in the calendar, to discover exams across the selected semester. Choose a single date or an inclusive range using the date fields. Course and faculty filters are under **סינון לפי קורס או פקולטה**. Add a matching course to the sidebar to choose its groups. All exam sittings are included; entries without a valid date are skipped.
 
+## Saved plans
+
+Use **תוכנית שמורה** above the semester selector to switch between named alternative schedules. **חדשה** starts an empty plan; the adjacent menu duplicates, renames, or deletes a plan. Deletion requires confirmation, and the final plan cannot be deleted. Each plan keeps independent course/group selections, colors, and degree settings across all semesters. Theme, custom course catalogs, and exam practice history are shared.
+
+Existing schedules and older backups become the first plan automatically. Local JSON and Google backups include every plan and the active selection. Calendar and registration exports use only the active plan and selected semester. Restore replaces all local plans; use a backup first if you want to keep them.
+
 ## Registration forms
 
 Under the sidebar's **פעולות** menu, choose **יצירת טופס רישום ב-Word**. Enter your name and nine-digit ID, confirm the registering departments, and complete any missing lesson types and download a genuine `.doc` directly from the browser. It fills a prepared copy of the supplied original registration form, retaining its logos, typography, digit boxes, tables, page setup and printed תשפ״ז heading. It does not reconstruct a DOCX or use a local helper, server-side document conversion, or Microsoft Word at export time.

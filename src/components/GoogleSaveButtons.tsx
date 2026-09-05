@@ -4,12 +4,11 @@ import { doc, getDoc, setDoc } from "firebase/firestore"
 import { useAuthState } from "react-firebase-hooks/auth"
 import { useState } from "react"
 import { auth, firestore } from "../firebase"
-import { getDibIt, useDibIt } from "../models"
+import { getWorkspace, setWorkspace } from "../models"
 import { isScheduleBackup } from "../scheduleBackup"
 
 const EnabledGoogleSaveButtons = () => {
   const [currentUser] = useAuthState(auth!)
-  const [, setDibIt] = useDibIt()
   const [busy, setBusy] = useState(false)
   if (!currentUser) return null
 
@@ -30,15 +29,15 @@ const EnabledGoogleSaveButtons = () => {
         const data: unknown = snapshot.data()
         if (!isScheduleBackup(data))
           throw new Error("הגיבוי אינו בפורמט של מערכת Dib It.")
-        const latest = getDibIt()
-        setDibIt({
+        const latest = getWorkspace()
+        setWorkspace({
           ...data,
           semester: latest.semester ?? data.semester,
           tab: latest.tab ?? data.tab,
         })
       } else {
         // This is a full backup: merge would retain deleted courses/semesters.
-        await setDoc(reference, JSON.parse(JSON.stringify(getDibIt())))
+        await setDoc(reference, JSON.parse(JSON.stringify(getWorkspace())))
       }
       notifications.show({
         title: restore ? "העדכון מגוגל בוצע בהצלחה" : "השמירה בגוגל בוצעה בהצלחה",

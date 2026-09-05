@@ -67,11 +67,18 @@ export const downloadBlob = (filename: string, blob: Blob) => {
 export const uploadJson = (): Promise<any> => {
   return new Promise((resolve, reject) => {
     const element = document.getElementById("upload") as HTMLInputElement
+    element.value = ""
     element.onchange = () => {
+      if (!element.files?.[0]) return
       const reader = new FileReader()
       reader.addEventListener("load", (e) => {
-        resolve(JSON.parse(e.target!.result as string))
+        try {
+          resolve(JSON.parse(e.target!.result as string))
+        } catch (error) {
+          reject(error)
+        }
       })
+      reader.onerror = reject
       reader.readAsText(element.files![0])
     }
     element.onerror = reject

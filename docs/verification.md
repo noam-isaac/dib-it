@@ -30,8 +30,14 @@ Checked on 2026-09-05 against https://arazim-project.com/dib-it/index.html.
 - Firebase project `dib-it-noam-isaac` is configured. Google sign-in is enabled for `dib-it.vercel.app`, `dib-it-noamisaacs-projects.vercel.app` and local `127.0.0.1`. The single Standard `(default)` Firestore database is in the user-selected Tel Aviv region (`me-west1`), reports `freeTier: true`, and has point-in-time recovery disabled. Firebase MCP reports billing disabled; no billing account, trial or paid service was enabled. The tested private rules are deployed, and a live unauthenticated document read returns 403.
 - The Firebase-enabled build is deployed at https://dib-it.vercel.app. At 390 × 844 it returns HTTP 200, opens the correct Google login screen, and has no page errors or horizontal overflow. The four Firebase web configuration values are set in Vercel Production/Preview and ignored local configuration. A signed-in backup/restore round trip remains unverified; no user account was impersonated.
 
+## Multiple saved plans
+
+- Existing single-plan data migrates into the first named plan. Seven unit tests cover migration of all semesters/settings, blank plans, deep duplication, switching, rename/delete, stale callbacks, backup round trips, and rejection of malformed plan lists.
+- Browser verification at 1280 × 800 and 390 × 844: created a blank plan without losing the original course, switched back, duplicated it, and selected a group in the duplicate while the original remained unchanged. The mobile page has no horizontal overflow or JavaScript errors.
+- File and Google backup paths save the entire workspace; calendar and registration exports continue to consume the active plan. An additional Firestore emulator test verifies multiple plans and the active selection survive a round trip, and replacement removes deleted plans.
+
 ## Checks
 
-- All 25 unit tests and the production TypeScript/Vite build pass. Three separate Firestore emulator integration tests pass.
+- All 32 unit tests and the production TypeScript/Vite build pass. Four separate Firestore emulator integration tests pass.
 - The build still reports the existing large main-bundle warning. The DOC export module and its 151 kB template load only when requested.
 - The existing lint command cannot run because ESLint 9 is installed without an `eslint.config.*`. This predates these changes.

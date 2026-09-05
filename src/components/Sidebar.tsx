@@ -11,7 +11,8 @@ import { notifications } from "@mantine/notifications"
 import { useEffect, useState } from "react"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useLocalStorage, useURLValue } from "../hooks"
-import { DibItCourse, useDibIt } from "../models"
+import { DibItCourse, getWorkspace, setWorkspace, useDibIt } from "../models"
+import { isScheduleBackup } from "../scheduleBackup"
 import { getICS } from "../serialize"
 import {
   downloadFile,
@@ -23,6 +24,7 @@ import AutoBidModal from "./AutoBidModal"
 import CourseCard from "./CourseCard"
 import GoogleSaveButtons from "./GoogleSaveButtons"
 import RegistrationModal from "./RegistrationModal"
+import PlanSelector from "./PlanSelector"
 
 const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
   const courseInfo = useCourseInfo()
@@ -70,6 +72,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
         transition: "300ms ease-in-out",
       }}
     >
+      <PlanSelector />
       {prefetching && (
         <p style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
           <Loader size="sm" ml="xs" /> טוען מראש את כל הקורסים כדי להאיץ את
@@ -118,7 +121,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
                   downloadFile(
                     "dibit.json",
                     "data:text/json;charset=utf-8," +
-                      encodeURIComponent(JSON.stringify(dibIt))
+                      encodeURIComponent(JSON.stringify(getWorkspace()))
                   )
                 }
               >
@@ -129,8 +132,13 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
               color="cyan"
               leftSection={<i className="fa-solid fa-upload" />}
               onClick={async () => {
-                const state = await uploadJson()
-                setDibIt(state)
+                try {
+                  const state = await uploadJson()
+                  if (!isScheduleBackup(state)) throw new Error("הקובץ אינו גיבוי תקין של Dib It.")
+                  setWorkspace(state)
+                } catch (error) {
+                  notifications.show({ title: "השחזור נכשל", message: error instanceof Error ? error.message : "לא ניתן לקרוא את הקובץ.", color: "red" })
+                }
               }}
             >
               שחזור

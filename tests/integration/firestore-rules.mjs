@@ -45,6 +45,19 @@ test("anonymous users cannot read or write any backup", async () => {
   await assertFails(deleteDoc(reference))
 })
 
+test("multi-plan backup retains active selection and replacement removes deleted plans", async () => {
+  const database = environment.authenticatedContext("plans-user").firestore()
+  const reference = doc(database, "users", "plans-user")
+  const first = { id: "first", name: "ראשונה", courses: { "2026a": [{ id: "01234567", groups: ["01"] }] } }
+  const second = { id: "second", name: "חלופה", courses: { "2026a": [{ id: "01234567", groups: ["02"] }] } }
+  const workspace = { plans: [first, second], activePlanId: "second", semester: "2026a" }
+  await assertSucceeds(setDoc(reference, workspace))
+  assert.deepEqual((await assertSucceeds(getDoc(reference))).data(), workspace)
+  const remaining = { ...workspace, plans: [first], activePlanId: "first" }
+  await assertSucceeds(setDoc(reference, remaining))
+  assert.deepEqual((await assertSucceeds(getDoc(reference))).data(), remaining)
+})
+
 test("signed-in users cannot access others, list users, or create subcollections", async () => {
   const database = environment.authenticatedContext("bob").firestore()
   const other = doc(database, "users", "alice")
