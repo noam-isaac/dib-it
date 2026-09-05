@@ -72,18 +72,17 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
         transition: "300ms ease-in-out",
       }}
     >
-      <PlanSelector />
       {prefetching && (
         <p style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
           <Loader size="sm" ml="xs" /> טוען מראש את כל הקורסים כדי להאיץ את
           החיפוש...
         </p>
       )}
-      <div style={{ display: "flex", alignItems: "center" }}>
-        <span>סמסטר:</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <label htmlFor="semester-selector">סמסטר:</label>
         <Select
-          mr={5}
-          display="inline-block"
+          id="semester-selector"
+          style={{ flex: 1, minWidth: 0 }}
           value={semester}
           onChange={(v) => {
             if (v) {
@@ -101,8 +100,6 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
           leftSection={<i className="fa-solid fa-cloud-moon" />}
         />
 
-        <span style={{ flexGrow: 1 }} />
-
         <Menu>
           <Menu.Target>
             <Tooltip label="פעולות">
@@ -113,6 +110,13 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
           </Menu.Target>
 
           <Menu.Dropdown style={{ zIndex: 100000 }}>
+            <Menu.Item
+              leftSection={<i className="fa-solid fa-calendar-days" aria-hidden="true" />}
+              onClick={() => modals.open({ title: "מערכות שעות", centered: true, children: <PlanSelector /> })}
+            >
+              מערכות שעות
+            </Menu.Item>
+            <Menu.Divider />
             <Tooltip label="הורידו קובץ JSON שמכיל את כל המערכות שלכם">
               <Menu.Item
                 color="cyan"

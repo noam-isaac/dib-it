@@ -51,7 +51,7 @@ The **מבחנים** tab keeps the original personal exam list, spacing indicato
 
 ## Saved schedules
 
-Use **מערכת שעות** above the semester selector to switch between named alternative schedules. The adjacent menu creates, duplicates, renames, or deletes a schedule. Deletion requires confirmation, and the final schedule cannot be deleted. Each schedule keeps independent course/group selections, colors, and degree settings across all semesters. Theme, custom course catalogs, and exam practice history are shared.
+Open the three-dot menu next to the semester and choose **מערכות שעות** to switch between named alternative schedules. The dialog also creates, duplicates, renames, or deletes a schedule. Deletion requires confirmation, and the final schedule cannot be deleted. Each schedule keeps independent course/group selections, colors, and degree settings across all semesters. Theme, custom course catalogs, and exam practice history are shared.
 
 Existing schedules and older backups become the first plan automatically. Local JSON and Google backups include every plan and the active selection. Calendar and registration exports use only the active plan and selected semester. Restore replaces all local plans; use a backup first if you want to keep them.
 

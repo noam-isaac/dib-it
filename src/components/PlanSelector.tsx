@@ -1,4 +1,4 @@
-import { ActionIcon, Button, Group, Menu, Select, Stack, Text, TextInput } from "@mantine/core"
+import { Button, Group, Select, Stack, Text, TextInput } from "@mantine/core"
 import { modals } from "@mantine/modals"
 import { useState } from "react"
 import { getWorkspace, setWorkspace, useWorkspace } from "../models"
@@ -40,40 +40,37 @@ const PlanSelector = () => {
     })
   }
   return (
-    <Group gap={6} wrap="nowrap" mb={6}>
-      <Text component="label" htmlFor="schedule-selector" size="sm" style={{ whiteSpace: "nowrap" }}>מערכת שעות</Text>
+    <Stack>
       <Select
         id="schedule-selector"
-        aria-label="מערכת שעות"
+        label="מערכת שעות"
         searchable
-        style={{ flex: 1, minWidth: 0 }}
+        comboboxProps={{ withinPortal: false }}
         value={active.id}
         allowDeselect={false}
         data={workspace.plans.map(plan => ({ value: plan.id, label: plan.name }))}
         onChange={id => {
           const latest = getWorkspace()
-          if (id && latest.plans.some(plan => plan.id === id)) setWorkspace({ ...latest, activePlanId: id })
+          if (id && latest.plans.some(plan => plan.id === id)) {
+            setWorkspace({ ...latest, activePlanId: id })
+            modals.closeAll()
+          }
         }}
       />
-      <Menu>
-        <Menu.Target>
-          <ActionIcon size="lg" variant="light" aria-label="ניהול מערכות שעות"><i className="fa-solid fa-ellipsis-vertical" /></ActionIcon>
-        </Menu.Target>
-        <Menu.Dropdown>
-          <Menu.Item onClick={() => edit("create")} leftSection={<i className="fa-solid fa-plus" />}>מערכת שעות חדשה</Menu.Item>
-          <Menu.Item onClick={() => edit("duplicate")} leftSection={<i className="fa-solid fa-copy" />}>שכפול מערכת השעות</Menu.Item>
-          <Menu.Item onClick={() => edit("rename")} leftSection={<i className="fa-solid fa-pen" />}>שינוי שם</Menu.Item>
-          <Menu.Item color="red" disabled={workspace.plans.length <= 1} leftSection={<i className="fa-solid fa-trash" />} onClick={() => modals.openConfirmModal({
-            title: "מחיקת מערכת שעות",
-            centered: true,
-            children: <Text>למחוק את ״{active.name}״ ואת בחירות הקורסים שלה בכל הסמסטרים? מערכות השעות האחרות יישמרו.</Text>,
-            labels: { confirm: "מחיקת מערכת השעות", cancel: "ביטול" },
-            confirmProps: { color: "red" },
-            onConfirm: () => setWorkspace(deletePlan(getWorkspace(), active.id)),
-          })}>מחיקת מערכת השעות</Menu.Item>
-        </Menu.Dropdown>
-      </Menu>
-    </Group>
+      <Group gap="xs">
+        <Button variant="light" size="sm" onClick={() => edit("create")} leftSection={<i className="fa-solid fa-plus" aria-hidden="true" />}>מערכת שעות חדשה</Button>
+        <Button variant="light" size="sm" onClick={() => edit("duplicate")} leftSection={<i className="fa-solid fa-copy" aria-hidden="true" />}>שכפול מערכת השעות</Button>
+        <Button variant="light" size="sm" onClick={() => edit("rename")} leftSection={<i className="fa-solid fa-pen" aria-hidden="true" />}>שינוי שם</Button>
+        <Button variant="light" size="sm" color="red" disabled={workspace.plans.length <= 1} leftSection={<i className="fa-solid fa-trash" aria-hidden="true" />} onClick={() => modals.openConfirmModal({
+          title: "מחיקת מערכת שעות",
+          centered: true,
+          children: <Text>למחוק את ״{active.name}״ ואת בחירות הקורסים שלה בכל הסמסטרים? מערכות השעות האחרות יישמרו.</Text>,
+          labels: { confirm: "מחיקת מערכת השעות", cancel: "ביטול" },
+          confirmProps: { color: "red" },
+          onConfirm: () => setWorkspace(deletePlan(getWorkspace(), active.id)),
+        })}>מחיקת מערכת השעות</Button>
+      </Group>
+    </Stack>
   )
 }
 
