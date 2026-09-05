@@ -1,4 +1,4 @@
-import { Button, Loader, MantineProvider } from "@mantine/core"
+import { Autocomplete, Button, Loader, MantineProvider, Select } from "@mantine/core"
 import { useColorScheme } from "@mantine/hooks"
 import { ModalsProvider } from "@mantine/modals"
 import { Notifications } from "@mantine/notifications"
@@ -17,6 +17,7 @@ import { cachedFetch, useLocalStorage } from "./hooks"
 import { visibleTabs } from "./tabs"
 import { DibIt, useDibIt } from "./models"
 import { FIRST_SEMESTER } from "./utilities"
+import { filterSearchOptions } from "./search"
 
 const sumHours = (courses: SemesterCourses, dibIt: DibIt) => {
   let hours = 0
@@ -103,6 +104,10 @@ const App = () => {
       forceColorScheme={colorScheme}
       theme={{
         primaryColor: "cyan",
+        components: {
+          Select: Select.extend({ defaultProps: { filter: filterSearchOptions } }),
+          Autocomplete: Autocomplete.extend({ defaultProps: { filter: filterSearchOptions } }),
+        },
         fontFamily:
           'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif',
       }}
