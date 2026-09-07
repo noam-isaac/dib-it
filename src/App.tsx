@@ -2,7 +2,7 @@ import { Autocomplete, Button, Loader, MantineProvider, Select } from "@mantine/
 import { useColorScheme } from "@mantine/hooks"
 import { ModalsProvider } from "@mantine/modals"
 import { Notifications } from "@mantine/notifications"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import CourseInfoContext from "./CourseInfoContext"
 import Exams from "./components/Exams"
 import Footer from "./components/Footer"
@@ -51,22 +51,23 @@ const App = () => {
     key: "Hidden Tabs",
     defaultValue: [],
   })
-  const [courses, setCourses] = useState<SemesterCourses>({}) // this is tau-tools scraped jsons from arazim project website
+  const [catalog, setCatalog] = useState<SemesterCourses>({})
+  const courses = useMemo<SemesterCourses>(
+    () => Object.assign({}, catalog, ...Object.values(dibIt.customCourses ?? {})),
+    [catalog, dibIt.customCourses],
+  )
   const [prefetching, setPrefetching] = useState(false)
 
   const hours = sumHours(courses, dibIt)
 
   useEffect(() => {
     if (dibIt.semester) {
-      setCourses({})
+      setCatalog({})
       cachedFetch<SemesterCourses>(
         `https://arazim-project.com/data/courses-${dibIt.semester}.json?${startDateString}`
       )
         .then(async (result) => {
-          for (const customCourse of Object.values(dibIt.customCourses ?? {})) {
-            result = { ...result, ...customCourse }
-          }
-          setCourses(result)
+          setCatalog(result)
 
           setPrefetching(true)
           const generalInfo = await cachedFetch<GeneralInfo>(

@@ -1,6 +1,7 @@
 import {
   ActionIcon,
   Autocomplete,
+  Button,
   Loader,
   Menu,
   Select,
@@ -11,8 +12,7 @@ import { notifications } from "@mantine/notifications"
 import { useEffect, useState } from "react"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useLocalStorage, useURLValue } from "../hooks"
-import { DibItCourse, getWorkspace, setWorkspace, useDibIt } from "../models"
-import { isScheduleBackup } from "../scheduleBackup"
+import { DibItCourse, useDibIt, useWorkspace } from "../models"
 import { getICS } from "../serialize"
 import {
   downloadFile,
@@ -25,6 +25,7 @@ import CourseCard from "./CourseCard"
 import GoogleSaveButtons from "./GoogleSaveButtons"
 import RegistrationModal from "./RegistrationModal"
 import PlanSelector from "./PlanSelector"
+import { downloadWorkspaceBackup, openScheduleRestore } from "./RestoreScheduleModal"
 
 const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
   const courseInfo = useCourseInfo()
@@ -34,6 +35,8 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
     defaultValue: false,
   })
   const [dibIt, setDibIt] = useDibIt()
+  const [workspace] = useWorkspace()
+  const activePlan = workspace.plans.find(plan => plan.id === workspace.activePlanId)!
   const [generalInfo] = useURLValue<GeneralInfo>(
     "https://arazim-project.com/data/info.json"
   )
@@ -78,6 +81,15 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
           החיפוש...
         </p>
       )}
+      <Button
+        variant="subtle"
+        mb="xs"
+        h="auto"
+        py="xs"
+        styles={{ label: { whiteSpace: "normal", overflowWrap: "anywhere" } }}
+        aria-label={`החלפת מערכת שעות: ${activePlan.name}`}
+        onClick={() => modals.open({ title: "מערכות שעות", centered: true, children: <PlanSelector /> })}
+      >מערכת שעות: {activePlan.name}</Button>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <label htmlFor="semester-selector">סמסטר:</label>
         <Select
@@ -121,13 +133,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
               <Menu.Item
                 color="cyan"
                 leftSection={<i className="fa-solid fa-download" />}
-                onClick={() =>
-                  downloadFile(
-                    "dibit.json",
-                    "data:text/json;charset=utf-8," +
-                      encodeURIComponent(JSON.stringify(getWorkspace()))
-                  )
-                }
+                onClick={() => downloadWorkspaceBackup()}
               >
                 גיבוי
               </Menu.Item>
@@ -138,8 +144,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
               onClick={async () => {
                 try {
                   const state = await uploadJson()
-                  if (!isScheduleBackup(state)) throw new Error("הקובץ אינו גיבוי תקין של Dib It.")
-                  setWorkspace(state)
+                  openScheduleRestore(state, "file")
                 } catch (error) {
                   notifications.show({ title: "השחזור נכשל", message: error instanceof Error ? error.message : "לא ניתן לקרוא את הקובץ.", color: "red" })
                 }
@@ -200,6 +205,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
                   centered: true,
                   children: (
                     <RegistrationModal
+                      planName={activePlan.name}
                       semester={semester}
                       courses={currentCourses}
                       info={courseInfo}
