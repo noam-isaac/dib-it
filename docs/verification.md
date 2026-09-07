@@ -1,6 +1,19 @@
 # UI and export verification
 
-Checked on 2026-09-05 against https://arazim-project.com/dib-it/index.html.
+## Fork review fixes (2026-09-07)
+
+Reviewed the full fork delta from upstream `9216632abdc56ae8d224fa392d4c22703cd29b8f` to fork `bf2bb4ceccede2f175f075635b10087272a486ec`. The fixes following that review have 41 passing unit tests, a passing ESLint check, and a passing TypeScript/Vite build.
+
+- Backup validation rejects unrelated JSON and malformed practice history, custom catalogs, theme values and workspace structures before either restore path replaces local data. Optional catalog lesson fields remain supported.
+- Personal exam lists, search results and ICS exports share an exam identity that includes date, sitting, type and hour. Same-day intermediate and final exams survive export; true duplicates collapse.
+- Calendar labels and highlighting use local calendar dates consistently with clicked date values, including western timezones.
+- Export errors appear above the registration modal and remain interactive.
+- `bun run test:browser` retains the browser regressions at 1280 × 800 in America/Los_Angeles and 390 × 844 in Asia/Jerusalem. It checks date labels/clicks, exported event counts, rejected restores without data loss, modal feedback, page errors, horizontal overflow and absence of identity values in localStorage. These are synthetic Chromium checks, not a live Google account round trip or a Google Calendar import.
+- ESLint 9 now has a flat configuration. The inherited large main-bundle warning remains. DOC assets and byte-filling behavior are unchanged; no new native Word rendering verification is claimed.
+
+## Historical verification (2026-09-05)
+
+The notes below record earlier checks against https://arazim-project.com/dib-it/index.html and successive fork revisions. They describe the UI at that time; the README describes the current registration dialog, which leaves missing catalog details blank for completion in Word.
 
 ## Original UI and calendar
 
@@ -36,8 +49,8 @@ Checked on 2026-09-05 against https://arazim-project.com/dib-it/index.html.
 - Browser verification at 1280 × 800 and 390 × 844: created a blank plan without losing the original course, switched back, duplicated it, and selected a group in the duplicate while the original remained unchanged. The mobile page has no horizontal overflow or JavaScript errors.
 - File and Google backup paths save the entire workspace; calendar and registration exports continue to consume the active plan. An additional Firestore emulator test verifies multiple plans and the active selection survive a round trip, and replacement removes deleted plans.
 
-## Checks
+## Historical checks
 
 - All 32 unit tests and the production TypeScript/Vite build pass. Four separate Firestore emulator integration tests pass.
 - The build still reports the existing large main-bundle warning. The DOC export module and its 151 kB template load only when requested.
-- The existing lint command cannot run because ESLint 9 is installed without an `eslint.config.*`. This predates these changes.
+- At that revision, lint could not run because ESLint 9 lacked an `eslint.config.*`. The fork review fixes above restore the command.

@@ -31,7 +31,7 @@ const sumHours = (courses: SemesterCourses, dibIt: DibIt) => {
 
       for (const lesson of info?.lessons ?? []) {
         try {
-          const [startHourStr, endHourStr] = lesson?.time?.split("-")!
+          const [startHourStr, endHourStr] = (lesson.time ?? "").split("-")
           const startHour = parseInt(startHourStr.split(":")[0], 10)
           const endHour = parseInt(endHourStr.split(":")[0], 10)
           hours += endHour - startHour
@@ -113,7 +113,7 @@ const App = () => {
       }}
     >
       <ModalsProvider>
-        <Notifications />
+        <Notifications zIndex={100001} />
 
         <CourseInfoContext.Provider value={courses}>
           <div

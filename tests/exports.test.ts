@@ -12,6 +12,7 @@ const template = async () => {
 }
 import { getGoogleConfig } from "../src/googleConfig"
 import { isScheduleBackup } from "../src/scheduleBackup"
+import { collectExams } from "../src/exams"
 
 const completedDetails = (semester: string) => ({
   ...registrationDefaults(semester), studentName: "ישראל ישראלי", studentId: "012345678",
@@ -35,6 +36,29 @@ const info = {
 }
 
 describe("Google and Apple Calendar", () => {
+  test("distinct exam types and times survive export while true duplicates collapse", () => {
+    const selected = [{ id: "01022314", groups: ["01"] }]
+    const catalog = { "01022314": {
+      name: "אנטומיה של גוף האדם ב'", groups: [{ group: "01" }],
+      exams: [
+        { moed: "א", date: "14/07/2026", hour: "09:00", type: "בחינת ביניים" },
+        { moed: "א", date: "15/07/2026", hour: "09:00", type: "בחינה סופית" },
+        { moed: "ב", date: "02/09/2026", hour: "09:00", type: "בחינת ביניים" },
+        { moed: "ב", date: "02/09/2026", hour: "09:00", type: "בחינה סופית" },
+        { moed: "ב", date: "02/09/2026", hour: "13:00", type: "בחינה סופית" },
+        { moed: "ב", date: "2/9/2026", hour: "09:00", type: "בחינה סופית" },
+      ],
+    } }
+    const calendar = createCalendar("2026b", selected, catalog, {
+      startDate: "2026-03-15", endDate: "2026-07-03",
+    }).replace(/\r\n[ \t]/g, "")
+    expect(collectExams(selected, catalog)).toHaveLength(5)
+    expect(calendar.match(/BEGIN:VEVENT/g)).toHaveLength(5)
+    expect(new Set(calendar.match(/^UID:.*$/gm)).size).toBe(5)
+    expect(calendar).toContain("בחינת ביניים")
+    expect(calendar).toContain("בחינה סופית")
+    expect(calendar).toContain("שעת הבחינה: 13:00")
+  })
   test("Jerusalem wall time survives DST, includes minutes and inclusive semester boundaries", () => {
     // Semester starts Wednesday; first Sunday is March 22, not three days later.
     const result = createCalendar("2026b", courses, info, {
