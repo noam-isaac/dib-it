@@ -1,11 +1,12 @@
 import { Button, Group, Text, Tooltip } from "@mantine/core"
 import { Calendar } from "@mantine/dates"
 import React, { useState } from "react"
+import dayjs from "dayjs"
 import ExamSearch from "./ExamSearch"
-import { isCourseScheduled } from "../exams"
+import { collectExams, isCourseScheduled, type CourseExam } from "../exams"
 import { useCourseInfo } from "../CourseInfoContext"
-import { DibItCourse, useDibIt } from "../models"
-import { MILLISECONDS_IN_DAY, getColor, parseDateString } from "../utilities"
+import { useDibIt } from "../models"
+import { MILLISECONDS_IN_DAY, getColor } from "../utilities"
 
 const DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"]
 const DAY_LETTERS = ["א", "ב", "ג", "ד", "ה", "ו", "ש"]
@@ -34,46 +35,14 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
 
   const currentCourses = (dibIt.courses ?? {})[dibIt.semester ?? ""] ?? []
 
-  const examDates: {
-    course: DibItCourse
-    date: Date
-    moed: string
-    type: string
-  }[] = []
-  const dateToExams: Record<
-    string,
-    {
-      course: DibItCourse
-      date: Date
-      moed: string
-      type: string
-    }[]
-  > = {}
-
-  for (const course of currentCourses) {
-    if (!isCourseScheduled(course, courseInfo[course.id])) continue
-    for (const date of courseInfo[course.id]?.exams ?? []) {
-      const parsedDate = parseDateString(date.date!)
-      if (parsedDate === undefined) {
-        continue
-      }
-      examDates.push({
-        course,
-        date: parsedDate,
-        type: date.type!,
-        moed: date.moed!,
-      })
-      if (dateToExams[parsedDate.toDateString()] === undefined) {
-        dateToExams[parsedDate.toDateString()] = []
-      }
-      dateToExams[parsedDate.toDateString()].push(
-        examDates[examDates.length - 1]
-      )
-    }
+  const examDates = collectExams(
+    currentCourses.filter(course => isCourseScheduled(course, courseInfo[course.id])),
+    courseInfo,
+  )
+  const dateToExams: Record<string, CourseExam[]> = {}
+  for (const exam of examDates) {
+    (dateToExams[exam.key] ??= []).push(exam)
   }
-  examDates.sort((a, b) => {
-    return a.date.toISOString().localeCompare(b.date.toISOString())
-  })
   const firstExam = examDates.length > 0 ? examDates[0].date : undefined
   const lastExam =
     examDates.length > 0 ? examDates[examDates.length - 1].date : undefined
@@ -97,13 +66,14 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
           marginBottom: 20,
         }}
       >
-        {examDates.map(({ course, date, moed }) => (
-          <p key={course.id + date + moed}>
+        {examDates.map(({ id, course, date, moed, type }) => (
+          <p key={id}>
             {date.toLocaleString("he").split(",")[0]} ({DAYS[date.getDay()]})
             מועד {moed}' ב-
             <span style={{ color: getColor(course) }}>
               {courseInfo[course.id]?.name}
             </span>
+            {type && ` · ${type}`}
           </p>
         ))}
         <h3 style={{ marginTop: 10, marginBottom: 10 }}>הפרשי ימים</h3>
@@ -156,13 +126,12 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
         minDate={firstExam}
         maxDate={lastExam}
         monthLabelFormat={(m) =>
-          `${MONTHS[new Date(m).getMonth()]} ${new Date(m).getFullYear()}`
+          `${MONTHS[dayjs(m).month()]} ${dayjs(m).year()}`
         }
-        weekdayFormat={(d) => DAY_LETTERS[new Date(d).getDay()] + "'"}
+        weekdayFormat={(d) => DAY_LETTERS[dayjs(d).day()] + "'"}
         renderDay={(d) => {
-          const date = new Date(d)
-          const day = date.getDate()
-          const exams = dateToExams[date.toDateString()]
+          const day = dayjs(d).date()
+          const exams = dateToExams[d]
           if (exams !== undefined) {
             if (exams.length > 1) {
               return (

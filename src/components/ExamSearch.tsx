@@ -158,13 +158,7 @@ const ExamSearch = ({ initialDate }: { initialDate: string }) => {
             return (
               <Group
                 className="exam-search-row"
-                key={JSON.stringify([
-                  exam.course.id,
-                  exam.key,
-                  exam.moed,
-                  exam.type,
-                  exam.hour,
-                ])}
+                key={exam.id}
                 justify="space-between"
                 gap="xs"
                 wrap="wrap"
@@ -173,6 +167,7 @@ const ExamSearch = ({ initialDate }: { initialDate: string }) => {
                   <Text size="sm">
                     {exam.date.toLocaleDateString("he-IL")} {exam.hour}{" "}
                     {exam.moed && `· מועד ${exam.moed}׳`} ·{" "}
+                    {exam.type && `${exam.type} · `}
                     <span style={{ color: getColor(selected ?? exam.course) }}>
                       {info[exam.course.id]?.name}
                     </span>

@@ -28,6 +28,7 @@ export const isCourseScheduled = (
   ) ?? false
 
 export interface CourseExam {
+  id: string
   course: DibItCourse
   date: Date
   key: string
@@ -50,13 +51,14 @@ export const collectExams = (
       const identity = JSON.stringify([
         course.id,
         key,
-        exam.moed,
-        exam.type,
-        exam.hour,
+        exam.moed ?? "",
+        exam.type ?? "",
+        exam.hour ?? "",
       ])
       if (seen.has(identity)) continue
       seen.add(identity)
       exams.push({
+        id: identity,
         course,
         date,
         key,

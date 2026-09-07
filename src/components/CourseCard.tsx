@@ -178,7 +178,7 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
               setDibIt({ ...dibIt })
             }}
           />
-          {group.group} ({group.lessons![0].type}): {group.lecturer}
+          {group.group} ({group.lessons?.[0]?.type ?? ""}): {group.lecturer}
         </div>
       ))}
       {compactView || (

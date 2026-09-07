@@ -9,6 +9,7 @@ const error = (message: string): never => { throw new Error(message) }
 
 const checkText = (value: string) => {
   // These characters are structural in binary Word files, including cell ends.
+  // eslint-disable-next-line no-control-regex -- Reject Word structural controls in user text.
   if (/[\u0000-\u001f\u007f]/.test(value))
     error("הטקסט כולל תווי בקרה שאינם מתאימים לטופס.")
   for (let i = 0; i < value.length; i++) {

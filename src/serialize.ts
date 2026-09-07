@@ -3,9 +3,8 @@ import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
 import timezone from "dayjs/plugin/timezone"
 import { DibItCourse } from "./models"
-import { parseDateString } from "./utilities"
 import { cachedFetch } from "./hooks"
-import { isCourseScheduled } from "./exams"
+import { collectExams, isCourseScheduled } from "./exams"
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -46,19 +45,18 @@ export const createCalendar = (
       seen.add(event.uid)
     }
   }
+  for (const exam of collectExams(courses.filter(c => isCourseScheduled(c, courseInfo[c.id])), courseInfo)) {
+    add({
+      uid: `${semester}-${encodeURIComponent(exam.id)}@dibit`,
+      title: `${courseInfo[exam.course.id]?.name ?? exam.course.id} (מועד ${exam.moed})${exam.type ? ` · ${exam.type}` : ""}`,
+      description: exam.hour ? `שעת הבחינה: ${exam.hour}` : undefined,
+      start: [exam.date.getFullYear(), exam.date.getMonth() + 1, exam.date.getDate()],
+      duration: { days: 1 },
+    })
+  }
   for (const c of courses) {
     const course = courseInfo[c.id]
     if (!course || !isCourseScheduled(c, course)) continue
-    for (const exam of course.exams ?? []) {
-      const date = parseDateString(exam.date)
-      if (!date) continue
-      add({
-        uid: `${semester}-${c.id}-exam-${exam.date}-${exam.moed ?? ""}@dibit`,
-        title: `${course.name ?? c.id} (מועד ${exam.moed ?? ""})`,
-        start: [date.getFullYear(), date.getMonth() + 1, date.getDate()],
-        duration: { days: 1 },
-      })
-    }
     for (const group of course.groups ?? []) {
       if (!group.group || !c.groups?.includes(group.group)) continue
       for (const [index, lesson] of (group.lessons ?? []).entries()) {

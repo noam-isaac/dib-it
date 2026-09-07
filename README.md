@@ -81,6 +81,8 @@ For this fork, Google backup uses an unbilled **Spark** project with one free-ti
 
 ## Validation and Vercel
 
-Run `bun test` and `bun run build`. Deploy with `bun run deploy` after linking the checkout to your Vercel project. The Vercel configuration uses the committed Bun lockfile.
+Run `bun test`, `bun run lint`, and `bun run build`. For browser regressions, install Chromium once with `bunx playwright install chromium`, then run `bun run test:browser`. This checks desktop and mobile layouts in Los Angeles and Jerusalem timezones using synthetic schedules and intercepted catalogs. Set `DIBIT_TEST_URL=https://your-deployment.example` to check a deployment instead of starting a local Vite server.
+
+Deploy with `bun run deploy` after linking the checkout to your Vercel project. The Vercel configuration uses the committed Bun lockfile.
 
 See the Google compatibility section above for optional Firebase configuration.
