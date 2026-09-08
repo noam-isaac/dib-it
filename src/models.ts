@@ -1,21 +1,30 @@
 import { getLocalStorage, setLocalStorage, useLocalStorage } from "./hooks"
-import { activePlanView, normalizePlans, updateActivePlan, PlanWorkspace } from "./plans"
+import { activePlanView, normalizePlans, updateActivePlan, reconcileActivePlan, PlanWorkspace } from "./plans"
+
+const semesterCatalogs: Record<string, SemesterCourses> = {}
+export const cacheSemesterCourses = (semester: string, catalog: SemesterCourses) => {
+  semesterCatalogs[semester] = catalog
+  const workspace = getWorkspace()
+  if (workspace.semester?.slice(0, 4) !== semester.slice(0, 4)) return
+  const updated = reconcileActivePlan(workspace, semesterCatalogs)
+  if (JSON.stringify(updated) !== JSON.stringify(workspace)) setWorkspace(updated)
+}
 
 export const getWorkspace = () => normalizePlans(getLocalStorage<DibIt | PlanWorkspace>("Dib It"))
 export const setWorkspace = (workspace: DibIt | PlanWorkspace, quiet = false) =>
-  setLocalStorage("Dib It", normalizePlans(workspace), { quiet })
+  setLocalStorage("Dib It", reconcileActivePlan(normalizePlans(workspace), semesterCatalogs), { quiet })
 export const getDibIt = () => activePlanView(getWorkspace())
 export const setDibIt = (dibIt: DibIt, quiet = false) =>
-  setWorkspace(updateActivePlan(getWorkspace(), dibIt), quiet)
+  setWorkspace(updateActivePlan(getWorkspace(), dibIt, semesterCatalogs), quiet)
 export const useWorkspace = () => {
   const [stored, setStored] = useLocalStorage<DibIt | PlanWorkspace>({ key: "Dib It", defaultValue: {} })
   return [normalizePlans(stored), (workspace: DibIt | PlanWorkspace, quiet = false) =>
-    setStored(normalizePlans(workspace), quiet)] as const
+    setStored(reconcileActivePlan(normalizePlans(workspace), semesterCatalogs), quiet)] as const
 }
 export const useDibIt = () => {
   const [workspace, save] = useWorkspace()
   return [activePlanView(workspace), (dibIt: DibIt, quiet = false) =>
-    save(updateActivePlan(getWorkspace(), dibIt), quiet)] as const
+    save(updateActivePlan(getWorkspace(), dibIt, semesterCatalogs), quiet)] as const
 }
 
 /** The active plan and shared user settings consumed by the app. */

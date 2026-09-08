@@ -36,6 +36,17 @@ try {
     const context = await browser.newContext({ timezoneId, viewport })
     const page = await context.newPage()
     page.setDefaultTimeout(10000)
+    const actions = () => page.getByRole("button", { name: "פעולות", exact: true }).click()
+    const openSchedules = async () => {
+      await actions()
+      await page.getByRole("menuitem", { name: "מערכות שעות", exact: true }).click()
+    }
+    const checkActivePlan = async name => {
+      await openSchedules()
+      assert.equal(await page.getByRole("textbox", { name: "מערכת שעות", exact: true }).inputValue(), name)
+      await page.keyboard.press("Escape")
+      await page.getByRole("dialog", { name: "מערכות שעות", exact: true }).waitFor({ state: "hidden" })
+    }
     const errors = []
     page.on("pageerror", error => errors.push(error.message))
     await page.route("https://arazim-project.com/data/**", route => {
@@ -43,17 +54,19 @@ try {
       const json = filename === "info.json" ? {
         currentSemester: "2026a",
         semesters: { "2026a": { startDate: "2025-10-26", endDate: "2026-01-25" } },
-      } : filename.startsWith("courses-") ? catalog : {}
+      } : filename === "courses-2026a.json" ? catalog : {}
       return route.fulfill({ json })
     })
     await page.addInitScript(state => {
       if (!localStorage.getItem("Dib It")) localStorage.setItem("Dib It", JSON.stringify(state))
     }, initial)
     await page.goto(url)
-    await page.getByRole("button", { name: "החלפת מערכת שעות: בדיקה", exact: true }).click()
+    await checkActivePlan("בדיקה")
+    assert.equal(await page.getByRole("button", { name: /^החלפת מערכת שעות:/ }).count(), 0, "Schedule switching must stay in the actions menu")
+    await openSchedules()
     await page.getByRole("textbox", { name: "מערכת שעות", exact: true }).click()
     await page.getByRole("option", { name: "חלופה", exact: true }).click()
-    await page.getByRole("button", { name: "החלפת מערכת שעות: חלופה", exact: true }).click()
+    await openSchedules()
     await page.getByRole("textbox", { name: "מערכת שעות", exact: true }).click()
     await page.getByRole("option", { name: "בדיקה", exact: true }).click()
     const day = page.getByRole("button", { name: "חיפוש מבחנים בתאריך 2026-02-23", exact: true })
@@ -63,7 +76,6 @@ try {
     assert.equal(await page.getByLabel("תאריך / מתאריך").inputValue(), "2026-02-23")
     assert.equal(await page.locator(".exam-search-row").count(), 2)
 
-    const actions = () => page.getByRole("button", { name: "פעולות", exact: true }).click()
     await actions()
     const calendarDownload = page.waitForEvent("download")
     await page.getByRole("menuitem", { name: /ייצוא ל-Apple\/Google Calendar/ }).click()
@@ -151,19 +163,19 @@ try {
     await page.evaluate(() => window.restoreStorageWrites())
     await dialog.getByRole("button", { name: "החלפת כל המערכות ושחזור", exact: true }).click()
     await page.getByText("השחזור הושלם", { exact: true }).waitFor()
-    await page.getByRole("button", { name: "החלפת מערכת שעות: משוחזרת", exact: true }).waitFor()
+    await checkActivePlan("משוחזרת")
     await page.locator(`#course-${courseId}`).getByText(`קורס מהגיבוי (${courseId})`, { exact: true }).waitFor()
     await dialog.waitFor({ state: "hidden" })
-    await page.getByRole("button", { name: "החלפת מערכת שעות: משוחזרת", exact: true }).scrollIntoViewIfNeeded()
+    await page.getByRole("button", { name: "פעולות", exact: true }).scrollIntoViewIfNeeded()
     if (process.env.DIBIT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.DIBIT_SCREENSHOT_DIR}/schedule-${viewport.width}.png`, animations: "disabled" })
     await restore(savedWorkspace)
     if (process.env.DIBIT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.DIBIT_SCREENSHOT_DIR}/restore-${viewport.width}.png`, animations: "disabled" })
     await dialog.getByRole("button", { name: "החלפת כל המערכות ושחזור", exact: true }).click()
-    await page.getByRole("button", { name: "החלפת מערכת שעות: בדיקה", exact: true }).waitFor()
+    await checkActivePlan("בדיקה")
     await page.locator(`#course-${courseId}`).getByText(`קורס בדיקה (${courseId})`, { exact: true }).waitFor()
     assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It"))), savedWorkspace)
     await page.reload()
-    await page.getByRole("button", { name: "החלפת מערכת שעות: בדיקה", exact: true }).waitFor()
+    await checkActivePlan("בדיקה")
     if (server) {
       // Exercise Google confirmation locally without an account or remote writes.
       await page.evaluate(async incoming => {
@@ -174,14 +186,14 @@ try {
       await googleDialog.waitFor()
       assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It"))), savedWorkspace)
       await googleDialog.getByRole("button", { name: "החלפת כל המערכות ושחזור", exact: true }).click()
-      await page.getByRole("button", { name: "החלפת מערכת שעות: משוחזרת", exact: true }).waitFor()
+      await checkActivePlan("משוחזרת")
       const googleResult = await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")))
       assert.equal(googleResult.semester, initial.semester)
       assert.equal(googleResult.tab, initial.tab)
     }
     await restore({ courses: initial.plans[0].courses })
     await dialog.getByRole("button", { name: "החלפת כל המערכות ושחזור", exact: true }).click()
-    await page.getByRole("button", { name: "החלפת מערכת שעות: מערכת השעות שלי", exact: true }).waitFor()
+    await checkActivePlan("מערכת השעות שלי")
     const legacyResult = await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")))
     assert.equal(legacyResult.semester, initial.semester)
     assert.equal(legacyResult.plans.length, 1)

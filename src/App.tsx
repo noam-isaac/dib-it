@@ -15,7 +15,7 @@ import Sidebar from "./components/Sidebar"
 import StudyPlan from "./components/StudyPlan"
 import { cachedFetch, useLocalStorage } from "./hooks"
 import { visibleTabs } from "./tabs"
-import { DibIt, useDibIt } from "./models"
+import { cacheSemesterCourses, DibIt, useDibIt } from "./models"
 import { FIRST_SEMESTER } from "./utilities"
 import { filterSearchOptions } from "./search"
 import { lautmanCourses } from "./lautmanCourses"
@@ -62,18 +62,27 @@ const App = () => {
   const hours = sumHours(courses, dibIt)
 
   useEffect(() => {
+    let cancelled = false
     if (dibIt.semester) {
+      const semester = dibIt.semester
       setCatalog({})
       cachedFetch<SemesterCourses>(
         `https://arazim-project.com/data/courses-${dibIt.semester}.json?${startDateString}`
       )
         .then(async (result) => {
+          if (cancelled) return
           setCatalog({ ...result, ...lautmanCourses })
+          cacheSemesterCourses(semester, result)
+          const otherSemester = semester.slice(0, 4) + (semester.endsWith("a") ? "b" : "a")
+          void cachedFetch<SemesterCourses>(
+            `https://arazim-project.com/data/courses-${otherSemester}.json?${startDateString}`
+          ).then(other => cacheSemesterCourses(otherSemester, other)).catch(() => {})
 
           setPrefetching(true)
           const generalInfo = await cachedFetch<GeneralInfo>(
             "https://arazim-project.com/data/info.json"
           )
+          if (cancelled) return
           const prefetches: Promise<any>[] = []
           for (const semester of Object.keys(generalInfo.semesters ?? {})
             .sort()
@@ -87,11 +96,12 @@ const App = () => {
           try {
             await Promise.all(prefetches)
           } finally {
-            setPrefetching(false)
+            if (!cancelled) setPrefetching(false)
           }
         })
         .catch(() => {})
     }
+    return () => { cancelled = true }
   }, [dibIt.semester])
 
   const shownTabs = visibleTabs(hiddenTabs)

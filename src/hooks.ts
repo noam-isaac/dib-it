@@ -100,11 +100,18 @@ export const cachedFetch = async <T = any>(url: string): Promise<T> => {
   }
 
   if (fetchUrlValuePromises[url] === undefined) {
-    fetchUrlValuePromises[url] = fetch(url).then((r) => r.json())
+    fetchUrlValuePromises[url] = fetch(url).then((r) => {
+      if (!r.ok) throw new Error(`Catalog request failed: ${r.status}`)
+      return r.json()
+    })
   }
 
-  const result = await fetchUrlValuePromises[url]
-  return result
+  try {
+    return cachedUrlValues[url] = await fetchUrlValuePromises[url]
+  } catch (error) {
+    delete fetchUrlValuePromises[url]
+    throw error
+  }
 }
 
 export const useURLValue = <T>(url: string): [Partial<T>, boolean] => {
@@ -121,11 +128,7 @@ export const useURLValue = <T>(url: string): [Partial<T>, boolean] => {
 
     setLoading(true)
 
-    if (fetchUrlValuePromises[url] === undefined) {
-      fetchUrlValuePromises[url] = fetch(url).then((r) => r.json())
-    }
-
-    fetchUrlValuePromises[url]
+    cachedFetch<T>(url)
       .then((v) => {
         cachedUrlValues[url] = v
         setValue(v)

@@ -14,6 +14,30 @@ const legacy = {
 }
 
 describe("saved schedule plans", () => {
+  test("annual courses and group selections sync within the same year and plan in both directions", () => {
+    for (const semester of ["2026a", "2026b"]) {
+      const other = semester === "2026a" ? "2026b" : "2026a"
+      let workspace = addPlan(normalizePlans(structuredClone(legacy)), "שנתיים")
+      const original = structuredClone(workspace.plans[0])
+      const course = { id: "L1", groups: ["01"] }
+      workspace = updateActivePlan(workspace, {
+        ...activePlanView(workspace), semester,
+        courses: { [semester]: [course, { id: "regular" }], [other]: [{ id: "other" }], "2025a": [{ id: "L2" }] },
+      })
+      expect(activePlanView(workspace).courses![other]).toEqual([{ id: "other" }, course])
+      const view = structuredClone(activePlanView(workspace))
+      view.courses![semester][0].groups = []
+      workspace = updateActivePlan(workspace, view)
+      expect(activePlanView(workspace).courses![other]).toEqual([{ id: "other" }, { id: "L1", groups: [] }])
+      const removed = structuredClone(activePlanView(workspace))
+      removed.courses![semester].splice(0, 1)
+      workspace = updateActivePlan(workspace, removed)
+      expect(activePlanView(workspace).courses![other]).toEqual([{ id: "other" }])
+      expect(activePlanView(workspace).courses!["2025a"]).toEqual([{ id: "L2" }])
+      expect(workspace.plans[0]).toEqual(original)
+    }
+  })
+
   test("academic shortcuts retain faculty, survive backups, and stay independent across schedules", () => {
     const first = saveStudyPlan(legacy)
     const second = saveStudyPlan({ ...first, school: "פקולטה אחרת" })

@@ -1,7 +1,6 @@
 import {
   ActionIcon,
   Autocomplete,
-  Button,
   Loader,
   Menu,
   Select,
@@ -81,15 +80,12 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
           החיפוש...
         </p>
       )}
-      <Button
-        variant="subtle"
-        mb="xs"
-        h="auto"
-        py="xs"
-        styles={{ label: { whiteSpace: "normal", overflowWrap: "anywhere" } }}
-        aria-label={`החלפת מערכת שעות: ${activePlan.name}`}
-        onClick={() => modals.open({ title: "מערכות שעות", centered: true, children: <PlanSelector /> })}
-      >מערכת שעות: {activePlan.name}</Button>
+      {!!activePlan.pendingAnnualChanges?.length && (
+        <p role="status" style={{ maxWidth: 300 }}>
+          הבחירות נשמרו. סנכרון הקורסים השנתיים ממתין לטעינת נתוני הסמסטר השני.{" "}
+          <button type="button" className="link text-accent" onClick={() => window.location.reload()}>ניסיון נוסף</button>
+        </p>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <label htmlFor="semester-selector">סמסטר:</label>
         <Select
