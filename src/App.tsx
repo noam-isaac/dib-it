@@ -18,6 +18,7 @@ import { visibleTabs } from "./tabs"
 import { DibIt, useDibIt } from "./models"
 import { FIRST_SEMESTER } from "./utilities"
 import { filterSearchOptions } from "./search"
+import { lautmanCourses } from "./lautmanCourses"
 
 const sumHours = (courses: SemesterCourses, dibIt: DibIt) => {
   let hours = 0
@@ -67,7 +68,7 @@ const App = () => {
         `https://arazim-project.com/data/courses-${dibIt.semester}.json?${startDateString}`
       )
         .then(async (result) => {
-          setCatalog(result)
+          setCatalog({ ...result, ...lautmanCourses })
 
           setPrefetching(true)
           const generalInfo = await cachedFetch<GeneralInfo>(
