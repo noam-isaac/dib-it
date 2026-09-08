@@ -15,7 +15,7 @@ const RestoreScheduleModal = ({ backup, source }: { backup: PlanWorkspace; sourc
   return (
     <Stack dir="rtl">
       <Alert color="yellow" title="השחזור מחליף את כל המערכות הנוכחיות">
-        כל מערכות השעות בכל הסמסטרים וההגדרות המשותפות יוחלפו בתוכן הגיבוי. השינוי חל בדפדפן הזה בלבד.
+        כל מערכות השעות בכל הסמסטרים וההגדרות המשותפות יוחלפו בתוכן הגיבוי. כשמחוברים לגוגל, השינוי יסתנכרן גם למכשירים האחרים.
       </Alert>
       <Text fw={600}>מערכות השעות בגיבוי ({backup.plans.length}):</Text>
       <ul style={{ margin: 0, paddingInlineStart: 24, maxHeight: 200, overflowY: "auto" }}>

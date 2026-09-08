@@ -1,10 +1,9 @@
-import { Menu, Tooltip } from "@mantine/core"
+import { Menu } from "@mantine/core"
 import { notifications } from "@mantine/notifications"
-import { doc, getDoc, setDoc } from "firebase/firestore"
+import { doc, getDoc } from "firebase/firestore"
 import { useAuthState } from "react-firebase-hooks/auth"
 import { useState } from "react"
 import { auth, firestore } from "../firebase"
-import { getWorkspace } from "../models"
 import { openScheduleRestore } from "./RestoreScheduleModal"
 
 const EnabledGoogleSaveButtons = () => {
@@ -12,40 +11,21 @@ const EnabledGoogleSaveButtons = () => {
   const [busy, setBusy] = useState(false)
   if (!currentUser) return null
 
-  const sync = async (restore: boolean) => {
+  const restore = async () => {
     setBusy(true)
     try {
-      const reference = doc(firestore!, "users", currentUser.uid)
-      if (restore) {
-        const snapshot = await getDoc(reference)
-        if (!snapshot.exists()) {
-          notifications.show({
-            title: "לא נמצא גיבוי בגוגל",
-            message: "המערכות המקומיות נשארו כפי שהן.",
-            color: "yellow",
-          })
-          return
-        }
-        const data: unknown = snapshot.data()
-        openScheduleRestore(data, "google")
+      const snapshot = await getDoc(doc(firestore!, "users", currentUser.uid))
+      if (auth!.currentUser?.uid !== currentUser.uid) return
+      if (!snapshot.exists()) {
+        notifications.show({ title: "לא נמצא גיבוי בגוגל", message: "המערכות המקומיות נשארו כפי שהן.", color: "yellow" })
         return
-      } else {
-        // This is a full backup: merge would retain deleted courses/semesters.
-        await setDoc(reference, JSON.parse(JSON.stringify(getWorkspace())))
       }
-      notifications.show({
-        title: "השמירה בגוגל בוצעה בהצלחה",
-        message: "המערכות שלכם זמינות כעת להורדה במכשירים אחרים",
-        style: { direction: "rtl" },
-        icon: <i className="fa-solid fa-check" />,
-        color: "green",
-      })
+      openScheduleRestore(snapshot.data(), "google")
     } catch (error) {
       notifications.show({
-        title: restore ? "שגיאה בעדכון מגוגל" : "שגיאה בשמירה בגוגל",
+        title: "שגיאה בעדכון מגוגל",
         message: error instanceof Error ? error.message : "נסו שוב מאוחר יותר.",
         style: { direction: "rtl" },
-        icon: <i className="fa-solid fa-exclamation" />,
         color: "red",
       })
     } finally {
@@ -53,28 +33,10 @@ const EnabledGoogleSaveButtons = () => {
     }
   }
   return (
-    <>
-      <Tooltip label="פעולה זו תדרוס את כל מה ששמור כרגע בגוגל!">
-        <Menu.Item
-          disabled={busy}
-          color="green"
-          leftSection={<i className="fa-solid fa-save" />}
-          onClick={() => sync(false)}
-        >
-          גיבוי בגוגל
-        </Menu.Item>
-      </Tooltip>
-      <Menu.Item
-        disabled={busy}
-        color="green"
-        leftSection={<i className="fa-solid fa-sync" />}
-        onClick={() => sync(true)}
-      >
-        שחזור מגוגל
-      </Menu.Item>
-    </>
+    <Menu.Item disabled={busy} color="green" leftSection={<i className="fa-solid fa-sync" />} onClick={restore}>
+      שחזור מגוגל
+    </Menu.Item>
   )
 }
-const GoogleSaveButtons = () =>
-  auth && firestore ? <EnabledGoogleSaveButtons /> : null
+const GoogleSaveButtons = () => auth && firestore ? <EnabledGoogleSaveButtons /> : null
 export default GoogleSaveButtons

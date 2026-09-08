@@ -14,6 +14,7 @@ export const setLocalStorage = (
   options: { quiet?: boolean } = {}
 ) => {
   localStorage.setItem(key, JSON.stringify(value))
+  if (key === "Dib It") window.dispatchEvent(new Event("dibit-workspace-changed"))
   if (!options.quiet) {
     window.dispatchEvent(
       new StorageEvent("storage", { key, newValue: JSON.stringify(value) })

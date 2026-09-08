@@ -73,6 +73,8 @@ The export module and template load only when requested. See [template provenanc
 
 ## Google compatibility
 
+While signed in, all schedule plans and shared settings sync automatically through the existing private Firebase document. Edits are batched after a one-second pause; server updates arrive through a realtime listener. The selected tab, semester and active plan stay local. Offline edits remain in localStorage and retry on reconnect, focus, or after 30 seconds following an error. On a new device an empty workspace loads the cloud schedules. If existing local and cloud schedules differ on first sign-in, or both have changed since the last sync, syncing pauses for a choice with downloads of both copies available. Transaction checks prevent a concurrent cloud edit from being silently overwritten. Switching accounts also requires a choice before uploading different local schedules. File restores sync to the other signed-in devices too. The sync status and conflict actions appear below the header.
+
 Calendar export works without sign-in. It downloads an ICS file for manual import into Google Calendar on a computer or Apple Calendar. Lessons use Jerusalem wall time, including minutes and daylight-saving transitions, and exams are all-day entries. Each weekly lesson is exported as individual dated events through the end of the semester; holidays and cancellations are not inferred. This is a snapshot, not automatic calendar synchronization. See [Google's import instructions](https://support.google.com/calendar/answer/37118).
 
 For Google sign-in and schedule backup, copy `.env.example` to `.env.local` and supply the four Firebase web app values. Complete configuration enables sync automatically; `VITE_ENABLE_GOOGLE_SYNC=false` explicitly disables it. The original ignored `src/firebase.json` format is also supported, with environment values taking precedence. Without complete configuration, the site continues in local mode. Enable the Google provider in Firebase Authentication and authorize the deployment domain (and localhost for development). See [Firebase's Google sign-in setup](https://firebase.google.com/docs/auth/web/google-signin).
@@ -88,5 +90,14 @@ For this fork, Google backup uses an unbilled **Spark** project with one free-ti
 Run `bun test`, `bun run lint`, and `bun run build`. For browser regressions, install Chromium once with `bunx playwright install chromium`, then run `bun run test:browser`. This checks desktop and mobile layouts in Los Angeles and Jerusalem timezones using synthetic schedules and intercepted catalogs. Set `DIBIT_TEST_URL=https://your-deployment.example` to check a deployment instead of starting a local Vite server.
 
 Deploy with `bun run deploy` after linking the checkout to your Vercel project. The Vercel configuration uses the committed Bun lockfile.
+
+Use [preview.dib-it.noam-isaac.com](https://preview.dib-it.noam-isaac.com) as the permanent testing address. Firebase authorizes this hostname once; reuse it instead of adding each generated deployment hostname. It is bound to the current review branch, so production deployments do not replace it. For each release, deploy the reviewed branch as a preview, then update its branch binding and alias:
+
+```sh
+pnpm dlx vercel api /v9/projects/dib-it/domains/preview.dib-it.noam-isaac.com -X PATCH -F gitBranch=<review-branch>
+pnpm dlx vercel alias set <ready-preview-url> preview.dib-it.noam-isaac.com
+```
+
+Keep Vercel preview protection enabled. Share a temporary Vercel access link when needed. Preview currently uses the same Firebase project as production: signed-in schedule edits affect that account's cloud data. Use synthetic accounts with the emulator for automated tests.
 
 See the Google compatibility section above for optional Firebase configuration.
