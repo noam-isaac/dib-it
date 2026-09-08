@@ -1,3 +1,5 @@
+import ForkIntro from "./ForkIntro"
+
 const Footer = () => {
   return (
     <footer
@@ -10,19 +12,11 @@ const Footer = () => {
       className="footer dont-print"
     >
       <p style={{ margin: "7px" }}>
-        ארזים 2007-2025 &copy; כל הזכויות שמורות. מלבד זכות השתיקה, היא שמורה
-        למרקו (פוגו).
-        <a
-          className="link handle text-accent"
-          href="/disclaimer"
-          style={{ marginInlineEnd: 5 }}
-        >
-          הבהרה משפטית.
-        </a>
-        לפידבק,
-        <a className="link handle text-accent" href="/contact-us">
-          לחצו כאן.
-        </a>
+        הפורק של נועם · מבוסס על{" "}
+        <a className="link text-accent" href="https://github.com/arazimproject/dib-it">Dib It של ארזים</a>
+        {" · "}<ForkIntro />
+        {" · "}<a className="link text-accent" href="https://github.com/noam-isaac/dib-it/issues">משוב לפורק</a>
+        {" · "}<a className="link text-accent" href="https://github.com/noam-isaac/dib-it/blob/main/LICENSE.md">© Arazim Project · MIT</a>
       </p>
     </footer>
   )

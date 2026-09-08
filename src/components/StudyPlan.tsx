@@ -1,11 +1,13 @@
 import { isCourseScheduled } from "../exams"
 import {
-  Autocomplete,
+  ActionIcon,
+  Alert,
   Badge,
   Button,
   Loader,
   Select,
   Switch,
+  Text,
   Tooltip,
 } from "@mantine/core"
 import { useCourseInfo } from "../CourseInfoContext"
@@ -37,12 +39,12 @@ const StudyPlan = () => {
   const savedStudyPlans = dibIt.savedStudyPlans ?? []
   const savedIndex = savedStudyPlans.findIndex(plan =>
     plan.school === dibIt.school && plan.studyPlan === dibIt.studyPlan)
-  const [allTimeCourseInfo, loadingAllTimeCourseInfo] =
+  const [allTimeCourseInfo, loadingAllTimeCourseInfo, courseLoad] =
     useURLValue<AllTimeCourses>("https://arazim-project.com/data/courses.json")
-  const [generalInfo] = useURLValue<GeneralInfo>(
+  const [generalInfo, , semesterLoad] = useURLValue<GeneralInfo>(
     "https://arazim-project.com/data/info.json"
   )
-  const [plans] = useURLValue<
+  const [plans, loadingPlans, planLoad] = useURLValue<
     Record<
       string,
       Record<
@@ -56,7 +58,11 @@ const StudyPlan = () => {
         >
       >
     >
-  >(`https://arazim-project.com/data/plans-${dibIt.degreeStartYear}.json`)
+  >(dibIt.degreeStartYear ? `https://arazim-project.com/data/plans-${dibIt.degreeStartYear}.json` : null)
+  const planOptions = Object.entries(plans).flatMap(([school, programs]) =>
+    Object.keys(programs ?? {}).sort().map(studyPlan => ({
+      value: JSON.stringify([school, studyPlan]), label: `${studyPlan} — ${school}`, school, studyPlan,
+    })))
 
   if (!dibIt.courses) {
     dibIt.courses = {}
@@ -88,7 +94,8 @@ const StudyPlan = () => {
     if (!date || date.length === 0 || date[0].date === "") {
       return
     }
-    const time = parseDateString(date[0].date!)?.getTime() ?? 0
+    const time = parseDateString(date[0].date)?.getTime()
+    if (time === undefined) return
     const difference = Math.round(
       Math.abs(getClosestValue(time, courseDates) - time) / MILLISECONDS_IN_DAY
     )
@@ -100,7 +107,7 @@ const StudyPlan = () => {
       return 99999999999
     }
 
-    const date = courseInfo[courseId]!.exams!
+    const date = courseInfo[courseId]?.exams ?? []
 
     if (date.length === 0) {
       return -100000000000
@@ -110,7 +117,8 @@ const StudyPlan = () => {
       return 0
     }
 
-    const time = parseDateString(date[0].date!)?.getTime() ?? 0
+    const time = parseDateString(date[0].date)?.getTime()
+    if (time === undefined) return -100000000000
     const difference = Math.abs(getClosestValue(time, courseDates) - time)
     return -difference
   }
@@ -153,6 +161,10 @@ const StudyPlan = () => {
         marginLeft: 10,
       }}
     >
+      {(planLoad.failed || courseLoad.failed || semesterLoad.failed) && <Alert color="red" role="alert" mb="xs">
+        לא ניתן לטעון את נתוני תוכניות הלימוד. הבחירות שלכם נשמרו.
+        <Button variant="subtle" onClick={() => { planLoad.retry(); courseLoad.retry(); semesterLoad.retry() }}>ניסיון נוסף</Button>
+      </Alert>}
       {loadingAllTimeCourseInfo && (
         <p
           style={{
@@ -166,20 +178,31 @@ const StudyPlan = () => {
         </p>
       )}
       {savedStudyPlans.length > 0 && (
-        <Select
-          label="מעבר מהיר בין תוכניות"
-          placeholder="בחירת תוכנית"
-          searchable
-          allowDeselect={false}
-          value={savedIndex < 0 ? null : String(savedIndex)}
-          data={savedStudyPlans.map((plan, index) => ({
-            value: String(index), label: `${plan.studyPlan} — ${plan.school}`,
-          }))}
-          onChange={value => {
-            const plan = value === null ? undefined : savedStudyPlans[Number(value)]
-            if (plan) setDibIt({ ...dibIt, school: plan.school, studyPlan: plan.studyPlan })
-          }}
-        />
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+          <Select
+            style={{ flex: 1, minWidth: 0 }}
+            label="מעבר מהיר בין תוכניות"
+            placeholder="בחירת תוכנית"
+            searchable
+            allowDeselect={false}
+            value={savedIndex < 0 ? null : String(savedIndex)}
+            data={savedStudyPlans.map((plan, index) => ({
+              value: String(index), label: `${plan.studyPlan} — ${plan.school}`,
+            }))}
+            onChange={value => {
+              const plan = value === null ? undefined : savedStudyPlans[Number(value)]
+              if (plan) setDibIt({ ...dibIt, school: plan.school, studyPlan: plan.studyPlan })
+            }}
+          />
+          {savedIndex >= 0 && (
+            <Tooltip label="הסרה מהמעבר המהיר">
+              <ActionIcon size="lg" variant="subtle" aria-label="הסרה מהמעבר המהיר"
+                onClick={() => setDibIt({ ...dibIt, savedStudyPlans: savedStudyPlans.filter((_, index) => index !== savedIndex) })}>
+                <i className="fa-solid fa-xmark" aria-hidden="true" />
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </div>
       )}
       <Select
         mt="xs"
@@ -199,44 +222,35 @@ const StudyPlan = () => {
       />
       <Select
         mt="xs"
-        label="פקולטה"
+        size="md"
+        label="תוכנית לימוד"
+        placeholder={dibIt.degreeStartYear ? "חיפוש תוכנית בכל הפקולטות" : "בחרו תחילה שנת התחלת תואר"}
         searchable
-        leftSection={<i className="fa-solid fa-school" />}
-        data={Object.keys(plans).sort()}
-        value={dibIt.school}
-        onChange={(v) => {
-          if (v) {
-            dibIt.school = v
-            setDibIt({ ...dibIt })
-          }
+        allowDeselect={false}
+        disabled={!dibIt.degreeStartYear || loadingPlans}
+        rightSection={loadingPlans ? <Loader size="xs" /> : undefined}
+        leftSection={<i className="fa-solid fa-book" aria-hidden="true" />}
+        data={planOptions}
+        value={dibIt.school && dibIt.studyPlan ? JSON.stringify([dibIt.school, dibIt.studyPlan]) : null}
+        onChange={value => {
+          const plan = planOptions.find(option => option.value === value)
+          if (plan) setDibIt({ ...dibIt, school: plan.school, studyPlan: plan.studyPlan })
         }}
+        nothingFoundMessage="לא נמצאו תוכניות מתאימות"
+        limit={30}
+        maxDropdownHeight={250}
       />
-      {plans[dibIt.school ?? ""] !== undefined && (
-        <Autocomplete
-          mt="xs"
-          size="md"
-          label="תוכנית לימוד"
-          leftSection={<i className="fa-solid fa-book" />}
-          data={Object.keys(plans[dibIt.school!] ?? {}).sort()}
-          value={dibIt.studyPlan}
-          onChange={(v) => {
-            dibIt.studyPlan = v
-            setDibIt({ ...dibIt })
-          }}
-          limit={20}
-          maxDropdownHeight={200}
-        />
-      )}
-      <Button
+      {dibIt.school && <Text size="xs" c="dimmed" mt={4}>{dibIt.school}</Text>}
+      {savedIndex < 0 && <Button
         mt="xs"
         size="compact-sm"
         variant="subtle"
         leftSection={<i className="fa-solid fa-bookmark" aria-hidden="true" />}
-        disabled={savedIndex >= 0 || !plans[dibIt.school ?? ""]?.[dibIt.studyPlan ?? ""]}
+        disabled={!plans[dibIt.school ?? ""]?.[dibIt.studyPlan ?? ""]}
         onClick={() => setDibIt(saveStudyPlan(dibIt))}
       >
-        {savedIndex >= 0 ? "נשמרה למעבר מהיר" : "שמירה למעבר מהיר"}
-      </Button>
+        שמירה למעבר מהיר
+      </Button>}
 
       <Switch
         mt="xs"

@@ -1,5 +1,5 @@
 <h1 align="center">
-    <a href="https://arazim-project.com/dib-it/">🗓️ Dib It</a>
+    <a href="https://github.com/noam-isaac/dib-it">🗓️ Dib It — Noam's fork</a>
     <br />
     <img src="https://img.shields.io/badge/updated-2026-purple.svg">
     <img src="https://img.shields.io/badge/license-MIT-blue.svg">
@@ -9,6 +9,10 @@
 <p align="center">
     <b>A schedule planning website for Tel Aviv University built with <a href="https://react.dev">React</a>, <a href="https://mantine.dev">Mantine</a> and <a href="https://firebase.google.com">Firebase</a></b>
 </p>
+
+This is Noam Isaac's independently maintained fork of [Dib It by Arazim Project](https://github.com/arazimproject/dib-it), not the original Arazim deployment. Course catalogs and linked academic tools are still provided by Arazim Project. The original [MIT license and copyright notice](LICENSE.md) are preserved.
+
+This fork adds multiple saved schedules, exam-date search, Word registration forms, improved Hebrew search, academic-program shortcuts, hidden tabs, corrected calendar export, and backup restore previews. A Hebrew introduction opens on the first visit and can be reopened from the existing footer. Report fork issues [here](https://github.com/noam-isaac/dib-it/issues).
 
 <p align="center">
     📖 <a href="#usage">Usage</a>
@@ -51,7 +55,7 @@ The **מבחנים** tab keeps the original personal exam list, spacing indicato
 
 Annual groups are marked **שנתי** and selections synchronize between semesters within the same saved schedule. Official groups are verified against [TAU's course search](https://www.ims.tau.ac.il/Tal/KR/Search_P.aspx), using its annual-only filter (`ckSem=0`), rather than inferred from matching names, lecturers, or exams. `src/annualGroups.json` records the verified groups and retrieval date separately for 2023–2027 (2026 means 2025/26). Unknown years are not inferred. Local/custom courses must explicitly mark a lesson as `שנתי`.
 
-Refresh the official index with `python3 scripts/refresh-annual-courses.py 2023 2024 2025 2026 2027`. This reads every result page for every department option; it requires network access but no login or additional Python packages. Failed or unexpected responses abort the refresh without replacing the index. Rerun it when adding another academic year or updating catalog data.
+Annual classification updates independently through the public `annual-data` branch feed. A daily GitHub workflow refreshes the official TAU annual-only listing and publishes atomically, without an app deployment. The app keeps validated data in the browser and retains the bundled index as an offline fallback. Missing years preserve pending edits; Settings shows verification dates and provides refresh/retry. Activation and maintenance are documented in [MAINTAINING.md](MAINTAINING.md).
 
 ## Saved schedules
 
@@ -59,7 +63,7 @@ Open the three-dot menu next to the semester and choose **מערכות שעות*
 
 Existing schedules and older backups become the first plan automatically. Local JSON and Google backups include every plan and the active selection. Calendar and registration exports use only the active plan and selected semester. File and Google restore first list the incoming schedules and identify which one will open. The dialog explains that confirming replaces every local plan and shared settings, and offers a download of the current workspace before proceeding. Cancel leaves the workspace unchanged. To recover afterward, restore that downloaded `dibit-before-restore.json` file. A success message appears only after the replacement is saved; restored custom catalogs appear immediately.
 
-In the **תוכנית** tab, choose an academic program and click **שמירה למעבר מהיר**. Save additional programs, then use **מעבר מהיר בין תוכניות** to restore their faculty and program without changing your courses or degree start year. These shortcuts are kept with each schedule and included in backups.
+In the **תוכנית** tab, choose a degree start year and search programs across all faculties; each result includes its faculty. Click **שמירה למעבר מהיר** to bookmark the selected program. Save additional programs, then use **מעבר מהיר בין תוכניות** to restore their faculty and program without changing your courses or degree start year. Remove the selected shortcut with the × beside the quick-access selector; this preserves the active program and courses. These shortcuts are kept with each schedule and included in backups. Course cards with zero scheduled hours use a neutral background, dashed border, and **ללא שעות במערכת** label; selecting a timed group restores their course color.
 
 ## Registration forms
 
@@ -73,11 +77,11 @@ The export module and template load only when requested. See [template provenanc
 
 ## Google compatibility
 
-While signed in, all schedule plans and shared settings sync automatically through the existing private Firebase document. Edits are batched after a one-second pause; server updates arrive through a realtime listener. The selected tab, semester and active plan stay local. Offline edits remain in localStorage and retry on reconnect, focus, or after 30 seconds following an error. On a new device an empty workspace loads the cloud schedules. If existing local and cloud schedules differ on first sign-in, or both have changed since the last sync, syncing pauses for a choice with downloads of both copies available. Transaction checks prevent a concurrent cloud edit from being silently overwritten. Switching accounts also requires a choice before uploading different local schedules. File restores sync to the other signed-in devices too. The sync status and conflict actions appear below the header.
+While signed in, the three-dot menu offers manual Google backup and restore, plus an automatic-sync toggle. Automatic sync is off by default; the choice is saved in this browser. When enabled, all schedule plans and shared settings sync through the existing private Firebase document. Edits are batched after a one-second pause; server updates arrive through a realtime listener. The selected tab, semester and active plan stay local. Offline edits remain in localStorage and retry on reconnect, focus, or after 30 seconds following an error. On a new device an empty workspace loads the cloud schedules. If existing local and cloud schedules differ on first sign-in, or both have changed since the last sync, syncing pauses for a choice with downloads of both copies available. Transaction checks prevent a concurrent cloud edit from being silently overwritten. Switching accounts also requires a choice before uploading different local schedules. File restores sync to the other signed-in devices too. Routine syncing and success states take no space on the page; only errors and conflicts appear below the header.
 
 Calendar export works without sign-in. It downloads an ICS file for manual import into Google Calendar on a computer or Apple Calendar. Lessons use Jerusalem wall time, including minutes and daylight-saving transitions, and exams are all-day entries. Each weekly lesson is exported as individual dated events through the end of the semester; holidays and cancellations are not inferred. This is a snapshot, not automatic calendar synchronization. See [Google's import instructions](https://support.google.com/calendar/answer/37118).
 
-For Google sign-in and schedule backup, copy `.env.example` to `.env.local` and supply the four Firebase web app values. Complete configuration enables sync automatically; `VITE_ENABLE_GOOGLE_SYNC=false` explicitly disables it. The original ignored `src/firebase.json` format is also supported, with environment values taking precedence. Without complete configuration, the site continues in local mode. Enable the Google provider in Firebase Authentication and authorize the deployment domain (and localhost for development). See [Firebase's Google sign-in setup](https://firebase.google.com/docs/auth/web/google-signin).
+For Google sign-in and schedule backup, copy `.env.example` to `.env.local` and supply the four Firebase web app values. Complete configuration enables Google sign-in and backup controls; automatic sync is a separate user choice. `VITE_ENABLE_GOOGLE_SYNC=false` explicitly disables it. The original ignored `src/firebase.json` format is also supported, with environment values taking precedence. Without complete configuration, the site continues in local mode. Enable the Google provider in Firebase Authentication and authorize the deployment domain (and localhost for development). See [Firebase's Google sign-in setup](https://firebase.google.com/docs/auth/web/google-signin).
 
 The Firebase project must allow authenticated users to read and write only their own `users/{uid}` document. Backups replace that document so deleted courses do not reappear; restore checks the payload and keeps the current semester and tab. Using a different Firebase project does not migrate backups from the old site's project; use file backup/restore to transfer them.
 
@@ -87,7 +91,7 @@ For this fork, Google backup uses an unbilled **Spark** project with one free-ti
 
 ## Validation and Vercel
 
-Run `bun test`, `bun run lint`, and `bun run build`. For browser regressions, install Chromium once with `bunx playwright install chromium`, then run `bun run test:browser`. This checks desktop and mobile layouts in Los Angeles and Jerusalem timezones using synthetic schedules and intercepted catalogs. Set `DIBIT_TEST_URL=https://your-deployment.example` to check a deployment instead of starting a local Vite server.
+Run `bun test`, `bun run lint`, and `bun run build`. For browser regressions, install Chromium once with `bunx playwright install chromium`, then run `bun run test:browser`. For Firefox/WebKit print-layout checks, install them with `bunx playwright install firefox webkit` and run `bun run test:print:browsers`; native OS print dialogs require an interactive check. This checks desktop and mobile layouts in Los Angeles and Jerusalem timezones using synthetic schedules and intercepted catalogs. Set `DIBIT_TEST_URL=https://your-deployment.example` to check a deployment instead of starting a local Vite server.
 
 Deploy with `bun run deploy` after linking the checkout to your Vercel project. The Vercel configuration uses the committed Bun lockfile.
 

@@ -1,0 +1,45 @@
+name: Refresh annual-course data
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: annual-course-data
+  cancel-in-progress: false
+jobs:
+  refresh:
+    if: github.repository == 'noam-isaac/dib-it'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare the separate data branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          feed_dir="$RUNNER_TEMP/annual-data"
+          if git ls-remote --exit-code --heads origin annual-data > /dev/null; then
+            git fetch origin annual-data
+            git worktree add --detach "$feed_dir" FETCH_HEAD
+          else
+            status=$?
+            if [ "$status" -ne 2 ]; then exit "$status"; fi
+            git worktree add --detach "$feed_dir" HEAD
+            git -C "$feed_dir" switch --orphan annual-data
+          fi
+      - name: Verify and refresh all offered years
+        run: |
+          python3 scripts/refresh-annual-courses.py --self-test
+          python3 scripts/refresh-annual-courses.py --feed --output "$RUNNER_TEMP/annual-data/annual-groups.json"
+      - name: Publish only after the entire refresh succeeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          feed_dir="$RUNNER_TEMP/annual-data"
+          echo '{"git":{"deploymentEnabled":false}}' > "$feed_dir/vercel.json"
+          git -C "$feed_dir" add annual-groups.json vercel.json
+          if git -C "$feed_dir" diff --cached --quiet; then exit 0; fi
+          git -C "$feed_dir" -c user.name=github-actions -c user.email=41898282+github-actions[bot]@users.noreply.github.com commit -m "Refresh verified annual-course data"
+          git -C "$feed_dir" push origin HEAD:annual-data

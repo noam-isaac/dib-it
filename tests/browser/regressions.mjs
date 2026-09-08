@@ -20,7 +20,7 @@ const initial = {
     { id: "second", name: "חלופה", courses: {} },
   ],
 }
-const server = process.env.DIBIT_TEST_URL ? undefined : await createServer({
+const server = process.env.DIBIT_TEST_URL ? undefined : await createServer({ cacheDir: "node_modules/.vite-test-regressions",
   define: { "import.meta.env.VITE_ENABLE_GOOGLE_SYNC": '"false"' },
   server: { host: "127.0.0.1", port: 0 },
 })
@@ -61,8 +61,27 @@ try {
       if (!localStorage.getItem("Dib It")) localStorage.setItem("Dib It", JSON.stringify(state))
     }, initial)
     await page.goto(url)
+    const intro = page.getByRole("dialog", { name: "מה נוסף ביחס ל־Dib It המקורי?", exact: true })
+    await intro.waitFor()
+    if (process.env.DIBIT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.DIBIT_SCREENSHOT_DIR}/intro-${viewport.width}.png`, animations: "disabled" })
+    await intro.getByRole("button", { name: "למערכת השעות", exact: true }).click()
+    await intro.waitFor({ state: "hidden" })
+    await page.reload()
     await checkActivePlan("בדיקה")
+    assert.equal(await page.locator(`#course-${courseId}`).evaluate(element => getComputedStyle(element).color), "rgb(0, 0, 0)", "Light course backgrounds need dark text")
     assert.equal(await page.getByRole("button", { name: /^החלפת מערכת שעות:/ }).count(), 0, "Schedule switching must stay in the actions menu")
+    assert.equal(await intro.count(), 0, "The introduction must not reopen on a repeat visit")
+    assert.equal(await page.title(), "Dib It — הפורק של נועם")
+    await page.locator("#header").getByText("הפורק של נועם", { exact: true }).waitFor()
+    assert.equal(await page.locator('#header a[aria-label="קוד המקור של הפורק בגיטהאב"]').getAttribute("href"), "https://github.com/noam-isaac/dib-it")
+    assert.equal(await page.locator('a[href="/contact-us"], a[href="/disclaimer"]').count(), 0)
+    const introButton = page.locator("footer p").getByRole("button", { name: "מה חדש בגרסה הזו?", exact: true })
+    const layout = await page.locator("#main").boundingBox()
+    await introButton.click()
+    await intro.waitFor()
+    await page.keyboard.press("Escape")
+    await intro.waitFor({ state: "hidden" })
+    assert.deepEqual(await page.locator("#main").boundingBox(), layout, "Opening the introduction must not shift the main layout")
     await openSchedules()
     await page.getByRole("textbox", { name: "מערכת שעות", exact: true }).click()
     await page.getByRole("option", { name: "חלופה", exact: true }).click()

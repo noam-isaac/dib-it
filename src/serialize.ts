@@ -5,16 +5,11 @@ import timezone from "dayjs/plugin/timezone"
 import { DibItCourse } from "./models"
 import { cachedFetch } from "./hooks"
 import { collectExams, isCourseScheduled } from "./exams"
+import { parseTime } from "./utilities"
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
 const DAYS = ["א", "ב", "ג", "ד", "ה", "ו", "ש"]
-
-const parseTime = (value: string) => {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim())
-  if (!match || +match[1] > 23 || +match[2] > 59) return undefined
-  return +match[1] * 60 + +match[2]
-}
 
 /** Expand lessons in Jerusalem wall time so imports remain correct across DST
  * and when the browser is in another time zone. Exam dates remain all-day. */

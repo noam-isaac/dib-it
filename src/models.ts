@@ -1,30 +1,36 @@
 import { getLocalStorage, setLocalStorage, useLocalStorage } from "./hooks"
 import { activePlanView, normalizePlans, updateActivePlan, reconcileActivePlan, PlanWorkspace } from "./plans"
 
+import { refreshAnnualFeed } from "./annualRegistry"
+
+export const refreshAnnualClassification = async () => {
+  await refreshAnnualFeed()
+  setWorkspace(getWorkspace())
+}
+
 const semesterCatalogs: Record<string, SemesterCourses> = {}
 export const cacheSemesterCourses = (semester: string, catalog: SemesterCourses) => {
   semesterCatalogs[semester] = catalog
   const workspace = getWorkspace()
   if (workspace.semester?.slice(0, 4) !== semester.slice(0, 4)) return
   const updated = reconcileActivePlan(workspace, semesterCatalogs)
-  if (JSON.stringify(updated) !== JSON.stringify(workspace)) setWorkspace(updated)
+  if (JSON.stringify(updated) !== JSON.stringify(workspace)) setLocalStorage("Dib It", updated)
 }
 
 export const getWorkspace = () => normalizePlans(getLocalStorage<DibIt | PlanWorkspace>("Dib It"))
-export const setWorkspace = (workspace: DibIt | PlanWorkspace, quiet = false) =>
-  setLocalStorage("Dib It", reconcileActivePlan(normalizePlans(workspace), semesterCatalogs), { quiet })
+export const setWorkspace = (workspace: DibIt | PlanWorkspace) =>
+  setLocalStorage("Dib It", reconcileActivePlan(normalizePlans(workspace), semesterCatalogs))
 export const getDibIt = () => activePlanView(getWorkspace())
-export const setDibIt = (dibIt: DibIt, quiet = false) =>
-  setWorkspace(updateActivePlan(getWorkspace(), dibIt, semesterCatalogs), quiet)
+export const setDibIt = (dibIt: DibIt) =>
+  setLocalStorage("Dib It", updateActivePlan(getWorkspace(), dibIt, semesterCatalogs))
 export const useWorkspace = () => {
   const [stored, setStored] = useLocalStorage<DibIt | PlanWorkspace>({ key: "Dib It", defaultValue: {} })
-  return [normalizePlans(stored), (workspace: DibIt | PlanWorkspace, quiet = false) =>
-    setStored(reconcileActivePlan(normalizePlans(workspace), semesterCatalogs), quiet)] as const
+  return [normalizePlans(stored), (workspace: DibIt | PlanWorkspace) =>
+    setStored(reconcileActivePlan(normalizePlans(workspace), semesterCatalogs))] as const
 }
 export const useDibIt = () => {
-  const [workspace, save] = useWorkspace()
-  return [activePlanView(workspace), (dibIt: DibIt, quiet = false) =>
-    save(updateActivePlan(getWorkspace(), dibIt, semesterCatalogs), quiet)] as const
+  const [workspace] = useWorkspace()
+  return [activePlanView(workspace), setDibIt] as const
 }
 
 /** The active plan and shared user settings consumed by the app. */

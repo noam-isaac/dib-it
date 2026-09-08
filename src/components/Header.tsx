@@ -23,22 +23,18 @@ const Header = () => {
         alignItems: "center",
       }}
     >
-      <a href="/">
-        <img
-          className="logo"
-          src="https://arazim-project.com/logo.png"
-          height={40}
-          style={{ marginLeft: 10, marginRight: 20 }}
-        />
+      <a href="/" aria-label="Dib It — הפורק של נועם" style={{ color: "white", marginInline: 12 }}>
+        <i className="fa-solid fa-calendar-days" style={{ fontSize: 28 }} aria-hidden="true" />
       </a>
       <h3
-        style={{ fontWeight: "bold", fontSize: "1.17em" }}
-        className="show-wide"
+        style={{ fontWeight: "bold", fontSize: "1em", lineHeight: 1.3 }}
       >
-        ארזים | Dib It
+        <span dir="ltr">Dib It</span>
+        <small style={{ display: "block", fontWeight: "normal" }}>הפורק של נועם</small>
       </h3>
       <a
-        href="https://github.com/arazimproject/dib-it"
+        href="https://github.com/noam-isaac/dib-it"
+        aria-label="קוד המקור של הפורק בגיטהאב"
         className="link show-wide"
       >
         <i

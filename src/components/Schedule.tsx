@@ -9,28 +9,28 @@ import {
 import { useCourseInfo } from "../CourseInfoContext"
 import { useLocalStorage } from "../hooks"
 import { useDibIt } from "../models"
-import { getColor } from "../utilities"
+import { getColor, parseTime } from "../utilities"
 
 const googleWideScheduleTheme = createTheme("google", {
-  hourHeight: "85px",
+  hourHeight: "var(--schedule-hour-height, 85px)",
   minorGridlinesPerHour: 1,
   timeFormatter: (hour: number) => hour.toString() + ":00",
 })
 
 const googleCompactScheduleTheme = createTheme("google", {
-  hourHeight: "65px",
+  hourHeight: "var(--schedule-hour-height, 65px)",
   minorGridlinesPerHour: 1,
   timeFormatter: (hour: number) => hour.toString() + ":00",
 })
 
 const wideScheduleTheme = createTheme("apple", {
-  hourHeight: "85px",
+  hourHeight: "var(--schedule-hour-height, 85px)",
   minorGridlinesPerHour: 1,
   timeFormatter: (hour: number) => hour.toString() + ":00",
 })
 
 const compactScheduleTheme = createTheme("apple", {
-  hourHeight: "65px",
+  hourHeight: "var(--schedule-hour-height, 65px)",
   minorGridlinesPerHour: 1,
   timeFormatter: (hour: number) => hour.toString() + ":00",
 })
@@ -81,17 +81,14 @@ const Schedule = () => {
       }
 
       for (const lesson of info.lessons ?? []) {
-        try {
-          const [startHourStr, endHourStr] = lesson.time!.split("-")
-          const startHour =
-            parseInt(startHourStr.split(":")[0], 10) +
-            parseInt(startHourStr.split(":")[1] ?? 0, 10) / 60
-          const endHour =
-            parseInt(endHourStr.split(":")[0], 10) +
-            parseInt(endHourStr.split(":")[1] ?? 0, 10) / 60
-          data[DAY_INDEX[lesson.day!]].events.push({
-            startTime: startHour,
-            endTime: endHour,
+        const times = lesson.time?.split("-")
+        const day = data[DAY_INDEX[lesson.day ?? ""]]
+        if (times?.length !== 2 || !day) continue
+        const start = parseTime(times[0]), end = parseTime(times[1])
+        if (start === undefined || end === undefined || end <= start) continue
+        day.events.push({
+            startTime: start / 60,
+            endTime: end / 60,
             title: `${courseInfo[course.id]?.name} (${lesson.type})`,
             description: `${lesson.building}  ${lesson.room} ${
               info.lecturer !== null ? " (" + info.lecturer + ")" : ""
@@ -100,13 +97,14 @@ const Schedule = () => {
             id: course.id,
             color: getColor(course),
           })
-        } catch (ignored) {}
       }
     }
   }
 
   return (
     <div
+      className="schedule"
+      data-theme={dibIt.theme ?? "apple"}
       style={{
         width: "100%",
         maxWidth: "100%",

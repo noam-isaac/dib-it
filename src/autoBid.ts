@@ -72,20 +72,22 @@ const autoBid = async (
   // Calculate mean costs for a course in every possible faculty. The cost would be the average minimal cost, plus one.
   const courseFacultyCosts: Record<string, Record<string, number>> = {}
   for (const course of courses) {
+    const allowedFaculties = (possibleFaculties[course.id] ?? []).filter(faculty => facultyPointsMap[faculty] > 0)
     const facultySums: Record<string, number> = {}
     const facultyCounts: Record<string, number> = {}
 
     for (const semester in bidding[course.id] ?? {}) {
       for (const group in bidding[course.id][semester] ?? {}) {
         for (const statistics of bidding[course.id][semester][group]) {
+          if (!Number.isFinite(statistics.minimal) || statistics.minimal < 0) continue
           // Unknown faculty, add to all.
           if (!statistics.faculty || !facultyPointsMap[statistics.faculty]) {
-            for (const faculty of possibleFaculties[course.id]) {
+            for (const faculty of allowedFaculties) {
               facultySums[faculty] =
                 (facultySums[faculty] ?? 0) + statistics.minimal
               facultyCounts[faculty] = (facultyCounts[faculty] ?? 0) + 1
             }
-          } else {
+          } else if (allowedFaculties.includes(statistics.faculty)) {
             facultySums[statistics.faculty] =
               (facultySums[statistics.faculty] ?? 0) + statistics.minimal
             facultyCounts[statistics.faculty] =
@@ -123,12 +125,12 @@ const autoBid = async (
     const faculties = Object.keys(courseFacultyCosts[course])
     if (faculties.length > 1) {
       let bestFaculty = ""
-      let bestFacultyRemainingPoints = -1000
+      let bestFacultyRemainingPoints = -Infinity
       for (const faculty of faculties) {
         const remainingPoints =
           facultyPointsMap[faculty] -
           currentFacultyPoints[faculty] -
-          courseFacultyCosts[course][faculties[0]]
+          courseFacultyCosts[course][faculty]
         if (remainingPoints > bestFacultyRemainingPoints) {
           bestFacultyRemainingPoints = remainingPoints
           bestFaculty = faculty
@@ -142,15 +144,14 @@ const autoBid = async (
 
   // Balance the points to match the available points for each faculty.
   for (const faculty in facultyPointsMap) {
-    let iterations = 0
     let difference = facultyPointsMap[faculty] - currentFacultyPoints[faculty]
     const sortedCourses = Object.keys(result[faculty]).sort(
       (a, b) => result[faculty][b] - result[faculty][a]
     )
-    const sortedCoursesReverse = sortedCourses.reverse()
+    const sortedCoursesReverse = [...sortedCourses].reverse()
 
     // Add more points to bids, giving more to higher bids.
-    while (difference > 0 && iterations <= 50) {
+    while (difference > 0 && sortedCourses.length > 0) {
       for (const course of sortedCourses) {
         const increase = Math.min(
           difference,
@@ -159,12 +160,10 @@ const autoBid = async (
         result[faculty][course] += increase
         difference -= increase
       }
-
-      iterations++
     }
 
     // Reduce points from bids, taking more from lower bids.
-    while (difference < 0 && iterations <= 50) {
+    while (difference < 0 && sortedCourses.length > 0) {
       for (const course of sortedCoursesReverse) {
         const decrease = Math.min(
           -difference,
@@ -174,8 +173,6 @@ const autoBid = async (
         result[faculty][course] -= decrease
         difference += decrease
       }
-
-      iterations++
     }
   }
 
