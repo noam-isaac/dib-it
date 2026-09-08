@@ -12,6 +12,7 @@ import Practice from "./components/Practice"
 import Schedule from "./components/Schedule"
 import Settings from "./components/Settings"
 import Sidebar from "./components/Sidebar"
+import GoogleScheduleSync from "./components/GoogleScheduleSync"
 import StudyPlan from "./components/StudyPlan"
 import { cachedFetch, useLocalStorage } from "./hooks"
 import { visibleTabs } from "./tabs"
@@ -138,6 +139,7 @@ const App = () => {
             }}
           >
             <Header />
+            <GoogleScheduleSync />
             {Object.keys(courses).length !== 0 && (
               <div
                 id="main"
