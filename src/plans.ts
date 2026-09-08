@@ -1,9 +1,11 @@
 import type { DibIt } from "./models"
+import { annualChanges, applyAnnualChanges, reconcileAnnualCourses, type AnnualChange } from "./annualCourses"
 
 type PlanData = Pick<DibIt, "courses" | "school" | "studyPlan" | "savedStudyPlans" | "degreeStartYear">
 export interface SchedulePlan extends PlanData {
   id: string
   name: string
+  pendingAnnualChanges?: AnnualChange[]
 }
 export interface PlanWorkspace extends Omit<DibIt, keyof PlanData | "activePlanId"> {
   plans: SchedulePlan[]
@@ -27,20 +29,34 @@ export const normalizePlans = (data: DibIt | PlanWorkspace): PlanWorkspace => {
 
 export const activePlanView = (workspace: PlanWorkspace): DibIt => {
   const { plans, ...shared } = workspace
-  const { id, name: _, ...data } = plans.find(plan => plan.id === workspace.activePlanId)!
+  const { id, name: _, pendingAnnualChanges: _pending, ...data } = plans.find(plan => plan.id === workspace.activePlanId)!
   return { ...shared, ...data, activePlanId: id }
 }
 
-export const updateActivePlan = (workspace: PlanWorkspace, view: DibIt): PlanWorkspace => {
+export const updateActivePlan = (workspace: PlanWorkspace, view: DibIt, catalogs: Record<string, SemesterCourses> = {}): PlanWorkspace => {
   // A callback from a plan that was switched away from must not overwrite the new plan.
   if (view.activePlanId && view.activePlanId !== workspace.activePlanId) return workspace
   const { courses, school, studyPlan, savedStudyPlans, degreeStartYear, activePlanId: _, ...shared } = view
-  return {
+  const previous = workspace.plans.find(plan => plan.id === workspace.activePlanId)!
+  const changes = annualChanges(previous.courses, view)
+  return reconcileActivePlan({
     ...workspace,
     ...shared,
     plans: workspace.plans.map(plan => plan.id === workspace.activePlanId
-      ? { ...plan, courses, school, studyPlan, savedStudyPlans, degreeStartYear } : plan),
-  }
+      ? { ...plan, courses, school, studyPlan, savedStudyPlans, degreeStartYear,
+          pendingAnnualChanges: [...plan.pendingAnnualChanges ?? [], ...changes] } : plan),
+  }, catalogs)
+}
+
+export const reconcileActivePlan = (workspace: PlanWorkspace, catalogs: Record<string, SemesterCourses>): PlanWorkspace => {
+  const plan = workspace.plans.find(plan => plan.id === workspace.activePlanId)!
+  const view = activePlanView(workspace)
+  const { courses, pending } = applyAnnualChanges(view, plan.pendingAnnualChanges ?? [], catalogs)
+  // Pending removals must resolve before any missing-course reconciliation can resurrect them.
+  const reconciled = pending.length ? courses : reconcileAnnualCourses({ ...view, courses }, catalogs)
+  const { pendingAnnualChanges: _, ...rest } = plan
+  return { ...workspace, plans: workspace.plans.map(item => item.id === plan.id
+    ? { ...rest, courses: reconciled, ...(pending.length ? { pendingAnnualChanges: pending } : {}) } : item) }
 }
 
 export const addPlan = (workspace: PlanWorkspace, name: string, duplicate = false): PlanWorkspace => {

@@ -2,6 +2,7 @@ import { Badge, Button, Checkbox, ColorInput, Tooltip } from "@mantine/core"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useURLValue } from "../hooks"
 import { useDibIt } from "../models"
+import { annualGroupIds } from "../annualCourses"
 import {
   checkPrerequisites,
   getColor,
@@ -25,6 +26,7 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
   )
   const [dibIt, setDibIt] = useDibIt()
   const course = dibIt.courses![semester][index]
+  const annualGroups = annualGroupIds(dibIt, semester, course.id)
 
   const courseInfo = useCourseInfo()
   const courseColor = getColor(course)
@@ -162,6 +164,7 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
           style={{ display: "flex", alignItems: "center" }}
         >
           <Checkbox
+            aria-label={`קבוצה ${group.group}${annualGroups.includes(group.group!) ? " — שנתית, מסונכרנת בין סמסטר א׳ וב׳" : ""}`}
             styles={{ input: { cursor: "pointer" } }}
             ml={10}
             checked={course.groups?.includes(group.group!) ?? false}
@@ -179,6 +182,11 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
             }}
           />
           {group.group} ({group.lessons?.[0]?.type ?? ""}): {group.lecturer}
+          {annualGroups.includes(group.group!) && (
+            <Tooltip label="קבוצה שנתית — הבחירה מסונכרנת בין סמסטר א׳ וב׳ באותה מערכת שעות">
+              <Badge size="sm" ms={6}>שנתי</Badge>
+            </Tooltip>
+          )}
         </div>
       ))}
       {compactView || (
