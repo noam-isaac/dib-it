@@ -167,7 +167,7 @@ const Practice = () => {
             : `תורגלו ${totalPracticed} מבחנים`
         return (
           <Accordion.Item key={exam.course.id} value={exam.course.id}>
-            <Accordion.Control style={{ borderInlineStart: `4px solid ${getColor(exam.course)}` }}>
+            <Accordion.Control style={{ color: getColor(exam.course) }}>
               {courseInfo[exam.course.id]?.name} ({exam.course.id})
             </Accordion.Control>
             <Accordion.Panel>
