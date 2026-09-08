@@ -3,18 +3,15 @@ import { doc, onSnapshot, runTransaction } from "firebase/firestore"
 import { useEffect, useRef, useState } from "react"
 import { useAuthState } from "react-firebase-hooks/auth"
 import { auth, firestore } from "../firebase"
+import { useLocalStorage } from "../hooks"
 import { getWorkspace, setWorkspace } from "../models"
 import type { PlanWorkspace } from "../plans"
-import { readCloudSchedule, startScheduleSync, type SyncStatus } from "../scheduleSync"
+import { readCloudSchedule, scheduleKey, startScheduleSync, type SyncStatus } from "../scheduleSync"
 import { downloadBlob } from "../utilities"
-
-const labels: Record<SyncStatus, string> = {
-  connecting: "מתחבר לסנכרון…", syncing: "מסנכרן…", synced: "מסונכרן עם גוגל",
-  conflict: "נדרשת בחירה לסנכרון", error: "נשמר במכשיר · הסנכרון ממתין",
-}
 
 const EnabledGoogleScheduleSync = () => {
   const [user] = useAuthState(auth!)
+  const [automatic] = useLocalStorage<boolean>({ key: "Automatic Google Sync", defaultValue: false })
   const [status, setStatus] = useState<SyncStatus>("connecting")
   const [remote, setRemote] = useState<PlanWorkspace | null>(null)
   const [opened, setOpened] = useState(false)
@@ -24,7 +21,7 @@ const EnabledGoogleScheduleSync = () => {
 
   useEffect(() => {
     setOpened(false)
-    if (!user) return
+    if (!user || !automatic) return
     setStatus("connecting")
     const uid = user.uid
     const reference = doc(firestore!, "users", uid)
@@ -57,11 +54,14 @@ const EnabledGoogleScheduleSync = () => {
     const unsubscribe = onSnapshot(reference, { includeMetadataChanges: true }, snapshot => {
       if (!snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites) sync.schedule(0)
     }, failure => { setError(failure.message); setStatus("error") })
-    const changed = (event: StorageEvent) => { if (event.key === "Dib It" || event.key === null) sync.schedule() }
-    const locallyChanged = () => sync.schedule()
+    let localKey = scheduleKey(getWorkspace())
+    const changed = (event: StorageEvent) => {
+      if (event.key !== "Dib It" && event.key !== null) return
+      const nextKey = scheduleKey(getWorkspace())
+      if (nextKey !== localKey) { localKey = nextKey; sync.schedule() }
+    }
     const resume = () => sync.schedule(0)
     window.addEventListener("storage", changed)
-    window.addEventListener("dibit-workspace-changed", locallyChanged)
     window.addEventListener("online", resume)
     window.addEventListener("focus", resume)
     return () => {
@@ -69,18 +69,17 @@ const EnabledGoogleScheduleSync = () => {
       unsubscribe()
       controller.current = null
       window.removeEventListener("storage", changed)
-      window.removeEventListener("dibit-workspace-changed", locallyChanged)
       window.removeEventListener("online", resume)
       window.removeEventListener("focus", resume)
     }
-  }, [user?.uid, retry])
+  }, [user?.uid, automatic, retry])
 
-  if (!user) return null
+  if (!user || !automatic || (status !== "conflict" && status !== "error")) return null
   const download = (workspace: PlanWorkspace, name: string) =>
     downloadBlob(name, new Blob([JSON.stringify(workspace)], { type: "application/json" }))
   return (
     <div className="dont-print" dir="rtl" style={{ textAlign: "center", padding: 4 }}>
-      <Text size="sm" role="status" aria-live="polite">{labels[status]}</Text>
+      <Text size="sm" role="status">{status === "conflict" ? "העותקים במכשיר ובגוגל שונים — בחרו איזה מהם לשמור." : "המערכות נשמרו במכשיר. הסנכרון לגוגל לא הושלם."}</Text>
       {status === "conflict" && <Button size="compact-xs" variant="subtle" onClick={() => setOpened(true)}>בחירת המערכות לסנכרון</Button>}
       {status === "error" && <Button size="compact-xs" variant="subtle" title={error} onClick={() => setRetry(value => value + 1)}>ניסיון נוסף</Button>}
       <Modal opened={opened} onClose={() => setOpened(false)} title="בחירת המערכות לסנכרון" centered>

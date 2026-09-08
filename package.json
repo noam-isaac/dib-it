@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "deploy": "bun run build && bunx vercel deploy --prod",
     "test": "bun test",
-    "test:browser": "node tests/browser/regressions.mjs && node tests/browser/annual-courses.mjs && node tests/browser/annual-courses-audit.mjs && node tests/browser/schedule-sync.mjs",
+    "refresh:annual": "python3 scripts/refresh-annual-courses.py",
+    "test:browser": "node tests/browser/regressions.mjs && node tests/browser/annual-courses.mjs && node tests/browser/annual-courses-audit.mjs && node tests/browser/schedule-sync.mjs && node tests/browser/dx-regressions.mjs && node tests/browser/print.mjs && node tests/browser/interaction-audit.mjs && node tests/browser/annual-feed.mjs",
+    "test:print:browsers": "DIBIT_BROWSER=firefox node tests/browser/print.mjs && DIBIT_BROWSER=webkit node tests/browser/print.mjs",
     "test:firebase": "pnpm dlx firebase-tools@15.29.0 emulators:exec --project demo-dibit --only firestore \"node --test tests/integration/*.mjs\""
   },
   "dependencies": {

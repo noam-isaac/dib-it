@@ -1,16 +1,19 @@
 import {
   Accordion,
+  Alert,
+  Button,
   Badge,
   Checkbox,
   Loader,
   Menu,
   Tooltip,
+  Text,
 } from "@mantine/core"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useURLValue } from "../hooks"
 import { DibItCourse, useDibIt } from "../models"
-import { formatSemester, getColor, parseDateString } from "../utilities"
-import { isCourseScheduled } from "../exams"
+import { formatSemester, getColor } from "../utilities"
+import { collectExams, isCourseScheduled } from "../exams"
 
 const PracticeInfo = ({
   course,
@@ -21,7 +24,7 @@ const PracticeInfo = ({
   semester: string
   gradeInfo: any
 }) => {
-  const [semesterInfo, loadingSemesterInfo] = useURLValue<SemesterCourses>(
+  const [semesterInfo, loadingSemesterInfo, semesterLoad] = useURLValue<SemesterCourses>(
     `https://arazim-project.com/data/courses-${semester}.json`
   )
 
@@ -66,7 +69,9 @@ const PracticeInfo = ({
         <Menu>
           <Menu.Target>
             <Badge
-              leftSection={<i className="fa-solid fa-file-pdf" />}
+              component="button"
+              type="button"
+              leftSection={<i className="fa-solid fa-file-pdf" aria-hidden="true" />}
               mr="xs"
               style={{ cursor: "pointer" }}
             >
@@ -109,13 +114,14 @@ const PracticeInfo = ({
       )}
 
       {loadingSemesterInfo && <Loader size="xs" mr="xs" />}
+      {semesterLoad.failed && <Button variant="subtle" size="compact-xs" onClick={semesterLoad.retry}>טעינת פרטי הסמסטר נכשלה — ניסיון נוסף</Button>}
     </>
   )
 }
 
 const Practice = () => {
   const courseInfo = useCourseInfo()
-  const [allTimeCourseInfo] = useURLValue<AllTimeCourses>(
+  const [allTimeCourseInfo, loadingCourses, courseLoad] = useURLValue<AllTimeCourses>(
     "https://arazim-project.com/data/courses.json"
   )
   const [gradeInfo] = useURLValue<any>(
@@ -126,31 +132,10 @@ const Practice = () => {
 
   const currentCourses = (dibIt.courses ?? {})[dibIt.semester ?? ""] ?? []
 
-  let examDates: {
-    course: DibItCourse
-    date: Date
-    moed: string
-    type: string
-  }[] = []
-
-  for (const course of currentCourses) {
-    if (!isCourseScheduled(course, courseInfo[course.id])) continue
-    for (const date of courseInfo[course.id]?.exams ?? []) {
-      const parsedDate = parseDateString(date.date!)
-      if (parsedDate === undefined) {
-        continue
-      }
-      examDates.push({
-        course,
-        date: parsedDate,
-        type: date.type!,
-        moed: date.moed!,
-      })
-    }
-  }
-  examDates.sort((a, b) => {
-    return a.date.toISOString().localeCompare(b.date.toISOString())
-  })
+  let examDates = collectExams(
+    currentCourses.filter(course => isCourseScheduled(course, courseInfo[course.id])),
+    courseInfo,
+  )
   const seenCourses = new Set<string>()
   examDates = examDates.filter((exam) => {
     const exists = seenCourses.has(exam.course.id)
@@ -158,15 +143,22 @@ const Practice = () => {
     return !exists
   })
 
+  if (courseLoad.failed) return <Alert color="red" role="alert">
+    לא ניתן לטעון את מאגר המבחנים לתרגול.
+    <Button variant="subtle" onClick={courseLoad.retry}>ניסיון נוסף</Button>
+  </Alert>
+  if (loadingCourses) return <Loader size="sm" />
+  if (!examDates.length) return <Text c="dimmed" p="md">אין מבחנים לתרגול בקורסים שנבחרו. בחרו קבוצות בקורסים עם מועדי מבחנים בסמסטר הנוכחי.</Text>
+
   return (
     <Accordion
       multiple
       value={dibIt.openedPracticeCourses ?? []}
       onChange={(openedPracticeCourses) =>
-        setDibIt({ ...dibIt, openedPracticeCourses }, true)
+        setDibIt({ ...dibIt, openedPracticeCourses })
       }
     >
-      {examDates.map((exam, examIndex) => {
+      {examDates.map((exam) => {
         const totalPracticed =
           (dibIt.practicedExams ?? {})[exam.course.id]?.length ?? 0
         const totalPracticedString =
@@ -174,15 +166,15 @@ const Practice = () => {
             ? "תורגל מבחן אחד"
             : `תורגלו ${totalPracticed} מבחנים`
         return (
-          <Accordion.Item key={examIndex} value={examIndex.toString()}>
-            <Accordion.Control style={{ color: getColor(exam.course) }}>
+          <Accordion.Item key={exam.course.id} value={exam.course.id}>
+            <Accordion.Control style={{ borderInlineStart: `4px solid ${getColor(exam.course)}` }}>
               {courseInfo[exam.course.id]?.name} ({exam.course.id})
             </Accordion.Control>
             <Accordion.Panel>
               <span style={{ marginBottom: 10, fontWeight: "bold" }}>
                 סה״כ {totalPracticedString}!
               </span>
-              {(allTimeCourseInfo[exam.course.id]?.semesters ?? []).map(
+              {(dibIt.openedPracticeCourses?.includes(exam.course.id) ? allTimeCourseInfo[exam.course.id]?.semesters ?? [] : []).map(
                 (semester, semesterIndex) => {
                   return (
                     <div
@@ -219,7 +211,7 @@ const Practice = () => {
                                 (s) => s !== semester + "a"
                               )
                           }
-                          setDibIt({ ...dibIt }, true)
+                          setDibIt({ ...dibIt })
                         }}
                       />
                       <Checkbox
@@ -248,7 +240,7 @@ const Practice = () => {
                                 (s) => s !== semester + "b"
                               )
                           }
-                          setDibIt({ ...dibIt }, true)
+                          setDibIt({ ...dibIt })
                         }}
                       />
                       <PracticeInfo

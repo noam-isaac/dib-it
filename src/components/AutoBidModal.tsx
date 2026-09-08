@@ -1,5 +1,7 @@
 import {
   ActionIcon,
+  Alert,
+  Text,
   Button,
   Checkbox,
   NumberInput,
@@ -15,21 +17,27 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
     { faculty: string; points?: number }[]
   >({ key: "Auto Bid Faculty Points", defaultValue: [] })
   const [loading, setLoading] = useState(false)
-  const [possibleFaculties, setPossibleFaculties] = useLocalStorage<
-    Record<string, string[]>
-  >({ key: "Auto Bid Possible Faculties", defaultValue: {} })
+  const [possibleFaculties, setPossibleFaculties] = useState<Record<string, string[]>>({})
+  const [error, setError] = useState("")
   const [results, setResults] = useState<
     Record<string, Record<string, number>>
   >({})
 
   const existingFaculties = facultyPoints
-    .filter((p) => p.points)
+    .filter((p) => p.faculty.trim() && p.points && p.points > 0)
     .map((p) => p.faculty)
 
   useEffect(() => {
     setPossibleFaculties({})
     setResults({})
+    setError("")
   }, [facultyPoints])
+
+  const validInput = courses.length > 0 && facultyPoints.length > 0
+    && facultyPoints.every(p => p.faculty.trim() && Number.isSafeInteger(p.points) && p.points! > 0)
+    && new Set(existingFaculties).size === facultyPoints.length
+  const assignedCourses = new Set(Object.values(results).flatMap(Object.keys))
+  const unassigned = courses.filter(course => !assignedCourses.has(course.id))
 
   return (
     <>
@@ -40,6 +48,8 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
         >
           <TextInput
             placeholder="מסלול"
+            aria-label="מסלול בבידינג"
+            disabled={loading}
             value={faculty}
             onChange={(e) => {
               facultyPoints[index].faculty = e.currentTarget.value
@@ -50,6 +60,9 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
           <NumberInput
             mr={5}
             placeholder="נקודות"
+            aria-label="נקודות בבידינג"
+            disabled={loading}
+            allowDecimal={false}
             value={points}
             min={0}
             onChange={(v) => {
@@ -59,6 +72,8 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
             }}
           />
           <ActionIcon
+            aria-label="מחיקת מסלול בבידינג"
+            disabled={loading}
             color="red"
             variant="subtle"
             mr={5}
@@ -67,13 +82,14 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
               setFacultyPoints([...facultyPoints])
             }}
           >
-            <i className="fa-solid fa-trash" />
+            <i className="fa-solid fa-trash" aria-hidden="true" />
           </ActionIcon>
         </div>
       ))}
       <Button
         fullWidth
-        leftSection={<i className="fa-solid fa-plus" />}
+        disabled={loading}
+        leftSection={<i className="fa-solid fa-plus" aria-hidden="true" />}
         onClick={() => setFacultyPoints([...facultyPoints, { faculty: "" }])}
         mb="xs"
       >
@@ -90,6 +106,7 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
             <span>{courseId}</span>
             {existingFaculties.map((faculty, facultyIndex) => (
               <Checkbox
+                disabled={loading}
                 mr="auto"
                 label={faculty}
                 display="inline-block"
@@ -104,48 +121,63 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
                     ].filter((x) => x !== faculty)
                   }
                   setPossibleFaculties({ ...possibleFaculties })
+                  setResults({})
+                  setError("")
                 }}
               />
             ))}
           </div>
         ))}
 
+      {!validInput && <Text size="sm" c="dimmed">הוסיפו קורסים ומסלולים עם שמות שונים ותקציב נקודות שלם וחיובי.</Text>}
+      {error && <Alert color="red" role="alert" mt="xs">{error}</Alert>}
       <Button
         variant="gradient"
         gradient={{ from: "blue", to: "grape", deg: 90 }}
         loading={loading}
+        disabled={!validInput}
         fullWidth
         mt="xs"
-        leftSection={<i className="fa-solid fa-wand-magic-sparkles" />}
+        leftSection={<i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true" />}
         onClick={async () => {
           setLoading(true)
-          const allTimeBiddingInfo = await cachedFetch<AllTimeBiddingInfo>(
-            "https://arazim-project.com/data/bidding.json"
-          )
-          let newPossibleFaculties
-          if (Object.keys(possibleFaculties).length === 0) {
-            newPossibleFaculties = await getPossibleFaculties(
-              courses,
-              facultyPoints,
-              allTimeBiddingInfo
+          setError("")
+          setResults({})
+          try {
+            const allTimeBiddingInfo = await cachedFetch<AllTimeBiddingInfo>(
+              "https://arazim-project.com/data/bidding.json"
             )
-            setPossibleFaculties(newPossibleFaculties)
-          } else {
-            newPossibleFaculties = possibleFaculties
+            let newPossibleFaculties
+            if (Object.keys(possibleFaculties).length === 0) {
+              newPossibleFaculties = await getPossibleFaculties(
+                courses,
+                facultyPoints,
+                allTimeBiddingInfo
+              )
+              setPossibleFaculties(newPossibleFaculties)
+            } else {
+              newPossibleFaculties = possibleFaculties
+            }
+            setResults(
+              await autoBid(
+                courses,
+                facultyPoints,
+                newPossibleFaculties,
+                allTimeBiddingInfo
+              )
+            )
+          } catch {
+            setError("לא ניתן לחשב המלצות כרגע. נסו שוב.")
+          } finally {
+            setLoading(false)
           }
-          setResults(
-            await autoBid(
-              courses,
-              facultyPoints,
-              newPossibleFaculties,
-              allTimeBiddingInfo
-            )
-          )
-          setLoading(false)
         }}
       >
         חישוב המלצות (2, 3 - שג׳ר!)
       </Button>
+      {Object.keys(results).length > 0 && unassigned.length > 0 && <Alert color="yellow" mt="xs">
+        לא חושבה המלצה לקורסים: {unassigned.map(course => course.id).join(", ")}. בדקו את שיוך המסלולים ואת זמינות נתוני הבידינג.
+      </Alert>}
       {Object.keys(results)
         .sort()
         .map((faculty, facultyIndex) => (

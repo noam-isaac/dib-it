@@ -69,7 +69,19 @@ body,
   flex-direction: column;
 }
 
+.courses-collapsed {
+  display: none;
+}
+
 @media only screen and (min-width: 800px) {
+  #sidebar .course-list-toggle {
+    display: none;
+  }
+
+  .courses-collapsed {
+    display: block;
+  }
+
   .adaptive-flex {
     flex-direction: row;
   }
@@ -97,17 +109,56 @@ body,
 }
 
 @media print {
+  :root {
+    color-scheme: light !important;
+    --mantine-color-text: #222;
+    --mantine-color-body: white;
+  }
   @page {
-    margin: 0;
+    size: A4 portrait;
+    margin: 10mm;
   }
 
   body {
+    background: white !important;
+    color: #222 !important;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
 
-  .dont-print {
+  .dont-print,
+  .mantine-Menu-dropdown,
+  .mantine-Tooltip-tooltip,
+  .mantine-Notifications-root {
     display: none !important;
+  }
+
+  html, body, #root, #root > div, #main, #content, #content > div,
+  .schedule, #schedule-container {
+    display: block !important;
+    height: auto !important;
+    max-height: none !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    background: white !important;
+    color: #222 !important;
+  }
+
+  #schedule-container {
+    --schedule-hour-height: 18mm;
+    break-inside: avoid;
+  }
+
+  #schedule-container > div > div {
+    color: #222 !important;
+    opacity: 1 !important;
+  }
+
+  .schedule[data-theme="apple"] #schedule-container * {
+    color: #222 !important;
   }
 
   ::-webkit-scrollbar-thumb {

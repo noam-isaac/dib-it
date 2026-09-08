@@ -1,6 +1,10 @@
 import { Button, Select, Switch } from "@mantine/core"
 import { useLocalStorage } from "../hooks"
-import { useDibIt } from "../models"
+import { useState } from "react"
+import { annualYear } from "../annualRegistry"
+import { refreshAnnualClassification, getDibIt, useDibIt } from "../models"
+import { isScheduleBackup } from "../scheduleBackup"
+import { notifications } from "@mantine/notifications"
 import { Dropzone } from "@mantine/dropzone"
 import { tabs } from "../tabs"
 
@@ -9,6 +13,9 @@ const Settings = ({ hiddenTabs, onHiddenTabsChange }: {
   onHiddenTabsChange: (tabs: string[]) => void
 }) => {
   const [dibIt, setDibIt] = useDibIt()
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshFailed, setRefreshFailed] = useState(false)
+  const classification = annualYear(dibIt.semester?.slice(0, 4) ?? "")
   const [compactView, setCompactView] = useLocalStorage<boolean>({
     key: "Compact View",
     defaultValue: false,
@@ -16,6 +23,15 @@ const Settings = ({ hiddenTabs, onHiddenTabsChange }: {
 
   return (
     <div style={{ maxWidth: 600, marginBottom: 20 }}>
+      <p>נתוני קורסים שנתיים</p>
+      <p>{classification ? `אומתו לאחרונה: ${classification.verifiedAt}` : "נתוני השנה עדיין אינם זמינים. השינויים נשמרים עד לטעינתם."}</p>
+      <Button variant="subtle" loading={refreshing} onClick={async () => {
+        setRefreshing(true); setRefreshFailed(false)
+        try { await refreshAnnualClassification() }
+        catch { setRefreshFailed(true) }
+        finally { setRefreshing(false) }
+      }}>רענון נתוני קורסים שנתיים</Button>
+      {refreshFailed && <p role="alert">הרענון נכשל. הנתונים האחרונים והבחירות שלכם נשמרו.</p>}
       <p>לשוניות מוצגות</p>
       {tabs.filter(({ id }) => id !== "settings").map(({ id, label }) => (
         <Switch
@@ -50,14 +66,15 @@ const Settings = ({ hiddenTabs, onHiddenTabsChange }: {
       />
       <Dropzone
         onDrop={async (files) => {
-          for (const file of files) {
-            const text = await file.text()
-            const data = JSON.parse(text)
-            if (!dibIt.customCourses) {
-              dibIt.customCourses = {}
-            }
-            dibIt.customCourses[file.name] = data
-            setDibIt({ ...dibIt })
+          try {
+            const customCourses = Object.fromEntries(await Promise.all(files.map(async file =>
+              [file.name, JSON.parse(await file.text())],
+            )))
+            if (!isScheduleBackup({ customCourses })) throw new Error("קובץ הקורסים אינו תקין.")
+            const latest = getDibIt()
+            setDibIt({ ...latest, customCourses: { ...latest.customCourses, ...customCourses } })
+          } catch (error) {
+            notifications.show({ title: "ייבוא הקורסים נכשל", message: error instanceof Error ? error.message : "לא ניתן לקרוא את הקובץ.", color: "red" })
           }
         }}
         my="xs"

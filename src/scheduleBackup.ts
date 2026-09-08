@@ -103,7 +103,9 @@ export const isScheduleBackup = (value: unknown): value is DibIt | PlanWorkspace
     if (plan.pendingAnnualChanges !== undefined &&
       (!Array.isArray(plan.pendingAnnualChanges) || !plan.pendingAnnualChanges.every(change =>
         object(change) && typeof change.semester === "string" && /^\d{4}[ab]$/.test(change.semester) &&
-        typeof change.id === "string" && !!change.id && (change.groups === null || strings(change.groups))))) return false
+        typeof change.id === "string" && !!change.id && (change.groups === null || strings(change.groups)) &&
+        (change.changedGroups === undefined || strings(change.changedGroups)) &&
+        (change.awaitingClassification === undefined || change.awaitingClassification === true)))) return false
     ids.add(plan.id)
   }
   return typeof value.activePlanId === "string" && ids.has(value.activePlanId)

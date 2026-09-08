@@ -1,14 +1,14 @@
 import {
   ActionIcon,
   Autocomplete,
-  Loader,
+  Button,
   Menu,
   Select,
   Tooltip,
 } from "@mantine/core"
 import { modals } from "@mantine/modals"
 import { notifications } from "@mantine/notifications"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useLocalStorage, useURLValue } from "../hooks"
 import { DibItCourse, useDibIt, useWorkspace } from "../models"
@@ -26,9 +26,10 @@ import RegistrationModal from "./RegistrationModal"
 import PlanSelector from "./PlanSelector"
 import { downloadWorkspaceBackup, openScheduleRestore } from "./RestoreScheduleModal"
 
-const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
+const Sidebar = () => {
   const courseInfo = useCourseInfo()
   const [search, setSearch] = useState("")
+  const [coursesCollapsed, setCoursesCollapsed] = useState(false)
   const [compactView, setCompactView] = useLocalStorage<boolean>({
     key: "Sidebar Compact",
     defaultValue: false,
@@ -36,21 +37,12 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
   const [dibIt, setDibIt] = useDibIt()
   const [workspace] = useWorkspace()
   const activePlan = workspace.plans.find(plan => plan.id === workspace.activePlanId)!
-  const [generalInfo] = useURLValue<GeneralInfo>(
+  const [generalInfo, , semesterLoad] = useURLValue<GeneralInfo>(
     "https://arazim-project.com/data/info.json"
   )
 
   let currentCourses: DibItCourse[] = []
-  useEffect(() => {
-    if (!dibIt.semester) {
-      dibIt.semester = generalInfo.currentSemester
-    }
-    setDibIt({ ...dibIt })
-  }, [generalInfo])
 
-  if (!dibIt.semester) {
-    return <></>
-  }
 
   if (
     dibIt.semester !== undefined &&
@@ -59,7 +51,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
   ) {
     currentCourses = dibIt.courses[dibIt.semester]
   }
-  const semester = dibIt.semester
+  const semester = dibIt.semester ?? ""
 
   return (
     <div
@@ -74,15 +66,19 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
         transition: "300ms ease-in-out",
       }}
     >
-      {prefetching && (
-        <p style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
-          <Loader size="sm" ml="xs" /> טוען מראש את כל הקורסים כדי להאיץ את
-          החיפוש...
-        </p>
-      )}
+      <Button
+        variant="subtle"
+        size="compact-sm"
+        mb="xs"
+        styles={{ label: { display: "block", overflow: "hidden", textOverflow: "ellipsis" } }}
+        title={activePlan.name}
+        onClick={() => modals.open({ title: "מערכות שעות", centered: true, children: <PlanSelector /> })}
+      >
+        {activePlan.name}
+      </Button>
       {!!activePlan.pendingAnnualChanges?.length && (
         <p role="status" style={{ maxWidth: 300 }}>
-          הבחירות נשמרו. סנכרון הקורסים השנתיים ממתין לטעינת נתוני הסמסטר השני.{" "}
+          הבחירות נשמרו. סנכרון הקורסים השנתיים ממתין לטעינת נתוני השנה והסמסטרים.{" "}
           <button type="button" className="link text-accent" onClick={() => window.location.reload()}>ניסיון נוסף</button>
         </p>
       )}
@@ -91,7 +87,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
         <Select
           id="semester-selector"
           style={{ flex: 1, minWidth: 0 }}
-          value={semester}
+          value={semester || null}
           onChange={(v) => {
             if (v) {
               dibIt.semester = v
@@ -105,14 +101,14 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
               value: key,
               label: formatSemesterInHebrew(key),
             }))}
-          leftSection={<i className="fa-solid fa-cloud-moon" />}
+          leftSection={<i className="fa-solid fa-cloud-moon" aria-hidden="true" />}
         />
 
         <Menu>
           <Menu.Target>
             <Tooltip label="פעולות">
               <ActionIcon size="lg" variant="light" aria-label="פעולות">
-                <i className="fa-solid fa-ellipsis-vertical" />
+                <i className="fa-solid fa-ellipsis-vertical" aria-hidden="true" />
               </ActionIcon>
             </Tooltip>
           </Menu.Target>
@@ -128,7 +124,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
             <Tooltip label="הורידו קובץ JSON שמכיל את כל המערכות שלכם">
               <Menu.Item
                 color="cyan"
-                leftSection={<i className="fa-solid fa-download" />}
+                leftSection={<i className="fa-solid fa-download" aria-hidden="true" />}
                 onClick={() => downloadWorkspaceBackup()}
               >
                 גיבוי
@@ -136,7 +132,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
             </Tooltip>
             <Menu.Item
               color="cyan"
-              leftSection={<i className="fa-solid fa-upload" />}
+              leftSection={<i className="fa-solid fa-upload" aria-hidden="true" />}
               onClick={async () => {
                 try {
                   const state = await uploadJson()
@@ -153,7 +149,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
 
             <Menu.Item
               color="blue"
-              leftSection={<i className="fa-solid fa-calendar" />}
+              leftSection={<i className="fa-solid fa-calendar" aria-hidden="true" />}
               onClick={async () => {
                 try {
                   const ics = await getICS(semester, currentCourses, courseInfo)
@@ -167,7 +163,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
                     message:
                       "כעת עליכם לבצע ייבוא לקובץ ה-ICS שהורד. לחצו כאן כדי לפתוח את חלון הייבוא של Google Calendar.",
                     style: { direction: "rtl" },
-                    icon: <i className="fa-solid fa-check" />,
+                    icon: <i className="fa-solid fa-check" aria-hidden="true" />,
                     color: "green",
                     styles: { body: { cursor: "pointer" } },
                     onClick: () => {
@@ -193,7 +189,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
             </Menu.Item>
             <Menu.Item
               color="blue"
-              leftSection={<i className="fa-solid fa-file-word" />}
+              leftSection={<i className="fa-solid fa-file-word" aria-hidden="true" />}
               onClick={() =>
                 modals.open({
                   title: "טופס רישום לקורסים",
@@ -213,7 +209,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
               יצירת טופס רישום ב-Word
             </Menu.Item>
             <Menu.Item
-              leftSection={<i className="fa-solid fa-print" />}
+              leftSection={<i className="fa-solid fa-print" aria-hidden="true" />}
               color="violet"
               onClick={window.print}
             >
@@ -221,7 +217,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
             </Menu.Item>
 
             <Menu.Item
-              leftSection={<i className="fa-solid fa-gavel" />}
+              leftSection={<i className="fa-solid fa-gavel" aria-hidden="true" />}
               color="orange"
               onClick={() =>
                 modals.open({
@@ -236,7 +232,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
 
             <Menu.Item
               onClick={() => setCompactView(!compactView)}
-              leftSection={<i className="fa-solid fa-eye" />}
+              leftSection={<i className="fa-solid fa-eye" aria-hidden="true" />}
             >
               שינוי תצוגה ל{compactView ? "מלאה" : "קומפקטית"}
             </Menu.Item>
@@ -244,6 +240,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
         </Menu>
       </div>
 
+      {semesterLoad.failed && <Button variant="subtle" size="compact-sm" onClick={semesterLoad.retry}>טעינת רשימת הסמסטרים נכשלה — ניסיון נוסף</Button>}
       <Autocomplete
         size="md"
         mt={10}
@@ -258,6 +255,8 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
           const courseId = split[split.length - 1].split(")")[0]
           if (courseInfo[courseId] !== undefined) {
             setSearch("")
+            setCoursesCollapsed(false)
+            if (currentCourses.some(course => course.id === courseId)) return
             if (!dibIt.courses) {
               dibIt.courses = {}
             }
@@ -274,20 +273,32 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
           .filter((id) => !currentCourses.some((course) => course.id === id))
           .map((courseId) => `${courseInfo[courseId]?.name} (${courseId})`)
           .sort()}
-        leftSection={<i className="fa-solid fa-search" />}
+        leftSection={<i className="fa-solid fa-search" aria-hidden="true" />}
         placeholder="חיפוש קורסים להוספה"
         limit={20}
         maxDropdownHeight={300}
       />
 
-      {currentCourses.map((_, index) => (
+      {currentCourses.length > 0 && <Button
+        className="course-list-toggle"
+        variant="subtle"
+        mb="xs"
+        aria-expanded={!coursesCollapsed}
+        aria-controls="course-list"
+        onClick={() => setCoursesCollapsed(!coursesCollapsed)}
+      >
+        {coursesCollapsed ? "הצגת קורסים" : "הסתרת קורסים"} ({currentCourses.length})
+      </Button>}
+      <div id="course-list" className={coursesCollapsed ? "courses-collapsed" : undefined}>
+      {currentCourses.map((course, index) => (
         <CourseCard
-          key={index}
+          key={course.id}
           index={index}
           semester={semester}
           compactView={compactView}
         />
       ))}
+      </div>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { Badge, Button, Checkbox, ColorInput, Tooltip } from "@mantine/core"
+import { ActionIcon, Badge, Button, Checkbox, ColorInput, Tooltip, getContrastColor, useMantineTheme } from "@mantine/core"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useURLValue } from "../hooks"
 import { useDibIt } from "../models"
@@ -9,6 +9,7 @@ import {
   getDefaultColor,
   getPastAndPresentCourses,
   SEMESTERS_TO_NUMBER,
+  sumHours,
 } from "../utilities"
 
 export interface CourseCardProps {
@@ -30,6 +31,9 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
 
   const courseInfo = useCourseInfo()
   const courseColor = getColor(course)
+  const contrastColor = getContrastColor({ color: courseColor, theme: useMantineTheme(), autoContrast: true })
+  const hasHours = sumHours(courseInfo, { semester, courses: { [semester]: [course] } }) > 0
+  const textColor = hasHours ? contrastColor : "var(--mantine-color-text)"
 
   let sum = 0
   let count = 0
@@ -64,10 +68,11 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
       key={course.id}
       className="card"
       style={{
-        backgroundColor: courseColor,
-        boxShadow: `${courseColor}77 0px 5px 4px 0px`,
-        color: "white",
-        padding: 10,
+        backgroundColor: hasHours ? courseColor : "var(--mantine-color-default)",
+        boxShadow: hasHours ? `${courseColor}77 0px 5px 4px 0px` : "none",
+        border: hasHours ? "2px solid transparent" : "2px dashed var(--mantine-color-dimmed)",
+        color: textColor,
+        padding: 8,
         borderRadius: 10,
         marginBottom: 15,
       }}
@@ -79,7 +84,7 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
           marginBottom: 5,
         }}
       >
-        <b>{`${courseInfo[course.id]?.name} (${course.id})`}</b>
+        <b>{`${courseInfo[course.id]?.name ?? allTimeCourseInfo[course.id]?.name ?? "קורס לא זמין בסמסטר"} (${course.id})`}</b>
         <div style={{ flexGrow: 1 }} />
         <div
           style={{
@@ -90,7 +95,8 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
           }}
         >
           {index !== 0 && (
-            <i
+            <ActionIcon
+              variant="transparent" color={textColor} aria-label="הזזת הקורס למעלה"
               className="fa-solid fa-chevron-up"
               style={{ cursor: "pointer" }}
               onClick={() => {
@@ -103,7 +109,8 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
             />
           )}
           {index !== dibIt.courses![semester]?.length - 1 && (
-            <i
+            <ActionIcon
+              variant="transparent" color={textColor} aria-label="הזזת הקורס למטה"
               className="fa-solid fa-chevron-down"
               style={{
                 cursor: "pointer",
@@ -119,7 +126,8 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
           )}
         </div>
         <Tooltip label="הסרת הקורס">
-          <i
+          <ActionIcon
+            variant="transparent" color={textColor} aria-label="הסרת הקורס"
             className="fa-solid fa-trash"
             style={{ cursor: "pointer" }}
             onClick={() => {
@@ -129,6 +137,7 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
           />
         </Tooltip>
       </div>
+      {!hasHours && <div style={{ fontSize: 12, marginBottom: 5 }}>ללא שעות במערכת</div>}
       {!compactView && (
         <div style={{ textAlign: "center", marginBottom: 10 }}>
           {count !== 0 && (

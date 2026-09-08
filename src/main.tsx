@@ -13,8 +13,9 @@ import "@mantine/notifications/styles.css"
 import "@mantine/dropzone/styles.css"
 
 import { notifications } from "@mantine/notifications"
-import { cachedFetch, getLocalStorage } from "./hooks.ts"
-import { DibIt, DibItCourse, getDibIt, setDibIt } from "./models.ts"
+import { getLocalStorage } from "./hooks.ts"
+import { DibIt, DibItCourse, setDibIt } from "./models.ts"
+import { downloadBlob } from "./utilities.ts"
 
 const handleDeprecation = () => {
   // Remove "Cached Courses for {semester}", they weigh too much to be in local storage.
@@ -33,6 +34,8 @@ const handleDeprecation = () => {
   for (const key of keysToRemove) {
     localStorage.removeItem(key)
   }
+
+  if (localStorage.getItem("Dib It")) return
 
   const data: Record<string, any> = {}
 
@@ -112,8 +115,9 @@ const handleDeprecation = () => {
       }
     }
 
-    localStorage.clear()
     setDibIt({ ...result })
+    for (const key of Object.keys(data)) localStorage.removeItem(key)
+    for (const key of ["Semester", "Courses", "Groups", "Colors"]) localStorage.removeItem(key)
     notifications.show({
       title: "עדכון ה-Dib It בוצע בהצלחה",
       message:
@@ -125,29 +129,10 @@ const handleDeprecation = () => {
   }
 }
 
-const initialize = async () => {
-  const generalInfo = await cachedFetch<GeneralInfo>(
-    "https://arazim-project.com/data/info.json"
-  )
-  const dibIt = getDibIt()
-  if (!dibIt.semester) {
-    setDibIt({ ...dibIt, semester: generalInfo.currentSemester })
-  }
-}
-
-initialize()
 handleDeprecation()
 
 const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
   const colorScheme = useColorScheme()
-
-  const ls: Record<string, string> = {}
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i)!
-    if (key !== "All Courses") {
-      ls[key] = localStorage.getItem(key)!
-    }
-  }
 
   return (
     <MantineProvider
@@ -162,61 +147,51 @@ const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
           justifyContent: "center",
           alignItems: "center",
           flexDirection: "column",
-          height: "100%",
+          minHeight: "100%",
+          width: "100%",
+          maxWidth: 520,
+          margin: "0 auto",
+          padding: 20,
+          boxSizing: "border-box",
+          textAlign: "center",
+          overflowWrap: "anywhere",
         }}
       >
-        <h1>
-          שלום! <i className="fa-solid fa-face-sad-tear" />
-        </h1>
+        <h1 style={{ fontSize: 24, marginBottom: 12 }}>לא ניתן להציג את המערכת</h1>
         <p>
-          לצערנו אירעה שגיאה באתר. יש לכם את כפתור המחץ שכנראה יפתור לכם את
-          הבעייה, אבל הוא גם ימחק את כל המערכות ששמורות לכם לצערנו.
+          לצערנו אירעה שגיאה באתר. נסו לטעון מחדש. לפני איפוס, הורידו עותק של הנתונים לשחזור.
         </p>
+        <Button my={10} onClick={() => window.location.reload()}>טעינה מחדש</Button>
+        <Button variant="default" onClick={() => downloadBlob("dibit-recovery.json", new Blob([
+          localStorage.getItem("Dib It") ?? "{}",
+        ], { type: "application/json" }))}>הורדת הנתונים לפני איפוס</Button>
         <Button
           my={10}
           color="red"
-          leftSection={<i className="fa-solid fa-wrench" />}
+          leftSection={<i className="fa-solid fa-wrench" aria-hidden="true" />}
           onClick={() => {
-            localStorage.clear()
+            if (!window.confirm("למחוק את מערכות השעות מהמכשיר? הורידו קודם עותק של הנתונים. הפעולה אינה מוחקת את הגיבוי בגוגל.")) return
+            localStorage.removeItem("Dib It")
+            localStorage.removeItem("Dib It Sync")
+            localStorage.removeItem("Hidden Tabs")
             window.location.reload()
           }}
         >
-          כפתור המחץ
+          איפוס המערכות במכשיר
         </Button>
         <p>
-          נשמח לנסות לעזור לכם לתקן את הבעייה - אתם מוזמנים לשלוח לנו את התוכן
-          הבא{" "}
-          <a className="link handle text-accent" href="/contact-us">
+          אפשר לדווח על התקלה במאגר הפורק של נועם{" "}
+          <a className="link handle text-accent" href="https://github.com/noam-isaac/dib-it/issues">
             כאן
           </a>{" "}
-          ונשתדל לעזור לכם לתקן את הבעייה בהקדם!
+          ולצרף תיאור של השגיאה.
         </p>
-        <code
-          style={{
-            maxHeight: 200,
-            maxWidth: 500,
-            overflow: "auto",
-            marginBottom: 10,
-            borderColor: "lightgray",
-            borderStyle: "solid",
-            borderRadius: 10,
-            paddingLeft: 10,
-            paddingRight: 10,
-            marginTop: 10,
-          }}
-          dir="ltr"
-        >
-          <pre>{JSON.stringify(ls, null, 4)}</pre>
-        </code>
         {error?.message && (
-          <p style={{ marginBottom: 10 }}>
-            תוכן השגיאה: <code>{error.message}</code>
-          </p>
+          <details style={{ width: "100%", marginTop: 16 }}>
+            <summary style={{ cursor: "pointer" }}>פרטים טכניים</summary>
+            <pre dir="ltr" style={{ whiteSpace: "pre-wrap", textAlign: "start", fontSize: 12 }}>{error.message}</pre>
+          </details>
         )}
-        <p>
-          אתם יכולים גם לשמור את זה אצלכם ולנסות לשחזר מזה את המידע שלכם. אנו
-          מתנצלים על התקלה.
-        </p>
       </div>
     </MantineProvider>
   )

@@ -168,7 +168,7 @@ const ExamSearch = ({ initialDate }: { initialDate: string }) => {
                     {exam.date.toLocaleDateString("he-IL")} {exam.hour}{" "}
                     {exam.moed && `· מועד ${exam.moed}׳`} ·{" "}
                     {exam.type && `${exam.type} · `}
-                    <span style={{ color: getColor(selected ?? exam.course) }}>
+                    <span style={{ borderBottom: `3px solid ${getColor(selected ?? exam.course)}` }}>
                       {info[exam.course.id]?.name}
                     </span>
                   </Text>

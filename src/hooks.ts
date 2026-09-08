@@ -1,6 +1,4 @@
-import { DocumentData, DocumentReference } from "firebase/firestore"
 import { useEffect, useState } from "react"
-import { useDocumentData } from "react-firebase-hooks/firestore"
 
 export const getLocalStorage = <T = any>(key: string, defaultValue = {}) => {
   return JSON.parse(
@@ -10,36 +8,24 @@ export const getLocalStorage = <T = any>(key: string, defaultValue = {}) => {
 
 export const setLocalStorage = (
   key: string,
-  value = {},
-  options: { quiet?: boolean } = {}
+  value = {}
 ) => {
   localStorage.setItem(key, JSON.stringify(value))
-  if (key === "Dib It") window.dispatchEvent(new Event("dibit-workspace-changed"))
-  if (!options.quiet) {
-    window.dispatchEvent(
-      new StorageEvent("storage", { key, newValue: JSON.stringify(value) })
-    )
-  }
+  window.dispatchEvent(
+    new StorageEvent("storage", { key, newValue: JSON.stringify(value) })
+  )
 }
 
 interface LocalStorageOptions {
   key: string
   defaultValue?: any
-  serialize?: boolean
 }
 
 export const useLocalStorage = <T>({
   key,
   defaultValue,
-  serialize,
 }: LocalStorageOptions) => {
-  if (serialize) {
-    key += " (Dib It Serialize)"
-  }
-
-  const [value, setValue] = useState<T>(
-    getLocalStorage(key, defaultValue ?? null)
-  )
+  const [value, setValue] = useState<T>(() => getLocalStorage(key, defaultValue ?? null))
 
   useEffect(() => {
     if (!localStorage.getItem(key) && defaultValue) {
@@ -61,35 +47,17 @@ export const useLocalStorage = <T>({
     return () => window.removeEventListener("storage", listener)
   }, [key])
 
-  const userSetValue = (newValue: any, quiet = false) => {
-    setValue(newValue)
+  const userSetValue = (newValue: any) => {
     if (typeof newValue === "function") {
-      newValue = newValue(value)
+      newValue = newValue(getLocalStorage(key, defaultValue ?? null))
     }
     if (newValue !== undefined) {
-      setLocalStorage(key, newValue, { quiet })
+      setLocalStorage(key, newValue)
+      setValue(newValue)
     }
   }
 
   return [value, userSetValue] as const
-}
-
-export const useCachedDocumentData = (
-  docRef: DocumentReference<DocumentData>
-) => {
-  const [data, setData] = useLocalStorage<any>({
-    key: "Cached " + docRef.path,
-    defaultValue: {},
-  })
-  const [document, loading, error, snapshot] = useDocumentData(docRef)
-
-  useEffect(() => {
-    if (document) {
-      setData(document)
-    }
-  }, [document])
-
-  return [data, loading, error, snapshot]
 }
 
 const cachedUrlValues: Record<string, any> = {}
@@ -115,15 +83,19 @@ export const cachedFetch = async <T = any>(url: string): Promise<T> => {
   }
 }
 
-export const useURLValue = <T>(url: string): [Partial<T>, boolean] => {
-  const [value, setValue] = useState<Partial<T>>(cachedUrlValues[url] ?? {})
+export const useURLValue = <T>(url: string | null): [Partial<T>, boolean, { failed: boolean; retry: () => void }] => {
+  const [value, setValue] = useState<Partial<T>>((url ? cachedUrlValues[url] : undefined) ?? {})
   const [loading, setLoading] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
-    const initialValue = cachedUrlValues[url] ?? {}
-    // Already loaded
-    if (Object.keys(initialValue).length !== 0) {
-      setValue(initialValue)
+    setFailed(false)
+    if (!url) { setValue({}); setLoading(false); return }
+    let cancelled = false
+    setValue(cachedUrlValues[url] ?? {})
+    if (cachedUrlValues[url] !== undefined) {
+      setLoading(false)
       return
     }
 
@@ -131,12 +103,13 @@ export const useURLValue = <T>(url: string): [Partial<T>, boolean] => {
 
     cachedFetch<T>(url)
       .then((v) => {
-        cachedUrlValues[url] = v
+        if (cancelled) return
         setValue(v)
         setLoading(false)
       })
-      .catch(() => setLoading(false))
-  }, [url])
+      .catch(() => { if (!cancelled) { setLoading(false); setFailed(true) } })
+    return () => { cancelled = true }
+  }, [url, attempt])
 
-  return [value, loading]
+  return [value, loading, { failed, retry: () => setAttempt(value => value + 1) }]
 }

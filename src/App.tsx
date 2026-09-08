@@ -16,33 +16,10 @@ import GoogleScheduleSync from "./components/GoogleScheduleSync"
 import StudyPlan from "./components/StudyPlan"
 import { cachedFetch, useLocalStorage } from "./hooks"
 import { visibleTabs } from "./tabs"
-import { cacheSemesterCourses, DibIt, useDibIt } from "./models"
-import { FIRST_SEMESTER } from "./utilities"
+import { refreshAnnualClassification, cacheSemesterCourses, getDibIt, useDibIt } from "./models"
+import { sumHours } from "./utilities"
 import { filterSearchOptions } from "./search"
 import { lautmanCourses } from "./lautmanCourses"
-
-const sumHours = (courses: SemesterCourses, dibIt: DibIt) => {
-  let hours = 0
-  for (const course of (dibIt.courses ?? {})[dibIt.semester ?? ""] ?? []) {
-    for (const group of course.groups ?? []) {
-      const info = courses[course.id]?.groups?.find((g) => g.group === group)
-
-      if (info === undefined) {
-        continue
-      }
-
-      for (const lesson of info?.lessons ?? []) {
-        try {
-          const [startHourStr, endHourStr] = (lesson.time ?? "").split("-")
-          const startHour = parseInt(startHourStr.split(":")[0], 10)
-          const endHour = parseInt(endHourStr.split(":")[0], 10)
-          hours += endHour - startHour
-        } catch (ignored) {}
-      }
-    }
-  }
-  return hours
-}
 
 const startDateString = `date=${encodeURIComponent(new Date().toDateString())}`
 
@@ -53,57 +30,46 @@ const App = () => {
     key: "Hidden Tabs",
     defaultValue: [],
   })
-  const [catalog, setCatalog] = useState<SemesterCourses>({})
+  const [catalog, setCatalog] = useState<{ semester: string; courses: SemesterCourses } | null>(null)
+  const [loadError, setLoadError] = useState(false)
+  const [retry, setRetry] = useState(0)
   const courses = useMemo<SemesterCourses>(
-    () => Object.assign({}, catalog, ...Object.values(dibIt.customCourses ?? {})),
-    [catalog, dibIt.customCourses],
+    () => Object.assign({}, catalog && catalog.semester === dibIt.semester ? catalog.courses : {}, ...Object.values(dibIt.customCourses ?? {})),
+    [catalog, dibIt.semester, dibIt.customCourses],
   )
-  const [prefetching, setPrefetching] = useState(false)
 
   const hours = sumHours(courses, dibIt)
 
   useEffect(() => {
     let cancelled = false
-    if (dibIt.semester) {
-      const semester = dibIt.semester
-      setCatalog({})
-      cachedFetch<SemesterCourses>(
-        `https://arazim-project.com/data/courses-${dibIt.semester}.json?${startDateString}`
+    setLoadError(false)
+    const semester = dibIt.semester
+    const load = async () => {
+      if (!semester) {
+        const info = await cachedFetch<GeneralInfo>("https://arazim-project.com/data/info.json")
+        if (!info.currentSemester) throw new Error("Missing current semester")
+        if (!cancelled) setDibIt({ ...getDibIt(), semester: info.currentSemester })
+        return
+      }
+      const result = await cachedFetch<SemesterCourses>(
+        `https://arazim-project.com/data/courses-${semester}.json?${startDateString}`
       )
-        .then(async (result) => {
-          if (cancelled) return
-          setCatalog({ ...result, ...lautmanCourses })
-          cacheSemesterCourses(semester, result)
-          const otherSemester = semester.slice(0, 4) + (semester.endsWith("a") ? "b" : "a")
-          void cachedFetch<SemesterCourses>(
-            `https://arazim-project.com/data/courses-${otherSemester}.json?${startDateString}`
-          ).then(other => cacheSemesterCourses(otherSemester, other)).catch(() => {})
-
-          setPrefetching(true)
-          const generalInfo = await cachedFetch<GeneralInfo>(
-            "https://arazim-project.com/data/info.json"
-          )
-          if (cancelled) return
-          const prefetches: Promise<any>[] = []
-          for (const semester of Object.keys(generalInfo.semesters ?? {})
-            .sort()
-            .filter((semester) => semester >= FIRST_SEMESTER)) {
-            prefetches.push(
-              cachedFetch<SemesterCourses>(
-                `https://arazim-project.com/data/courses-${semester}.json?${startDateString}`
-              )
-            )
-          }
-          try {
-            await Promise.all(prefetches)
-          } finally {
-            if (!cancelled) setPrefetching(false)
-          }
-        })
-        .catch(() => {})
+      if (cancelled) return
+      if (!result || typeof result !== "object" || Array.isArray(result)) throw new Error("Invalid catalog")
+      setCatalog({ semester, courses: { ...result, ...lautmanCourses } })
+      cacheSemesterCourses(semester, result)
+      const otherSemester = semester.slice(0, 4) + (semester.endsWith("a") ? "b" : "a")
+      void cachedFetch<SemesterCourses>(
+        `https://arazim-project.com/data/courses-${otherSemester}.json?${startDateString}`
+      ).then(other => cacheSemesterCourses(otherSemester, other)).catch(() => {})
     }
+    void load().catch(() => { if (!cancelled) setLoadError(true) })
     return () => { cancelled = true }
-  }, [dibIt.semester])
+  }, [dibIt.semester, retry])
+
+  useEffect(() => {
+    void refreshAnnualClassification().catch(() => {})
+  }, [])
 
   const shownTabs = visibleTabs(hiddenTabs)
   const tab = shownTabs.find(({ id }) => id === dibIt.tab)?.id ?? shownTabs[0].id
@@ -140,8 +106,7 @@ const App = () => {
           >
             <Header />
             <GoogleScheduleSync />
-            {Object.keys(courses).length !== 0 && (
-              <div
+            <div
                 id="main"
                 style={{
                   flexGrow: 1,
@@ -150,7 +115,7 @@ const App = () => {
                   width: "calc(100% - 20px)",
                 }}
               >
-                <Sidebar key={dibIt.activePlanId} prefetching={prefetching} />
+                <Sidebar key={`${dibIt.activePlanId}:${dibIt.semester}:${retry}`} />
                 <div id="content">
                   <div
                     className="adaptive-flex"
@@ -170,7 +135,7 @@ const App = () => {
                           className="dont-print"
                           size="md"
                           variant={tab === id ? "light" : "subtle"}
-                          leftSection={<i className={`fa-solid fa-${icon}`} />}
+                          leftSection={<i className={`fa-solid fa-${icon}`} aria-hidden="true" />}
                           onClick={() => setDibIt({ ...dibIt, tab: id })}
                         >
                           {label}
@@ -180,7 +145,12 @@ const App = () => {
                     <div style={{ flexGrow: 1 }} />
                     <p style={{ fontSize: 22 }}>שעות: {hours}</p>
                   </div>
-                  <div key={dibIt.activePlanId}>
+                  {!catalog || catalog.semester !== dibIt.semester ? (
+                    <div role={loadError ? "alert" : "status"} style={{ padding: 20 }}>
+                      <p>{loadError ? "לא ניתן לטעון את נתוני הסמסטר. המערכות שלכם נשמרו במכשיר." : "טוען את הקורסים של הסמסטר..."}</p>
+                      {loadError ? <Button mt="sm" onClick={() => setRetry(value => value + 1)}>ניסיון נוסף</Button> : <Loader mt="sm" />}
+                    </div>
+                  ) : <div key={dibIt.activePlanId}>
                     {tab === "schedule" && <Schedule />}
                     {tab === "exams" && <Exams key={dibIt.semester} />}
                     {tab === "study-plan" && <StudyPlan />}
@@ -189,25 +159,10 @@ const App = () => {
                     )}
                     {tab === "guide" && <Guide />}
                     {tab === "practice" && <Practice />}
-                  </div>
+                  </div>}
                 </div>
-              </div>
-            )}
+            </div>
 
-            {Object.keys(courses).length === 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  height: "100%",
-                }}
-              >
-                <p>טוען את הקורסים של הסמסטר...</p>
-                <Loader mt={10} />
-              </div>
-            )}
             <Footer />
           </div>
         </CourseInfoContext.Provider>

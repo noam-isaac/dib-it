@@ -5,7 +5,7 @@ import { createServer } from "vite"
 
 const catalogs = JSON.parse(await readFile(new URL("../fixtures/annual-catalogs-2026.json", import.meta.url)))
 const course = { id: "10313103", groups: ["01"] }
-const server = process.env.DIBIT_TEST_URL ? undefined : await createServer({ server: { host: "127.0.0.1", port: 0 } })
+const server = process.env.DIBIT_TEST_URL ? undefined : await createServer({ cacheDir: "node_modules/.vite-test-annual-courses-audit", server: { host: "127.0.0.1", port: 0 } })
 let browser
 let failures = 0
 try {

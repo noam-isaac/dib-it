@@ -69,8 +69,8 @@ const RegistrationModal = ({
           {formatSemesterInHebrew(semester)} · {rows.length} קבוצות לימוד.
         </Text>
         <Text size="xs" c="dimmed">
-          הכותרת, הסמלים ומשבצות הטופס המקורי נשמרים. בדקו ששנת הטופס מתאימה
-          לרישום שלכם. נוצר טופס לכל חוג רושם, עד 14 קבוצות בטופס. מספר טפסים יורדו ב-ZIP.
+          בדקו ששנת הטופס מתאימה לרישום שלכם.
+          {multipleForms && " ייווצר ZIP עם טופס לכל חוג רושם, עד 14 קבוצות בטופס."}
         </Text>
         <Group grow>
           <TextInput
@@ -91,7 +91,7 @@ const RegistrationModal = ({
           />
         </Group>
         <Text size="xs" c="dimmed">
-          השלימו את הפרטים האישיים כדי שיופיעו בטופס. הפרטים אינם נשמרים באתר.
+          הפרטים האישיים אינם נשמרים באתר.
         </Text>
         {rows.length > 0 && (
           <>
@@ -101,7 +101,7 @@ const RegistrationModal = ({
               ).join(" · ")}
             </Text>
             <Text size="xs" c="dimmed">
-              פרטי הקורסים והחוגים מתמלאים אוטומטית. פרטים חסרים ותיקונים אפשר להשלים ב-Word לאחר ההורדה.
+              אפשר להשלים פרטים ולתקן ב-Word לאחר ההורדה.
             </Text>
           </>
         )}

@@ -104,10 +104,33 @@ export const formatSemesterInHebrew = (semester: string) => {
 
 export const FIRST_SEMESTER = "2023a"
 
+export const parseTime = (value: string) => {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim())
+  if (!match || +match[1] > 23 || +match[2] > 59) return undefined
+  return +match[1] * 60 + +match[2]
+}
+
+export const sumHours = (info: SemesterCourses, view: DibIt) => {
+  let minutes = 0
+  for (const course of view.courses?.[view.semester ?? ""] ?? []) {
+    for (const group of info[course.id]?.groups ?? []) {
+      if (!group.group || !course.groups?.includes(group.group)) continue
+      for (const lesson of group.lessons ?? []) {
+        const times = lesson.time?.split("-")
+        if (times?.length !== 2) continue
+        const start = parseTime(times[0]), end = parseTime(times[1])
+        if (start !== undefined && end !== undefined && end > start) minutes += end - start
+      }
+    }
+  }
+  return minutes / 60
+}
+
 export const getPastAndPresentCourses = (dibIt: DibIt, until?: string) => {
   const pastCourses = new Set<string>()
   const pastAndPresentCourses = new Set<string>()
   for (const s of Object.keys(dibIt.courses ?? {}).sort()) {
+    if (until && s > until) break
     if (s === until) {
       for (const course of dibIt.courses![s]) {
         pastAndPresentCourses.add(course.id)
