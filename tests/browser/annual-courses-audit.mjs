@@ -55,7 +55,7 @@ try {
       if (scenario === "restore while pending") {
         await page.getByRole("button", { name: "פעולות", exact: true }).click()
         const chooser = page.waitForEvent("filechooser")
-        await page.getByRole("menuitem", { name: "שחזור", exact: true }).click()
+        await page.getByRole("menuitem").filter({ hasText: /^שחזור$/ }).click()
         await (await chooser).setFiles({ name: "restored.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({
           semester: "2026a", tab: "schedule", activePlanId: "first", plans: [{ id: "first", name: "Restored", courses: {} }],
         })) })
