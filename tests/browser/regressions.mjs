@@ -186,6 +186,21 @@ try {
     assert.equal(legacyResult.semester, initial.semester)
     assert.equal(legacyResult.plans.length, 1)
     assert.deepEqual(legacyResult.plans[0].courses, initial.plans[0].courses)
+    for (const semester of ["2026a", "2026b"]) {
+      await page.evaluate(semester => localStorage.setItem("Dib It", JSON.stringify({
+        semester, tab: "schedule", courses: {},
+      })), semester)
+      await page.reload()
+      for (const [id, name] of [["L1", "סמינר לאוטמן"], ["L2", "מחקר מודרך לאוטמן"]]) {
+        await page.getByPlaceholder("חיפוש קורסים להוספה").fill(name)
+        await page.getByRole("option", { name: `${name} (${id})`, exact: true }).click()
+        await page.locator(`#course-${id}`).getByRole("checkbox").check()
+        await page.locator("#schedule-container").getByText(`${name} (שנתי)`, { exact: true }).waitFor()
+      }
+      await page.getByText("שעות: 4", { exact: true }).waitFor()
+      assert.match(await page.locator("#schedule-container").innerText(), /14:00/)
+      assert.match(await page.locator("#schedule-container").innerText(), /18:00/)
+    }
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
     assert.deepEqual(errors, [])
     await context.close()
