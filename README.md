@@ -91,4 +91,13 @@ Run `bun test`, `bun run lint`, and `bun run build`. For browser regressions, in
 
 Deploy with `bun run deploy` after linking the checkout to your Vercel project. The Vercel configuration uses the committed Bun lockfile.
 
+Use [preview.dib-it.noam-isaac.com](https://preview.dib-it.noam-isaac.com) as the permanent testing address. Firebase authorizes this hostname once; reuse it instead of adding each generated deployment hostname. It is bound to the current review branch, so production deployments do not replace it. For each release, deploy the reviewed branch as a preview, then update its branch binding and alias:
+
+```sh
+pnpm dlx vercel api /v9/projects/dib-it/domains/preview.dib-it.noam-isaac.com -X PATCH -F gitBranch=<review-branch>
+pnpm dlx vercel alias set <ready-preview-url> preview.dib-it.noam-isaac.com
+```
+
+Keep Vercel preview protection enabled. Share a temporary Vercel access link when needed. Preview currently uses the same Firebase project as production: signed-in schedule edits affect that account's cloud data. Use synthetic accounts with the emulator for automated tests.
+
 See the Google compatibility section above for optional Firebase configuration.
