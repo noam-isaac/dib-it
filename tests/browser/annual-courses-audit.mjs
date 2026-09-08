@@ -53,10 +53,13 @@ try {
         await page.locator("#course-10313103 .fa-trash").click()
       }
       if (scenario === "restore while pending") {
-        await page.evaluate(async () => {
-          const { setWorkspace } = await import("/src/models.ts")
-          setWorkspace({ semester: "2026a", tab: "schedule", activePlanId: "first", plans: [{ id: "first", name: "Restored", courses: {} }] })
-        })
+        await page.getByRole("button", { name: "פעולות", exact: true }).click()
+        const chooser = page.waitForEvent("filechooser")
+        await page.getByRole("menuitem", { name: "שחזור", exact: true }).click()
+        await (await chooser).setFiles({ name: "restored.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({
+          semester: "2026a", tab: "schedule", activePlanId: "first", plans: [{ id: "first", name: "Restored", courses: {} }],
+        })) })
+        await page.getByRole("button", { name: "החלפת כל המערכות ושחזור", exact: true }).click()
       }
       if (scenario === "switch while pending") {
         await page.getByRole("button", { name: "פעולות", exact: true }).click()
