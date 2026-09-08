@@ -1,5 +1,11 @@
 # UI and export verification
 
+## Schedule context and restore flow (2026-09-07)
+
+Based on merged fork revision `dea5510e846f5cbaa4a80e468dc8c9c001392ffd`. The active schedule name is visible above the semester selector, opens the existing switcher, and accompanies the Word export preview. File and Google restore share validation and an explicit confirmation listing incoming plans, with a recovery-backup download before replacement and success feedback after saving.
+
+The committed browser suite exercises switching, export context, preview without writes, cancellation, downloading and restoring the original workspace, simulated storage failure without data loss, reload persistence, and immediate addition/removal of restored custom catalogs. Local runs also invoke the shared Google confirmation with synthetic data and verify that semester/tab are retained; they do not sign in or read/write a live Google backup. Desktop/mobile screenshots are available by setting `DIBIT_SCREENSHOT_DIR` to an existing directory.
+
 ## Fork review fixes (2026-09-07)
 
 Reviewed the full fork delta from upstream `9216632abdc56ae8d224fa392d4c22703cd29b8f` to fork `bf2bb4ceccede2f175f075635b10087272a486ec`. The fixes following that review have 41 passing unit tests, a passing ESLint check, and a passing TypeScript/Vite build.

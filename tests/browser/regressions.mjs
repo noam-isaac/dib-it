@@ -50,6 +50,12 @@ try {
       if (!localStorage.getItem("Dib It")) localStorage.setItem("Dib It", JSON.stringify(state))
     }, initial)
     await page.goto(url)
+    await page.getByRole("button", { name: "החלפת מערכת שעות: בדיקה", exact: true }).click()
+    await page.getByRole("textbox", { name: "מערכת שעות", exact: true }).click()
+    await page.getByRole("option", { name: "חלופה", exact: true }).click()
+    await page.getByRole("button", { name: "החלפת מערכת שעות: חלופה", exact: true }).click()
+    await page.getByRole("textbox", { name: "מערכת שעות", exact: true }).click()
+    await page.getByRole("option", { name: "בדיקה", exact: true }).click()
     const day = page.getByRole("button", { name: "חיפוש מבחנים בתאריך 2026-02-23", exact: true })
     assert.equal(await day.innerText(), "23")
     assert.deepEqual(await page.locator("thead th").allTextContents(), ["א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ש'"])
@@ -88,6 +94,7 @@ try {
 
     await actions()
     await page.getByRole("menuitem", { name: /יצירת טופס רישום/ }).click()
+    await page.getByRole("dialog").getByText("מערכת שעות: בדיקה", { exact: true }).waitFor()
     await page.getByRole("textbox", { name: "שם התלמיד/ה" }).fill("A ".repeat(40))
     await page.getByRole("textbox", { name: "מספר ת״ז" }).fill("012345678")
     await page.getByRole("button", { name: /הורדת הטופס המקורי/ }).click()
@@ -99,10 +106,90 @@ try {
       return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))
     }), true, "Export errors must appear above the modal overlay")
     assert.equal(await page.evaluate(() => Object.values(localStorage).some(value => value.includes("012345678"))), false)
+    await notice.getByRole("button").click()
+    await page.keyboard.press("Escape")
+
+    const restore = async state => {
+      await actions()
+      const chooser = page.waitForEvent("filechooser")
+      await page.getByRole("menuitem").filter({ hasText: /^שחזור$/ }).click()
+      await (await chooser).setFiles({ name: "backup.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(state)) })
+      await page.getByRole("dialog", { name: "שחזור מקובץ" }).waitFor()
+      await page.getByRole("dialog", { name: "שחזור מקובץ" }).getByRole("button", { name: "ביטול", exact: true }).click({ trial: true })
+    }
+    const incoming = {
+      ...initial,
+      plans: [{ ...initial.plans[0], name: "משוחזרת" }, initial.plans[1]],
+      customCourses: { "custom.json": { [courseId]: { ...catalog[courseId], name: "קורס מהגיבוי" } } },
+    }
+    await restore(incoming)
+    const dialog = page.getByRole("dialog", { name: "שחזור מקובץ" })
+    await dialog.getByText("משוחזרת — תיפתח לאחר השחזור", { exact: true }).waitFor()
+    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), before)
+    await dialog.getByRole("button", { name: "ביטול", exact: true }).click()
+    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), before)
+    await restore(incoming)
+    const recoveryDownload = page.waitForEvent("download")
+    await dialog.getByRole("button", { name: "הורדת גיבוי של המערכות הנוכחיות", exact: true }).click()
+    const recovery = await recoveryDownload
+    assert.equal(recovery.suggestedFilename(), "dibit-before-restore.json")
+    const savedChunks = []
+    for await (const chunk of await recovery.createReadStream()) savedChunks.push(chunk)
+    const savedWorkspace = JSON.parse(Buffer.concat(savedChunks).toString())
+    assert.deepEqual(savedWorkspace, JSON.parse(before))
+    await page.evaluate(() => {
+      const setItem = Storage.prototype.setItem
+      window.restoreStorageWrites = () => { Storage.prototype.setItem = setItem }
+      Storage.prototype.setItem = function (key, value) {
+        if (key === "Dib It") throw new DOMException("Storage full", "QuotaExceededError")
+        return setItem.call(this, key, value)
+      }
+    })
+    await dialog.getByRole("button", { name: "החלפת כל המערכות ושחזור", exact: true }).click()
+    await dialog.getByText("לא ניתן לשמור את השחזור בדפדפן. המערכות הנוכחיות נשארו כפי שהן.", { exact: true }).waitFor()
+    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), before)
+    await page.evaluate(() => window.restoreStorageWrites())
+    await dialog.getByRole("button", { name: "החלפת כל המערכות ושחזור", exact: true }).click()
+    await page.getByText("השחזור הושלם", { exact: true }).waitFor()
+    await page.getByRole("button", { name: "החלפת מערכת שעות: משוחזרת", exact: true }).waitFor()
+    await page.locator(`#course-${courseId}`).getByText(`קורס מהגיבוי (${courseId})`, { exact: true }).waitFor()
+    await dialog.waitFor({ state: "hidden" })
+    await page.getByRole("button", { name: "החלפת מערכת שעות: משוחזרת", exact: true }).scrollIntoViewIfNeeded()
+    if (process.env.DIBIT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.DIBIT_SCREENSHOT_DIR}/schedule-${viewport.width}.png`, animations: "disabled" })
+    await restore(savedWorkspace)
+    if (process.env.DIBIT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.DIBIT_SCREENSHOT_DIR}/restore-${viewport.width}.png`, animations: "disabled" })
+    await dialog.getByRole("button", { name: "החלפת כל המערכות ושחזור", exact: true }).click()
+    await page.getByRole("button", { name: "החלפת מערכת שעות: בדיקה", exact: true }).waitFor()
+    await page.locator(`#course-${courseId}`).getByText(`קורס בדיקה (${courseId})`, { exact: true }).waitFor()
+    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It"))), savedWorkspace)
+    await page.reload()
+    await page.getByRole("button", { name: "החלפת מערכת שעות: בדיקה", exact: true }).waitFor()
+    if (server) {
+      // Exercise Google confirmation locally without an account or remote writes.
+      await page.evaluate(async incoming => {
+        const { openScheduleRestore } = await import("/src/components/RestoreScheduleModal.tsx")
+        openScheduleRestore({ ...incoming, semester: "2025b", tab: "schedule" }, "google")
+      }, incoming)
+      const googleDialog = page.getByRole("dialog", { name: "שחזור מגוגל", exact: true })
+      await googleDialog.waitFor()
+      assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It"))), savedWorkspace)
+      await googleDialog.getByRole("button", { name: "החלפת כל המערכות ושחזור", exact: true }).click()
+      await page.getByRole("button", { name: "החלפת מערכת שעות: משוחזרת", exact: true }).waitFor()
+      const googleResult = await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")))
+      assert.equal(googleResult.semester, initial.semester)
+      assert.equal(googleResult.tab, initial.tab)
+    }
+    await restore({ courses: initial.plans[0].courses })
+    await dialog.getByRole("button", { name: "החלפת כל המערכות ושחזור", exact: true }).click()
+    await page.getByRole("button", { name: "החלפת מערכת שעות: מערכת השעות שלי", exact: true }).waitFor()
+    const legacyResult = await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")))
+    assert.equal(legacyResult.semester, initial.semester)
+    assert.equal(legacyResult.plans.length, 1)
+    assert.deepEqual(legacyResult.plans[0].courses, initial.plans[0].courses)
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
     assert.deepEqual(errors, [])
     await context.close()
-    console.log(`PASS ${timezoneId} ${viewport.width}px: date clicks, distinct exams, rejected restores, modal feedback`)
+    console.log(`PASS ${timezoneId} ${viewport.width}px: exams, schedule context, restore preview/cancel/recovery, immediate catalog refresh, modal feedback`)
   }
 } finally {
   await browser?.close()

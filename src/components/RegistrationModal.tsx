@@ -13,10 +13,12 @@ import { getRegistrationDepartments, getRegistrationRows, registrationDefaults }
 import { downloadBlob, formatSemesterInHebrew } from "../utilities"
 
 const RegistrationModal = ({
+  planName,
   semester,
   courses,
   info,
 }: {
+  planName: string
   semester: string
   courses: DibItCourse[]
   info: SemesterCourses
@@ -61,6 +63,7 @@ const RegistrationModal = ({
       }}
     >
       <Stack gap="sm">
+        <Text fw={600} style={{ overflowWrap: "anywhere" }}>מערכת שעות: {planName}</Text>
         <Text size="sm">
           מילוי טופס הרישום המקורי לתכנית הבין-תחומית, תשפ״ז.{" "}
           {formatSemesterInHebrew(semester)} · {rows.length} קבוצות לימוד.
