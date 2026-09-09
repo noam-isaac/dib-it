@@ -124,9 +124,19 @@ try {
     await page.waitForSelector(`#course-${courseId}`)
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).plans.length), 2)
 
+    await page.evaluate(() => {
+      const workspace = JSON.parse(localStorage.getItem("Dib It"))
+      const plan = workspace.plans.find(plan => plan.id === workspace.activePlanId)
+      plan.courses["2026a"].push({ id: "L1", groups: ["01"] }, { id: "L2", groups: ["01"] })
+      localStorage.setItem("Dib It", JSON.stringify(workspace))
+    })
+    await page.reload()
+    await page.waitForSelector(`#course-${courseId}`)
     await actions()
     await page.getByRole("menuitem", { name: /יצירת טופס רישום/ }).click()
     await page.getByRole("dialog").getByText("מערכת שעות: בדיקה", { exact: true }).waitFor()
+    assert.equal(await page.getByRole("dialog").locator("tbody tr").count(), 1)
+    assert.equal(await page.getByRole("dialog").getByText(/^L[12]$/).count(), 0)
     await page.getByRole("textbox", { name: "שם התלמיד/ה" }).fill("A ".repeat(40))
     await page.getByRole("textbox", { name: "מספר ת״ז" }).fill("012345678")
     await page.getByRole("button", { name: /הורדת הטופס המקורי/ }).click()
@@ -139,7 +149,18 @@ try {
     }), true, "Export errors must appear above the modal overlay")
     assert.equal(await page.evaluate(() => Object.values(localStorage).some(value => value.includes("012345678"))), false)
     await notice.getByRole("button").click()
+    await page.getByRole("textbox", { name: "שם התלמיד/ה" }).fill("ישראל ישראלי")
+    const wordDownload = page.waitForEvent("download")
+    await page.getByRole("button", { name: /הורדת הטופס המקורי/ }).click()
+    const word = await wordDownload
+    assert.equal(word.suggestedFilename(), "dibit-registration-2026-1.doc")
+    const wordChunks = []
+    for await (const chunk of await word.createReadStream()) wordChunks.push(chunk)
+    assert.deepEqual([...Buffer.concat(wordChunks).subarray(0, 8)], [208, 207, 17, 224, 161, 177, 26, 225])
     await page.keyboard.press("Escape")
+    await page.evaluate(raw => localStorage.setItem("Dib It", raw), before)
+    await page.reload()
+    await page.waitForSelector(`#course-${courseId}`)
 
     const restore = async state => {
       await actions()
