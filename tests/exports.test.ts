@@ -5,6 +5,7 @@ import { getRegistrationRows, registrationDefaults } from "../src/registration"
 import { createRegistrationDownload, fillRegistrationTemplate } from "../src/registrationDocument"
 import manifest from "../src/assets/registration-template.json"
 import { readFile } from "node:fs/promises"
+import { lautmanCourses } from "../src/lautmanCourses"
 
 const template = async () => {
   const data = await readFile(new URL("../src/assets/registration-template.doc", import.meta.url))
@@ -116,6 +117,16 @@ describe("Google and Apple Calendar", () => {
 })
 
 describe("registration Word export", () => {
+  test("local Lautman entries never become registration rows or block a Word download", async () => {
+    const local = Object.keys(lautmanCourses).map(id => ({ id, groups: ["01"] }))
+    const catalog = { ...info, ...lautmanCourses }
+    const rows = getRegistrationRows([...courses, ...local], catalog)
+    expect(rows).toEqual(getRegistrationRows(courses, info))
+    expect(getRegistrationRows(local, catalog)).toEqual([])
+    const download = await createRegistrationDownload(completedDetails("2027a"), rows, catalog, await template())
+    expect(download.filename).toEndWith(".doc")
+    expect(readSlot(new Uint8Array(await download.blob.arrayBuffer()), "rows.2.name")).toBe("")
+  })
   test("includes only distinct selected valid groups, preserving zeroes", () => {
     expect(
       getRegistrationRows(

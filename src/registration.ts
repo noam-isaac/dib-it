@@ -1,4 +1,5 @@
 import type { DibItCourse } from "./models"
+import { lautmanCourses } from "./lautmanCourses"
 
 export interface RegistrationRow {
   courseId: string
@@ -40,6 +41,8 @@ export const getRegistrationRows = (
   const rows: RegistrationRow[] = [],
     seen = new Set<string>()
   for (const course of courses) {
+    // Local scheduling entries have no official registration course number.
+    if (Object.prototype.hasOwnProperty.call(lautmanCourses, course.id)) continue
     const data = info[course.id]
     for (const group of course.groups ?? []) {
       const key = `${course.id}/${group}`
