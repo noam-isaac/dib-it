@@ -180,13 +180,13 @@ const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
           איפוס המערכות במכשיר
         </Button>
         <p>
-          אפשר לדווח על התקלה במאגר הפורק של נועם{" "}
+          אפשר לדווח על התקלה במאגר של דיביט של נועם{" "}
           <a className="link handle text-accent" href="https://github.com/noam-isaac/dib-it/issues">
             כאן
           </a>{" "}
           ולצרף תיאור של השגיאה.
         </p>
-        {error?.message && (
+        {error instanceof Error && error.message && (
           <details style={{ width: "100%", marginTop: 16 }}>
             <summary style={{ cursor: "pointer" }}>פרטים טכניים</summary>
             <pre dir="ltr" style={{ whiteSpace: "pre-wrap", textAlign: "start", fontSize: 12 }}>{error.message}</pre>

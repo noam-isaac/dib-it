@@ -23,18 +23,17 @@ const Header = () => {
         alignItems: "center",
       }}
     >
-      <a href="/" aria-label="Dib It — הפורק של נועם" style={{ color: "white", marginInline: 12 }}>
+      <a href="/" aria-label="דיביט של נועם" style={{ color: "white", marginInline: 12 }}>
         <i className="fa-solid fa-calendar-days" style={{ fontSize: 28 }} aria-hidden="true" />
       </a>
       <h3
         style={{ fontWeight: "bold", fontSize: "1em", lineHeight: 1.3 }}
       >
-        <span dir="ltr">Dib It</span>
-        <small style={{ display: "block", fontWeight: "normal" }}>הפורק של נועם</small>
+        דיביט של נועם
       </h3>
       <a
         href="https://github.com/noam-isaac/dib-it"
-        aria-label="קוד המקור של הפורק בגיטהאב"
+        aria-label="קוד המקור של דיביט של נועם בגיטהאב"
         className="link show-wide"
       >
         <i

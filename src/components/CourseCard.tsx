@@ -1,4 +1,4 @@
-import { ActionIcon, Badge, Button, Checkbox, ColorInput, Tooltip, getContrastColor, useMantineTheme } from "@mantine/core"
+import { ActionIcon, Badge, Button, Checkbox, ColorInput, Tooltip } from "@mantine/core"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useURLValue } from "../hooks"
 import { useDibIt } from "../models"
@@ -31,9 +31,8 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
 
   const courseInfo = useCourseInfo()
   const courseColor = getColor(course)
-  const contrastColor = getContrastColor({ color: courseColor, theme: useMantineTheme(), autoContrast: true })
   const hasHours = sumHours(courseInfo, { semester, courses: { [semester]: [course] } }) > 0
-  const textColor = hasHours ? contrastColor : "var(--mantine-color-text)"
+  const textColor = hasHours ? "white" : "var(--mantine-color-text)"
 
   let sum = 0
   let count = 0

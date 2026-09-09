@@ -1,4 +1,4 @@
-import { Button, Group, Text, Tooltip, getContrastColor, useMantineTheme } from "@mantine/core"
+import { Button, Group, Text, Tooltip } from "@mantine/core"
 import { Calendar } from "@mantine/dates"
 import React, { useState } from "react"
 import dayjs from "dayjs"
@@ -31,7 +31,6 @@ const stringifyDate = (d: Date) => {
 
 const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void }) => {
   const courseInfo = useCourseInfo()
-  const theme = useMantineTheme()
   const [dibIt] = useDibIt()
 
   const currentCourses = (dibIt.courses ?? {})[dibIt.semester ?? ""] ?? []
@@ -71,7 +70,7 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
           <p key={id}>
             {date.toLocaleString("he").split(",")[0]} ({DAYS[date.getDay()]})
             מועד {moed}' ב-
-            <span style={{ borderBottom: `3px solid ${getColor(course)}` }}>
+            <span style={{ color: getColor(course) }}>
               {courseInfo[course.id]?.name}
             </span>
             {type && ` · ${type}`}
@@ -86,7 +85,6 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
                   key={index}
                   style={{
                     backgroundColor: getColor(course),
-                    color: getContrastColor({ color: getColor(course), theme, autoContrast: true }),
                     display: "inline-block",
                     padding: 5,
                     paddingRight: 10,
@@ -167,7 +165,7 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
                   <div
                     style={{
                       backgroundColor: getColor(exams[0].course),
-                      color: getContrastColor({ color: getColor(exams[0].course), theme, autoContrast: true }),
+                      color: "white",
                       width: 30,
                       height: 30,
                       textAlign: "center",

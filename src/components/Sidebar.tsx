@@ -66,16 +66,6 @@ const Sidebar = () => {
         transition: "300ms ease-in-out",
       }}
     >
-      <Button
-        variant="subtle"
-        size="compact-sm"
-        mb="xs"
-        styles={{ label: { display: "block", overflow: "hidden", textOverflow: "ellipsis" } }}
-        title={activePlan.name}
-        onClick={() => modals.open({ title: "מערכות שעות", centered: true, children: <PlanSelector /> })}
-      >
-        {activePlan.name}
-      </Button>
       {!!activePlan.pendingAnnualChanges?.length && (
         <p role="status" style={{ maxWidth: 300 }}>
           הבחירות נשמרו. סנכרון הקורסים השנתיים ממתין לטעינת נתוני השנה והסמסטרים.{" "}
