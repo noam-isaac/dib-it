@@ -1,4 +1,4 @@
-import { Menu, Tooltip } from "@mantine/core"
+import { Group, Menu, Text, Tooltip } from "@mantine/core"
 import { notifications } from "@mantine/notifications"
 import { doc, getDoc, setDoc } from "firebase/firestore"
 import { useAuthState } from "react-firebase-hooks/auth"
@@ -52,11 +52,24 @@ const EnabledGoogleSaveButtons = () => {
   }
   return (
     <>
-      <Menu.Item renderRoot={props => <button {...props} role="menuitemcheckbox" aria-checked={automatic} />} closeMenuOnClick={false}
-        rightSection={<i className={`fa-solid fa-toggle-${automatic ? "on" : "off"}`} style={{ fontSize: 20 }} aria-hidden="true" />}
-        onClick={() => setAutomatic(!automatic)}>
-        סנכרון אוטומטי עם גוגל
-      </Menu.Item>
+      <Tooltip label={automatic
+        ? "כל שינוי במערכות נשמר בגוגל ומתעדכן במכשירים המחוברים. לחצו כדי לכבות."
+        : "לחצו כדי להפעיל שמירה ועדכון אוטומטיים של המערכות בגוגל."}>
+        <Menu.Item renderRoot={props => <button {...props} role="menuitemcheckbox" aria-checked={automatic} />} closeMenuOnClick={false}
+          color={automatic ? "green" : undefined}
+          leftSection={<i className="fa-solid fa-cloud" aria-hidden="true" />}
+          rightSection={
+            // The state is spelled out as well as drawn: the switch alone read as decoration.
+            <Group gap={6} wrap="nowrap" aria-hidden="true">
+              <Text size="xs" fw={600} c={automatic ? "green" : "dimmed"}>{automatic ? "מופעל" : "כבוי"}</Text>
+              <i className={`fa-solid fa-toggle-${automatic ? "on" : "off"}`}
+                style={{ fontSize: 20, color: `var(--mantine-color-${automatic ? "green-6" : "dimmed"})` }} />
+            </Group>
+          }
+          onClick={() => setAutomatic(!automatic)}>
+          סנכרון אוטומטי עם גוגל
+        </Menu.Item>
+      </Tooltip>
       <Tooltip label="פעולה זו תחליף את כל מערכות השעות ששמורות בגוגל">
         <Menu.Item disabled={busy} color="green" leftSection={<i className="fa-solid fa-save" aria-hidden="true" />} onClick={save}>
           גיבוי בגוגל
