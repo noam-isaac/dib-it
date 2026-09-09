@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import JSZip from "jszip"
 import { createCalendar } from "../src/serialize"
-import { getRegistrationRows, registrationDefaults } from "../src/registration"
+import { getRegistrationRows, registrationDefaults, registrationRowFitsForm } from "../src/registration"
 import { createRegistrationDownload, fillRegistrationTemplate } from "../src/registrationDocument"
 import manifest from "../src/assets/registration-template.json"
 import { readFile } from "node:fs/promises"
@@ -195,15 +195,48 @@ describe("registration Word export", () => {
     const single = await createRegistrationDownload(completedDetails("2027a"), rows.slice(0,14), info, await template())
     expect(single.filename.endsWith(".doc")).toBe(true)
   })
-  test("refuses corrupt templates, structural control characters, oversized fields and invalid digit boxes", async () => {
+  test("refuses corrupt templates and only the identity fields the student can fix", async () => {
     const data = await template(), details = completedDetails("2027a"), rows = getRegistrationRows(courses, info)
     const corrupt = data.slice(0); new Uint8Array(corrupt)[100] ^= 1
     await expect(fillRegistrationTemplate(corrupt, details, rows)).rejects.toThrow("תבנית")
     await expect(fillRegistrationTemplate(data, {...details,studentName:"a\u0007b"}, rows)).rejects.toThrow("בקרה")
     await expect(fillRegistrationTemplate(data, {...details,studentName:"א".repeat(101)}, rows)).rejects.toThrow("ארוך")
     await expect(fillRegistrationTemplate(data, {...details,studentId:"123"}, rows)).rejects.toThrow("9")
-    await expect(fillRegistrationTemplate(data, details, [{...rows[0],group:"001"}])).rejects.toThrow("משבצות")
     await expect(fillRegistrationTemplate(data, details, [])).rejects.toThrow("יש לבחור")
+  })
+  test("preset and catalog values the student cannot edit never block the download", async () => {
+    const data = await template()
+    // Reproduces issue #14: a preset four-digit box demanded digits the dialog never asks for.
+    const details = {...completedDetails("2027a"), department: "", framework: "9", degree: "\u0007תואר"}
+    const rows = getRegistrationRows(courses, info)
+    const bytes = new Uint8Array(await (await fillRegistrationTemplate(data, details, rows)).arrayBuffer())
+    expect(Array.from({length:4}, (_,i) => readSlot(bytes, `department.${i}`)).join("")).toBe("")
+    expect(Array.from({length:3}, (_,i) => readSlot(bytes, `rows.0.framework.${i}`)).join("")).toBe("")
+    expect(readSlot(bytes, "degree")).toBe("תואר")
+    expect(readSlot(bytes, "rows.0.name")).toBe("מבוא ל-AI & לוגיקה - (שיעור)")
+  })
+  test("groups the boxes cannot hold are reported and skipped instead of failing the export", async () => {
+    const rows = getRegistrationRows(courses, info)
+    const unusable = [{courseId:"L1",group:"01",name:"סמינר לאוטמן",lessonType:"שנתי"},{...rows[0],group:"001"}]
+    expect(unusable.some(registrationRowFitsForm)).toBe(false)
+    const download = await createRegistrationDownload(
+      completedDetails("2027a"), [...rows, ...unusable], info, await template())
+    expect(download.filename).toEndWith(".doc")
+    expect(download.notes.join(" ")).toContain("L1/01")
+    expect(download.notes.join(" ")).toContain("01234567/001")
+    const bytes = new Uint8Array(await download.blob.arrayBuffer())
+    expect(Array.from({length:4}, (_,i) => readSlot(bytes, `registeringDepartment.${i}`)).join("")).toBe("0123")
+    expect(readSlot(bytes, "rows.2.name")).toBe("")
+    await expect(createRegistrationDownload(completedDetails("2027a"), unusable, info, await template()))
+      .rejects.toThrow("אינה מתאימה")
+  })
+  test("catalog names too long for a row are shortened and reported, not refused", async () => {
+    const rows = [{courseId:"01234567",group:"01",name:"נ".repeat(200),lessonType:"שיעור"}]
+    const download = await createRegistrationDownload(completedDetails("2027a"), rows, info, await template())
+    const name = readSlot(new Uint8Array(await download.blob.arrayBuffer()), "rows.0.name")
+    expect(name).toEndWith("…")
+    expect(name.length).toBeLessThanOrEqual(160)
+    expect(download.notes.join(" ")).toContain("קוצרו")
   })
 })
 
@@ -304,7 +337,8 @@ test("missing identity is rejected; missing catalog text stays editable in Word"
   expect(readSlot(bytes, "rows.0.name")).toBe(rows[0].name)
   expect(readSlot(bytes, "rows.1.name")).toBe("")
   expect(readSlot(bytes, "rows.1.group.1")).toBe("2")
-  await expect(fillRegistrationTemplate(data, completedDetails("2027a"), [{...rows[0], lessonType: "\u0007"}])).rejects.toThrow("בקרה")
+  const cleaned = await fillRegistrationTemplate(data, completedDetails("2027a"), [{...rows[0], lessonType: "א\u0007ב"}])
+  expect(readSlot(new Uint8Array(await cleaned.arrayBuffer()), "rows.0.name")).toBe("מבוא ל-AI & לוגיקה - (א ב)")
 })
 
 test("department names come from catalog data for any prefix, without guessing missing or conflicting names", () => {
