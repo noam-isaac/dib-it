@@ -1,4 +1,5 @@
 import {
+  Badge,
   Button,
   Group,
   Stack,
@@ -9,7 +10,7 @@ import {
 import { notifications } from "@mantine/notifications"
 import { useState } from "react"
 import type { DibItCourse } from "../models"
-import { getRegistrationDepartments, getRegistrationRows, registrationDefaults } from "../registration"
+import { getRegistrationDepartments, getRegistrationRows, registrationDefaults, registrationRowFitsForm } from "../registration"
 import { downloadBlob, formatSemesterInHebrew } from "../utilities"
 
 const RegistrationModal = ({
@@ -26,8 +27,11 @@ const RegistrationModal = ({
   const [details, setDetails] = useState(() => registrationDefaults(semester))
   const [busy, setBusy] = useState(false)
   const rows = getRegistrationRows(courses, info)
-  const departments = getRegistrationDepartments(rows, info)
-  const multipleForms = Object.keys(departments).length > 1 || rows.length > 14
+  // Groups the original form has no boxes for are shown as such instead of failing the download.
+  const formRows = rows.filter(registrationRowFitsForm)
+  const skippedRows = rows.filter((row) => !registrationRowFitsForm(row))
+  const departments = getRegistrationDepartments(formRows, info)
+  const multipleForms = Object.keys(departments).length > 1 || formRows.length > 14
   const field = (key: keyof typeof details) => ({
     value: details[key],
     onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -42,14 +46,19 @@ const RegistrationModal = ({
         try {
           const { createRegistrationDownload } =
             await import("../registrationDocument")
-          const { filename, blob } = await createRegistrationDownload(details, rows, info)
+          const { filename, blob, notes } = await createRegistrationDownload(details, rows, info)
           downloadBlob(filename, blob)
           notifications.show({
             title: "הטופס מוכן",
-            message: multipleForms
-              ? "הורד ZIP עם מספר טפסי Word מקוריים. כל טופס מכיל עד 14 קבוצות."
-              : "הטופס המקורי מולא והורד כקובץ DOC. בדקו את הפרטים לפני ההגשה.",
-            color: "green",
+            message: [
+              multipleForms
+                ? "הורד ZIP עם מספר טפסי Word מקוריים. כל טופס מכיל עד 14 קבוצות."
+                : "הטופס המקורי מולא והורד כקובץ DOC. בדקו את הפרטים לפני ההגשה.",
+              ...notes,
+            ].join(" "),
+            style: { direction: "rtl" },
+            color: notes.length ? "yellow" : "green",
+            autoClose: notes.length ? false : undefined,
           })
         } catch (error) {
           notifications.show({
@@ -66,7 +75,7 @@ const RegistrationModal = ({
         <Text fw={600} style={{ overflowWrap: "anywhere" }}>מערכת שעות: {planName}</Text>
         <Text size="sm">
           מילוי טופס הרישום המקורי לתכנית הבין-תחומית, תשפ״ז.{" "}
-          {formatSemesterInHebrew(semester)} · {rows.length} קבוצות לימוד.
+          {formatSemesterInHebrew(semester)} · {formRows.length} קבוצות לימוד.
         </Text>
         <Text size="xs" c="dimmed">
           בדקו ששנת הטופס מתאימה לרישום שלכם.
@@ -93,7 +102,7 @@ const RegistrationModal = ({
         <Text size="xs" c="dimmed">
           הפרטים האישיים אינם נשמרים באתר.
         </Text>
-        {rows.length > 0 && (
+        {formRows.length > 0 && (
           <>
             <Text size="sm">
               חוגים רושמים: {Object.values(departments).map(({ code, name }) =>
@@ -104,6 +113,12 @@ const RegistrationModal = ({
               אפשר להשלים פרטים ולתקן ב-Word לאחר ההורדה.
             </Text>
           </>
+        )}
+        {skippedRows.length > 0 && (
+          <Text size="xs" c="yellow" role="alert">
+            {skippedRows.length} קבוצות מסומנות ״לא בטופס״: מספר הקורס או הקבוצה אינם מתאימים
+            למשבצות הטופס המקורי. הטופס ייווצר בלעדיהן, ואפשר להוסיף אותן ידנית ב-Word.
+          </Text>
         )}
         {rows.length ? (
           <Table.ScrollContainer minWidth={280} maxHeight={240}>
@@ -119,7 +134,14 @@ const RegistrationModal = ({
               <Table.Tbody>
                 {rows.map((row) => (
                   <Table.Tr key={`${row.courseId}/${row.group}`}>
-                    <Table.Td>{row.name || "—"}</Table.Td>
+                    <Table.Td>
+                      <Group gap={6} wrap="nowrap">
+                        <span>{row.name || "—"}</span>
+                        {!registrationRowFitsForm(row) && (
+                          <Badge size="xs" color="yellow" variant="light">לא בטופס</Badge>
+                        )}
+                      </Group>
+                    </Table.Td>
                     <Table.Td dir="ltr">{row.courseId}</Table.Td>
                     <Table.Td dir="ltr">{row.group}</Table.Td>
                     <Table.Td>{row.lessonType || "—"}</Table.Td>
@@ -134,8 +156,8 @@ const RegistrationModal = ({
         <Button
           type="submit"
           loading={busy}
-          disabled={!rows.length}
-          leftSection={<i className="fa-solid fa-file-word" />}
+          disabled={!formRows.length}
+          leftSection={<i className="fa-solid fa-file-word" aria-hidden="true" />}
         >
           {multipleForms ? "הורדת טפסי Word (ZIP)" : "הורדת הטופס המקורי (DOC)"}
         </Button>

@@ -1,5 +1,42 @@
 # UI and export verification
 
+## Word registration export validation (2026-09-09)
+
+Fixes issue #14. The export previously refused to run over values the dialog never asks the
+student for: `department` (`1821`), `framework` (`999`), `degree` and the `registeringDepartment`
+derived from the course-number prefix. A value that did not fit the printed boxes produced
+`יש להזין N ספרות` and aborted the whole download.
+
+- Blocking errors are now limited to what the student can act on in the dialog: a missing or
+  over-long name, control characters or broken Unicode in the name, and a nine-digit ID.
+  Template SHA256, byte-slot marker and 14-row checks are unchanged.
+- Preset and catalog-derived boxed fields that do not fit are left blank for completion in Word,
+  which is what the dialog already promises. Catalog text with control characters is cleaned, and
+  a catalog course name longer than its 160-unit row is shortened with an ellipsis. Student text
+  is never rewritten silently.
+- Groups whose course number or group number cannot fit the boxes are excluded from the form and
+  reported, instead of failing the export. The dialog marks them `לא בטופס`, explains why above
+  the table, and the success notification lists every skipped group and shortened name.
+- `createRegistrationDownload` returns those notes; the notification turns yellow and stops
+  auto-closing whenever anything was skipped or shortened.
+- `registrationRowFitsForm` lives in `src/registration.ts` so the dialog can use it without
+  pulling the JSZip export module into the main bundle. `registrationDocument` remains a lazy
+  chunk. The submit button's decorative icon is now `aria-hidden`; its glyph had been leaking
+  into the button's accessible name.
+
+Verified with 76 passing unit tests, ESLint, the TypeScript/Vite build and the full browser
+suite. `tests/browser/registration-form.mjs` reproduces the reported failure end to end: a
+catalog course number the boxes cannot hold is flagged, skipped, reported and still produces a
+downloaded DOC, while the student's own ID is still refused at the field. No document bytes
+outside the allocated slots changed; the retained original DOC and its hashes are untouched.
+Native Word rendering of the shortened-name case was not re-inspected.
+
+`tests/browser/dx-regressions.mjs` now toggles the study-plan switch through its control rather
+than its label. Mantine's input overlays the label, so a label click depended on the installed
+Mantine patch version; the untracked pnpm lockfile resolves 8.3.18 while the committed
+`bun.lock` pins 8.0.2.
+
+
 ## Schedule context and restore flow (2026-09-07)
 
 Based on merged fork revision `dea5510e846f5cbaa4a80e468dc8c9c001392ffd`. The active schedule name is visible above the semester selector, opens the existing switcher, and accompanies the Word export preview. File and Google restore share validation and an explicit confirmation listing incoming plans, with a recovery-backup download before replacement and success feedback after saving.

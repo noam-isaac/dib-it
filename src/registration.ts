@@ -76,5 +76,18 @@ export const getRegistrationDepartments = (rows: RegistrationRow[], info: Semest
   ))
 }
 
+/** The original form prints these fields into a fixed number of single-digit boxes. */
+const boxedFields: Record<string, number> = {
+  studentId: 9, department: 4, registeringDepartment: 4,
+  framework: 3, courseId: 8, group: 2, year: 2, semesterCode: 1,
+}
+export const fitsRegistrationBoxes = (field: string, value: string) =>
+  !(field in boxedFields) || new RegExp(`^[0-9]{${boxedFields[field]}}$`).test(value)
+export const isRegistrationBoxField = (field: string) => field in boxedFields
+
+/** A course number or group the boxes cannot hold has no place on the printed form. */
+export const registrationRowFitsForm = (row: RegistrationRow) =>
+  fitsRegistrationBoxes("courseId", row.courseId) && fitsRegistrationBoxes("group", row.group)
+
 export const registrationCourseName = (row: RegistrationRow) =>
   row.name.trim() ? [row.name, row.lessonType && `(${row.lessonType})`].filter(Boolean).join(" - ") : ""
