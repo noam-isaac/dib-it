@@ -4,7 +4,7 @@
     "2023": {
       "source": "https://www.ims.tau.ac.il/Tal/KR/Search_P.aspx",
       "filter": "ckSem=0",
-      "verifiedAt": "2026-09-09",
+      "verifiedAt": "2026-09-10",
       "groups": {
         "01021420": [
           "01",
@@ -2574,7 +2574,7 @@
     "2024": {
       "source": "https://www.ims.tau.ac.il/Tal/KR/Search_P.aspx",
       "filter": "ckSem=0",
-      "verifiedAt": "2026-09-09",
+      "verifiedAt": "2026-09-10",
       "groups": {
         "01021420": [
           "01",
@@ -5183,7 +5183,7 @@
     "2025": {
       "source": "https://www.ims.tau.ac.il/Tal/KR/Search_P.aspx",
       "filter": "ckSem=0",
-      "verifiedAt": "2026-09-09",
+      "verifiedAt": "2026-09-10",
       "groups": {
         "01021420": [
           "01",
@@ -7653,7 +7653,7 @@
     "2026": {
       "source": "https://www.ims.tau.ac.il/Tal/KR/Search_P.aspx",
       "filter": "ckSem=0",
-      "verifiedAt": "2026-09-09",
+      "verifiedAt": "2026-09-10",
       "groups": {
         "01022316": [
           "01"
@@ -10119,7 +10119,7 @@
     "2027": {
       "source": "https://www.ims.tau.ac.il/Tal/KR/Search_P.aspx",
       "filter": "ckSem=0",
-      "verifiedAt": "2026-09-09",
+      "verifiedAt": "2026-09-10",
       "groups": {
         "01022316": [
           "01"
@@ -10925,6 +10925,9 @@
           "70"
         ],
         "07387002": [
+          "01"
+        ],
+        "07574013": [
           "01"
         ],
         "07574037": [
