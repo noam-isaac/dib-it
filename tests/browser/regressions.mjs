@@ -153,7 +153,7 @@ try {
     const wordDownload = page.waitForEvent("download")
     await page.getByRole("button", { name: /הורדת הטופס המקורי/ }).click()
     const word = await wordDownload
-    assert.equal(word.suggestedFilename(), "dibit-registration-2026-1.doc")
+    assert.equal(word.suggestedFilename(), "dibit-registration-2025-1.doc")
     const wordChunks = []
     for await (const chunk of await word.createReadStream()) wordChunks.push(chunk)
     assert.deepEqual([...Buffer.concat(wordChunks).subarray(0, 8)], [208, 207, 17, 224, 161, 177, 26, 225])
