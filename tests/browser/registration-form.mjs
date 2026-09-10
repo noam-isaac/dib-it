@@ -59,7 +59,7 @@ try {
   await dialog.getByLabel("מספר ת״ז").fill("012345678")
   const download = page.waitForEvent("download")
   await dialog.getByRole("button", { name: "הורדת הטופס המקורי (DOC)", exact: true }).click()
-  assert.match((await download).suggestedFilename(), /^dibit-registration-2026-1\.doc$/)
+  assert.match((await download).suggestedFilename(), /^dibit-registration-2025-1\.doc$/)
 
   await page.getByText("הטופס מוכן", { exact: true }).waitFor()
   assert.equal(await page.getByText("יצירת הטופס נכשלה", { exact: true }).count(), 0,

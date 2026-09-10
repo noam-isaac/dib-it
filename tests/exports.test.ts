@@ -140,7 +140,7 @@ describe("registration Word export", () => {
   })
   test("current academic year and semester replace stale template values", () => {
     expect(registrationDefaults("2027b")).toMatchObject({
-      academicYear: "2027",
+      academicYear: "2026",
       semesterCode: "2",
       department: "1821",
     })
@@ -175,6 +175,7 @@ describe("registration Word export", () => {
     expect(Array.from({length:9}, (_, i) => value(`studentId.${i}`)).join("")).toBe("012345678")
     expect(value("rows.0.name")).toBe("מבוא ל-AI & לוגיקה - (שיעור)")
     expect(value("rows.1.group.1")).toBe("2")
+    expect(value("rows.0.year.0") + value("rows.0.year.1")).toBe("26")
     expect(value("rows.2.name")).toBe("")
     expect(value("rows.13.courseId.0")).toBe("")
     expect(new Uint8Array(original)).toEqual(before)
@@ -189,7 +190,7 @@ describe("registration Word export", () => {
       expect(file.name.endsWith(".doc")).toBe(true)
       expect((await file.async("uint8array")).length).toBe(manifest.byteLength)
     }
-    const second = await zip.file("dibit-registration-2027-1-0123-2.doc")!.async("uint8array")
+    const second = await zip.file("dibit-registration-2026-1-0123-2.doc")!.async("uint8array")
     const slot = manifest.slots.find(s => s.key === "rows.0.group.1")!
     expect(second[slot.offsets[0]]).toBe("5".charCodeAt(0))
     const single = await createRegistrationDownload(completedDetails("2027a"), rows.slice(0,14), info, await template())
@@ -310,7 +311,7 @@ test("all six supplied forms retain their courses, lesson types, departments and
   expect(Object.keys(zip.files)).toHaveLength(6)
   for (const expectedRows of Object.values(examples)) {
     const code = expectedRows[0].courseId.slice(0,4)
-    const bytes = await zip.file(`dibit-registration-2025-2-${code}-1.doc`)!.async("uint8array")
+    const bytes = await zip.file(`dibit-registration-2024-2-${code}-1.doc`)!.async("uint8array")
     expect(readSlot(bytes, "studentName")).toBe("ישראל ישראלי")
     expect(readSlot(bytes, "registeringDepartmentName")).toBe(departments[code].name)
     expect(Array.from({length:4}, (_,i) => readSlot(bytes, `registeringDepartment.${i}`)).join("")).toBe(code)
@@ -319,7 +320,7 @@ test("all six supplied forms retain their courses, lesson types, departments and
       expect(Array.from({length:8}, (_,j) => readSlot(bytes, `rows.${i}.courseId.${j}`)).join("")).toBe(row.courseId)
       expect(Array.from({length:2}, (_,j) => readSlot(bytes, `rows.${i}.group.${j}`)).join("")).toBe(row.group)
       expect(readSlot(bytes, `rows.${i}.semesterCode`)).toBe(row.semesterCode)
-      expect(readSlot(bytes, `rows.${i}.year.0`) + readSlot(bytes, `rows.${i}.year.1`)).toBe("25")
+      expect(readSlot(bytes, `rows.${i}.year.0`) + readSlot(bytes, `rows.${i}.year.1`)).toBe("24")
     }
   }
 })

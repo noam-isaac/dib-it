@@ -24,7 +24,7 @@ export const registrationDefaults = (
 ): RegistrationDetails => ({
   studentName: "",
   studentId: "",
-  academicYear: semester.slice(0, 4),
+  academicYear: String(Number(semester.slice(0, 4)) - 1),
   semesterCode: semester.endsWith("b") ? "2" : "1",
   department: "1821",
   registeringDepartment: "",
