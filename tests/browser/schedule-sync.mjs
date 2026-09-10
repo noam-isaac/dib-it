@@ -80,6 +80,9 @@ try {
   assert.equal(await page.evaluate(() => window.syncTest.transactions), 0, "sign-in must not enable sync")
   await menu()
   assert.equal(await toggle().getAttribute("aria-checked"), "false")
+  // Issue #12: the toggle drew a grey pill with no readable state.
+  assert.equal(await toggle().getByText("כבוי", { exact: true }).isVisible(), true)
+  assert.equal(await toggle().locator("i.fa-toggle-off").count(), 1)
   await page.getByRole("menuitem", { name: "גיבוי בגוגל", exact: true }).click()
   await page.getByText("השמירה בגוגל בוצעה בהצלחה", { exact: true }).waitFor()
   assert.equal(await page.evaluate(() => window.syncTest.cloud.plans[0].name), "בדיקה")
@@ -107,6 +110,9 @@ try {
   await page.evaluate(() => window.syncTest.offline(false))
   await menu()
   await toggle().click()
+  assert.equal(await toggle().getAttribute("aria-checked"), "true")
+  assert.equal(await toggle().getByText("מופעל", { exact: true }).isVisible(), true)
+  assert.equal(await toggle().locator("i.fa-toggle-on").count(), 1)
   await page.keyboard.press("Escape")
   await page.waitForFunction(() => window.syncTest.transactions > 0)
   assert.equal(await page.getByText("מסונכרן עם גוגל", { exact: true }).count(), 0)
@@ -159,7 +165,7 @@ try {
   await page.waitForTimeout(1200)
   assert.equal(await page.evaluate(() => window.syncTest.writes), writes)
   assert.deepEqual(errors, [])
-  console.log("PASS: manual default, backup/restore/cancel, persistent toggle, navigation without sync, automatic upload/download, offline conflicts, mobile resolution, sign-out cleanup (synthetic Firebase)")
+  console.log("PASS: manual default, backup/restore/cancel, persistent toggle, navigation without sync, automatic upload/download, offline conflicts, mobile resolution, sign-out cleanup, legible toggle state (synthetic Firebase)")
 } catch (error) {
   console.error(await page?.locator("body").innerText())
   console.error(await page?.locator("#header").ariaSnapshot())
