@@ -24,7 +24,9 @@ export const getDibIt = () => activePlanView(getWorkspace())
 export const setDibIt = (dibIt: DibIt) =>
   setLocalStorage("Dib It", updateActivePlan(getWorkspace(), dibIt, semesterCatalogs))
 export const useWorkspace = () => {
-  const [stored, setStored] = useLocalStorage<DibIt | PlanWorkspace>({ key: "Dib It", defaultValue: {} })
+  // The workspace holds the user's schedules: corruption must reach the recovery screen,
+  // never reset itself into an empty workspace.
+  const [stored, setStored] = useLocalStorage<DibIt | PlanWorkspace>({ key: "Dib It", defaultValue: {}, essential: true })
   return [normalizePlans(stored), (workspace: DibIt | PlanWorkspace) =>
     setStored(reconcileActivePlan(normalizePlans(workspace), semesterCatalogs))] as const
 }
