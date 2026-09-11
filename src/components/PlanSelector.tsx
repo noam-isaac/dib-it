@@ -23,7 +23,7 @@ const PlanNameForm = ({ initialName, onSave }: { initialName: string; onSave: (n
 }
 
 const PlanSelector = () => {
-  const [workspace] = useWorkspace()
+  const workspace = useWorkspace()
   const active = workspace.plans.find(plan => plan.id === workspace.activePlanId)!
   const edit = (action: "create" | "duplicate" | "rename") => {
     modals.open({

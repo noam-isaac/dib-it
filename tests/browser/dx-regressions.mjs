@@ -121,25 +121,28 @@ try {
     })
     await page.getByRole("button", { name: /valid.json/ }).waitFor()
     assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).customCourses["valid.json"]), catalog)
-    // R01: one unreadable display preference must not take the whole app down, and must
-    // not cost the user a schedule. It heals itself at the read boundary.
+    // Optional preferences heal without replacing any workspace data.
+    const preserved = await page.evaluate(() => localStorage.getItem("Dib It"))
     await page.evaluate(() => {
       localStorage.setItem("Compact View", "broken-json")
+      localStorage.setItem("Sidebar Compact", "broken-json")
       localStorage.setItem("unrelated-setting", "keep")
     })
     await page.reload()
-    await page.locator("#content").waitFor()
-    assert.equal(await page.getByRole("heading", { name: "לא ניתן להציג את המערכת", exact: true }).count(), 0,
-      "a corrupt preference must never reach the recovery screen")
-    const healed = await page.evaluate(() => ({
-      compact: localStorage.getItem("Compact View"),
-      workspace: localStorage.getItem("Dib It"),
-      unrelated: localStorage.getItem("unrelated-setting"),
-    }))
-    assert.notEqual(healed.compact, "broken-json", "a corrupt preference must reset itself")
-    assert.equal(healed.workspace?.includes("12345678"), true, "healing a preference must keep schedules")
-    assert.equal(healed.unrelated, "keep", "healing must not touch unrelated origin storage")
-
+    await page.getByRole("button", { name: "מערכת", exact: true }).click()
+    await page.locator("#schedule-container").waitFor()
+    assert.equal(await page.getByRole("heading", { name: "לא ניתן להציג את המערכת", exact: true }).count(), 0)
+    const healed = await page.evaluate(() => [localStorage.getItem("Compact View"), localStorage.getItem("Sidebar Compact")])
+    assert.equal(healed.includes("broken-json"), false)
+    for (const invalid of ["broken-json", "[]", "null", '\"wrong-type\"']) {
+      await page.evaluate(invalid => {
+        localStorage.setItem("Sidebar Compact", invalid)
+        window.dispatchEvent(new StorageEvent("storage", { key: "Sidebar Compact", newValue: invalid }))
+      }, invalid)
+      assert.equal(await page.evaluate(() => localStorage.getItem("Sidebar Compact")), null)
+    }
+    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It"))), { ...JSON.parse(preserved), tab: "schedule" })
+    assert.equal(await page.evaluate(() => localStorage.getItem("unrelated-setting")), "keep")
     // Crash recovery downloads raw workspace data and cancellation never wipes it.
     const before = await page.evaluate(() => {
       const raw = JSON.stringify({ plans: [], activePlanId: "bad" })

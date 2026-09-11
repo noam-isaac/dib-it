@@ -152,11 +152,19 @@ test("a later edit cannot overtake a blocked edit of the same annual course", ()
 test("missing classification cannot acknowledge pending changes from another snapshot", () => {
   for (const change of [
     { semester: "2099a", id: course.id, groups: null, changedGroups: ["01"] },
-    { semester: "2026a", id: course.id, groups: null, changedGroups: ["99"] },
   ]) {
     const view = activePlanView(initial())
     const result = applyAnnualChanges(view, [change], catalogs)
     expect(result.pending).toEqual([change])
     expect(result.courses).toEqual(view.courses)
   }
+})
+
+test("a pending old-year edit does not block unrelated current-year reconciliation", () => {
+  const workspace = normalizePlans({ semester: "2026a", courses: { "2026a": [course] } })
+  const pending = { semester: "2099a", id: course.id, groups: null }
+  workspace.plans[0].pendingAnnualChanges = [pending]
+  const result = reconcileActivePlan(workspace, catalogs)
+  expect(result.plans[0].courses?.["2026b"]).toEqual([course])
+  expect(result.plans[0].pendingAnnualChanges).toEqual([pending])
 })

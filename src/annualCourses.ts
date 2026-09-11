@@ -62,8 +62,10 @@ export const applyAnnualChanges = (view: DibIt, changes: AnnualChange[], catalog
   for (const change of changes) {
     const annual = new Set(annualGroupIds(view, change.semester, change.id))
     const classified = !!localCourses(view)[change.id] || !!annualYear(change.semester.slice(0, 4))
-    if (change.awaitingClassification && classified && !annual.size) continue
-    const changed = new Set((change.changedGroups ?? [...annual]).filter(group => !change.awaitingClassification || annual.has(group)))
+    if (classified && !annual.size) continue
+    const changed = new Set((change.changedGroups ?? [...annual]).filter(group => !classified || annual.has(group)))
+    // A corrected classification can retire every group in an older edit.
+    if (classified && change.changedGroups?.length && !changed.size) continue
     const available = availableAnnualGroups(view, change.semester, change.id, catalogs)
     const key = `${change.semester.slice(0, 4)}:${change.id}`
     // A successful HTTP response may still be incomplete. Never acknowledge an unapplied edit.
@@ -94,13 +96,15 @@ export const applyAnnualChanges = (view: DibIt, changes: AnnualChange[], catalog
 }
 
 /** Fill missing courses only. Existing differing selections are never unioned on load. */
-export const reconcileAnnualCourses = (view: DibIt, catalogs: Record<string, SemesterCourses>): DibIt["courses"] => {
+export const reconcileAnnualCourses = (view: DibIt, catalogs: Record<string, SemesterCourses>, pending: AnnualChange[] = []): DibIt["courses"] => {
   let courses = view.courses
   if (!courses || !view.semester || !/^\d{4}[ab]$/.test(view.semester)) return courses
   for (const semester of [view.semester, otherSemester(view.semester)]) {
     const other = otherSemester(semester)
     const selected: DibItCourse[] = courses[semester] ?? []
     for (const course of selected) {
+      // Suppress resurrection only for the course/year whose edit is still pending.
+      if (pending.some(change => change.id === course.id && change.semester.slice(0, 4) === semester.slice(0, 4))) continue
       const available = availableAnnualGroups(view, semester, course.id, catalogs)
       if (!available.size || courses[other]?.some(existing => existing.id === course.id)) continue
       const groups = course.groups?.filter(group => available.has(group))
@@ -109,9 +113,4 @@ export const reconcileAnnualCourses = (view: DibIt, catalogs: Record<string, Sem
     }
   }
   return courses
-}
-
-export const syncAnnualCourses = (previous: DibIt["courses"], view: DibIt, catalogs: Record<string, SemesterCourses>): DibIt["courses"] => {
-  if (!view.courses) return view.courses
-  return applyAnnualChanges(view, annualChanges(previous, view), catalogs).courses
 }

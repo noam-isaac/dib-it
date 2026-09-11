@@ -1,6 +1,39 @@
 import { normalizePlans, type PlanWorkspace } from "./plans"
 import { isScheduleBackup } from "./scheduleBackup"
 
+export class CloudScheduleError extends Error {}
+
+/** Size rules: https://firebase.google.com/docs/firestore/storage-size */
+export const cloudScheduleData = (workspace: PlanWorkspace, uid: string): PlanWorkspace => {
+  const bytes = (text: string) => new TextEncoder().encode(text).length + 1
+  const invalid = () => { throw new CloudScheduleError("מבנה הנתונים אינו מתאים לגיבוי בגוגל. הנתונים נשמרו במכשיר ואפשר להוריד גיבוי לקובץ.") }
+  const tooLarge = () => { throw new CloudScheduleError("הנתונים חורגים ממגבלת הגיבוי בגוגל (1 MiB). הנתונים נשמרו במכשיר ואפשר להוריד גיבוי לקובץ. הקטינו קטלוגים אישיים או מערכות שמורות לפני ניסיון נוסף.") }
+  let data: PlanWorkspace
+  try { data = JSON.parse(JSON.stringify(workspace)) }
+  catch { return invalid() }
+  const size = (value: unknown, depth = 0): number => {
+    if (value === null || typeof value === "boolean") return 1
+    if (typeof value === "number") return 8
+    if (typeof value === "string") {
+      if (bytes(value) > 1048487) return tooLarge()
+      return bytes(value)
+    }
+    if (depth > 20) return invalid()
+    if (Array.isArray(value)) return value.reduce((total, item) => {
+      if (Array.isArray(item)) invalid()
+      return total + size(item, depth + 1)
+    }, 0)
+    if (!value || typeof value !== "object") return invalid()
+    return 32 + Object.entries(value).reduce((total, [key, item]) => {
+      if (bytes(key) - 1 > 1500 || /^__.*__$/.test(key)) invalid()
+      return total + bytes(key) + size(item, depth + 1)
+    }, 0)
+  }
+  if (size(data) + bytes("users") + bytes(uid) + 16 > 1048576)
+    tooLarge()
+  return data
+}
+
 export const readCloudSchedule = (data: unknown): PlanWorkspace | null => {
   if (data === undefined) return null
   if (!isScheduleBackup(data)) throw new Error("הגיבוי בגוגל אינו תקין. המערכות המקומיות לא השתנו.")
@@ -55,6 +88,7 @@ export const startScheduleSync = (options: {
   let queued = false
   let timer: ReturnType<typeof setTimeout> | undefined
   let resolution: { choice: "upload" | "download"; remoteKey: string | null } | undefined
+  let blockedKey: string | null | undefined
 
   const schedule = (delay = 1000) => {
     if (stopped) return
@@ -68,9 +102,13 @@ export const startScheduleSync = (options: {
     queued = false
     const choice = resolution
     resolution = undefined
+    let attemptedKey: string | null | undefined
     try {
       const local = options.read()
       const localKey = scheduleKey(local)
+      if (blockedKey !== undefined && blockedKey === localKey && !choice) return
+      attemptedKey = localKey
+      blockedKey = undefined
       const base = options.base()
       let decision = "equal" as SyncDecision
       options.status("syncing")
@@ -97,7 +135,8 @@ export const startScheduleSync = (options: {
       if (!stopped) {
         options.status("error", undefined, error)
         // Local storage retains pending changes across offline periods and reloads.
-        schedule(30000)
+        if (error instanceof CloudScheduleError || (error as { code?: string })?.code === "invalid-argument") blockedKey = attemptedKey
+        else schedule(30000)
       }
     } finally {
       busy = false

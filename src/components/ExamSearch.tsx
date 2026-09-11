@@ -13,7 +13,7 @@ import { useMemo, useState } from "react"
 import { useCourseInfo } from "../CourseInfoContext"
 import { collectExams, filterExamDates, isCourseScheduled } from "../exams"
 import { getDibIt, useDibIt } from "../models"
-import { getColor } from "../utilities"
+import { getColor, revealCourse } from "../utilities"
 import { searchItems } from "../search"
 
 const PAGE_SIZE = 30
@@ -65,11 +65,7 @@ const ExamSearch = ({ initialDate }: { initialDate: string }) => {
         courses: { ...latest.courses, [semester]: [...courses, { id }] },
       })
     }
-    requestAnimationFrame(() =>
-      document
-        .getElementById(`course-${id}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "center" }),
-    )
+    revealCourse(id)
   }
   return (
     <Stack gap="sm" className="exam-search">

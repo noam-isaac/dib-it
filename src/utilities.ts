@@ -116,6 +116,7 @@ export const sumHours = (info: SemesterCourses, view: DibIt) => {
     for (const group of info[course.id]?.groups ?? []) {
       if (!group.group || !course.groups?.includes(group.group)) continue
       for (const lesson of group.lessons ?? []) {
+        if (!/^[א-ו]$/.test(lesson.day ?? "")) continue
         const times = lesson.time?.split("-")
         if (times?.length !== 2) continue
         const start = parseTime(times[0]), end = parseTime(times[1])
@@ -124,6 +125,16 @@ export const sumHours = (info: SemesterCourses, view: DibIt) => {
     }
   }
   return minutes / 60
+}
+
+/** Reveal the mobile list before focusing a course's group control. */
+export const revealCourse = (id: string) => {
+  document.querySelector<HTMLButtonElement>('[aria-controls="course-list"][aria-expanded="false"]')?.click()
+  requestAnimationFrame(() => {
+    const card = document.getElementById(`course-${id}`)
+    card?.scrollIntoView({ behavior: "smooth", block: "center" })
+    card?.querySelector<HTMLElement>('input[type="checkbox"]')?.focus({ preventScroll: true })
+  })
 }
 
 export const getPastAndPresentCourses = (dibIt: DibIt, until?: string) => {

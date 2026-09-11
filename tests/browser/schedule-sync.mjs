@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 export const auth = { currentUser: { uid: 'test-user', displayName: 'Test', photoURL: null } };
 export const firestore = {};
 export const app = {};
+const listenerErrors = new Map();
 const listeners = new Set(), authListeners = new Set();
 let cloud, writes = 0, transactions = 0, offline = false;
 const snapshot = () => ({ data: () => structuredClone(cloud), exists: () => cloud !== undefined, metadata: { fromCache: false, hasPendingWrites: false } });
@@ -15,7 +16,7 @@ const emit = () => listeners.forEach(fn => fn(snapshot()));
 export const doc = () => ({});
 export const getDoc = async () => { if (offline) throw new Error('Offline test'); return snapshot(); };
 export const setDoc = async (_ref, value) => { if (offline) throw new Error('Offline test'); cloud = structuredClone(value); writes++; queueMicrotask(emit); };
-export const onSnapshot = (_ref, _options, callback) => { listeners.add(callback); queueMicrotask(() => listeners.has(callback) && callback(snapshot())); return () => listeners.delete(callback); };
+export const onSnapshot = (_ref, _options, callback, failure) => { listenerErrors.set(callback, failure); listeners.add(callback); queueMicrotask(() => listeners.has(callback) && callback(snapshot())); return () => { listeners.delete(callback); listenerErrors.delete(callback); }; };
 export const runTransaction = async (_db, callback) => {
   transactions++;
   if (offline) throw new Error('Offline test');
@@ -34,6 +35,8 @@ export const signInWithPopup = async () => {};
 export const signOut = async () => { auth.currentUser = null; authListeners.forEach(fn => fn(null)); };
 window.syncTest = {
   get cloud() { return cloud; }, get writes() { return writes; }, get transactions() { return transactions; },
+  failListener: () => { for (const callback of listeners) { listeners.delete(callback); listenerErrors.get(callback)(new Error('Terminal listener failure')); } },
+  get listenerCount() { return listeners.size; },
   remote: data => { cloud = structuredClone(data); emit(); },
   offline: value => { offline = value; if (!value) window.dispatchEvent(new Event('online')); },
 };
@@ -129,6 +132,20 @@ try {
     window.syncTest.remote(remote)
   })
   await page.waitForFunction(() => JSON.parse(localStorage.getItem("Dib It")).plans[0].name === "מכשיר אחר")
+  await page.evaluate(() => window.syncTest.failListener())
+  await edit("עריכה אחרי כשל בהאזנה")
+  await page.waitForFunction(() => window.syncTest.cloud.plans[0].name === "עריכה אחרי כשל בהאזנה")
+  assert.equal(await page.evaluate(() => window.syncTest.listenerCount), 0)
+  await page.getByText("Terminal listener failure", { exact: true }).waitFor()
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")))
+  await page.waitForFunction(() => window.syncTest.listenerCount === 1)
+  await page.getByText("Terminal listener failure", { exact: true }).waitFor({ state: "hidden" })
+  await page.evaluate(() => {
+    const remote = structuredClone(window.syncTest.cloud)
+    remote.plans[0].name = "עדכון אחרי חיבור מחדש"
+    window.syncTest.remote(remote)
+  })
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("Dib It")).plans[0].name === "עדכון אחרי חיבור מחדש")
   await page.evaluate(() => window.syncTest.offline(true))
   await edit("עריכה ללא רשת")
   await page.getByText("המערכות נשמרו במכשיר. הסנכרון לגוגל לא הושלם.", { exact: true }).waitFor()

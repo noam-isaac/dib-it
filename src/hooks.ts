@@ -10,7 +10,10 @@ export const getLocalStorage = <T = any>(key: string, defaultValue = {}, recover
   const stored = localStorage.getItem(key)
   if (stored === null) return defaultValue as T
   try {
-    return JSON.parse(stored) as T
+    const value = JSON.parse(stored)
+    if (recoverable && defaultValue != null && (typeof value !== typeof defaultValue ||
+      Array.isArray(value) !== Array.isArray(defaultValue))) throw new Error("Invalid preference shape")
+    return value as T
   } catch (error) {
     if (!recoverable) throw error
     try { localStorage.removeItem(key) } catch { /* Nothing more to do if storage is locked. */ }
@@ -49,14 +52,10 @@ export const useLocalStorage = <T>({
 
     const listener = (e: StorageEvent) => {
       if (e.key === key) {
-        if (e.newValue) {
-          // Another tab can write a malformed value; reject it instead of crashing here,
-          // where no error boundary can offer the user a way out.
-          try { setValue(JSON.parse(e.newValue)) }
-          catch { if (!essential) setValue(defaultValue ?? null) }
-        } else {
-          setValue(defaultValue ?? null)
-        }
+        // Use the same recovery/shape checks for cross-tab updates. A corrupt essential
+        // value keeps the current in-memory workspace until reload can show recovery.
+        try { setValue(getLocalStorage(key, defaultValue ?? null, !essential)) }
+        catch { /* Essential data must never reset from a storage event. */ }
       }
     }
 

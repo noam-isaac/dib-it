@@ -1,5 +1,11 @@
 # Maintaining Dib It
 
+Use Bun for project dependencies and scripts, with `bun.lock` as the sole lockfile.
+Routine installs use `bun install --frozen-lockfile`; `package.json` records the
+Bun version and CI reads it. Install Bun normally on the machine and use `bunx`
+for standalone CLIs.
+See [Developing](README.md#developing) for commands and dependency-drift recovery.
+
 Semester dates and the default semester come from Arazim's public `data/info.json`.
 Course catalogs come from `data/courses-{semester}.json`; degree programs come from
 `data/plans-{year}.json`. The application does not contain a `semesterInfo.tsx` file

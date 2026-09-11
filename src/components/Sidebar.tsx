@@ -11,7 +11,8 @@ import { notifications } from "@mantine/notifications"
 import { useState } from "react"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useLocalStorage, useURLValue } from "../hooks"
-import { DibItCourse, useDibIt, useWorkspace } from "../models"
+import { DibItCourse, setDibIt, useWorkspace } from "../models"
+import { activePlanView } from "../plans"
 import { getICS } from "../serialize"
 import {
   downloadFile,
@@ -34,8 +35,8 @@ const Sidebar = () => {
     key: "Sidebar Compact",
     defaultValue: false,
   })
-  const [dibIt, setDibIt] = useDibIt()
-  const [workspace] = useWorkspace()
+  const workspace = useWorkspace()
+  const dibIt = activePlanView(workspace)
   const activePlan = workspace.plans.find(plan => plan.id === workspace.activePlanId)!
   const [generalInfo, , semesterLoad] = useURLValue<GeneralInfo>(
     "https://arazim-project.com/data/info.json"

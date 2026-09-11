@@ -4,7 +4,7 @@ import { chromium } from "playwright"
 import { createServer } from "vite"
 
 const catalogs = JSON.parse(await readFile(new URL("../fixtures/annual-catalogs-2026.json", import.meta.url)))
-const server = process.env.DIBIT_TEST_URL ? undefined : await createServer({ cacheDir: "node_modules/.vite-test-annual-courses", server: { host: "127.0.0.1", port: 0 } })
+const server = process.env.DIBIT_TEST_URL ? undefined : await createServer({ define: { "import.meta.env.VITE_ENABLE_GOOGLE_SYNC": '\"false\"' }, cacheDir: "node_modules/.vite-test-annual-courses", server: { host: "127.0.0.1", port: 0 } })
 let browser
 try {
   await server?.listen()
@@ -19,6 +19,7 @@ try {
     page.on("pageerror", error => errors.push(error.message))
     let release
     const delayed = new Promise(resolve => { release = resolve })
+    await page.route("**/*", route => new URL(route.request().url()).origin === new URL(process.env.DIBIT_TEST_URL ?? `http://127.0.0.1:${server.httpServer.address().port}`).origin ? route.continue() : route.abort())
     await page.route("https://arazim-project.com/data/**", async route => {
       const filename = new URL(route.request().url()).pathname.split("/").pop()
       if (filename === `courses-${other}.json`) await delayed

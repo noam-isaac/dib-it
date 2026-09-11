@@ -14,11 +14,7 @@ export interface PlanWorkspace extends Omit<DibIt, keyof PlanData | "activePlanI
 
 /** Legacy schedules become the first plan without losing any semesters. */
 export const normalizePlans = (data: DibIt | PlanWorkspace): PlanWorkspace => {
-  if ("plans" in data) return {
-    ...data,
-    plans: data.plans.map(plan => plan.id === "default" && plan.name === "התוכנית שלי"
-      ? { ...plan, name: "מערכת השעות שלי" } : plan),
-  }
+  if ("plans" in data) return data
   const { courses, school, studyPlan, savedStudyPlans, degreeStartYear, activePlanId: _, ...shared } = data
   return {
     ...shared,
@@ -52,8 +48,7 @@ export const reconcileActivePlan = (workspace: PlanWorkspace, catalogs: Record<s
   const plan = workspace.plans.find(plan => plan.id === workspace.activePlanId)!
   const view = activePlanView(workspace)
   const { courses, pending } = applyAnnualChanges(view, plan.pendingAnnualChanges ?? [], catalogs)
-  // Pending removals must resolve before any missing-course reconciliation can resurrect them.
-  const reconciled = pending.length ? courses : reconcileAnnualCourses({ ...view, courses }, catalogs)
+  const reconciled = reconcileAnnualCourses({ ...view, courses }, catalogs, pending)
   const { pendingAnnualChanges: _, ...rest } = plan
   return { ...workspace, plans: workspace.plans.map(item => item.id === plan.id
     ? { ...rest, courses: reconciled, ...(pending.length ? { pendingAnnualChanges: pending } : {}) } : item) }

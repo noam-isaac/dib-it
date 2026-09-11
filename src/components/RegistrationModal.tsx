@@ -12,6 +12,7 @@ import { useState } from "react"
 import type { DibItCourse } from "../models"
 import { getRegistrationDepartments, getRegistrationRows, registrationDefaults, registrationRowFitsForm } from "../registration"
 import { downloadBlob, formatSemesterInHebrew } from "../utilities"
+import { lautmanCourses } from "../lautmanCourses"
 
 const RegistrationModal = ({
   planName,
@@ -27,6 +28,7 @@ const RegistrationModal = ({
   const [details, setDetails] = useState(() => registrationDefaults(semester))
   const [busy, setBusy] = useState(false)
   const rows = getRegistrationRows(courses, info)
+  const localCourses = courses.filter(course => Object.prototype.hasOwnProperty.call(lautmanCourses, course.id))
   // Groups the original form has no boxes for are shown as such instead of failing the download.
   const formRows = rows.filter(registrationRowFitsForm)
   const skippedRows = rows.filter((row) => !registrationRowFitsForm(row))
@@ -72,6 +74,9 @@ const RegistrationModal = ({
       }}
     >
       <Stack gap="sm">
+        {localCourses.length > 0 && <Text size="sm" role="status">
+          קורסים מקומיים לתכנון בלבד, ללא מספר קורס רשמי, אינם נכללים בטופס: {localCourses.map(course => `${lautmanCourses[course.id]?.name} (${course.id})`).join(", ")}. לרישומם יש להשלים פרטים רשמיים ב-Word.
+        </Text>}
         <Text fw={600} style={{ overflowWrap: "anywhere" }}>מערכת שעות: {planName}</Text>
         <Text size="sm">
           מילוי טופס הרישום המקורי לתכנית הבין-תחומית, תשפ״ז.{" "}

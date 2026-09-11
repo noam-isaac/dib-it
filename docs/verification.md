@@ -1,5 +1,55 @@
 # UI and export verification
 
+## Reconciled review fixes and toolchain (2026-09-11)
+
+Reconciles the complete local WIP onto `c1af459`, retaining PR #19's `essential`
+recovery contract and preference-only reset, and PR #20's required `validate` job.
+
+- R02/R03: retire obsolete annual classifications safely and limit pending-operation
+  blocking to the affected course/year, preserving unrelated reconciliation.
+- R05: reveal the collapsed mobile course list and focus the group checkbox from
+  exam search; timetable navigation shares the same helper.
+- R06/R07: reconnect failed listeners without hiding their failure behind successful
+  writes; check cloud document size/shape in both upload paths and pause permanent
+  payload retries. Local data and file backups remain available.
+- R09: intercept or abort every external request in the remaining synthetic suites;
+  non-auth test servers explicitly disable Google configuration.
+- R11/R12: count only lessons on supported timetable days and preserve user-selected
+  plan names through normalization.
+- R13–R15: reuse the search index, remove Sidebar's duplicate subscription and the
+  unused workspace writer, and exercise production plan updates instead of a
+  test-only annual-sync wrapper.
+- R01 enhancement: validate optional preference types at the shared read boundary,
+  including storage events, while retaining the merged `essential` flag.
+- R04 clarification: explicitly identify scheduling-only Lautman entries omitted from
+  the Word form, while preserving the previously merged export fixes.
+- Bun remains authoritative. Local Bun 1.4.2 was installed and verified in a fresh
+  shell; `package.json` records that version and CI reads it, with Node 22 for browser
+  scripts. Normal setup uses installed `bun`/`bunx` directly, without a temporary
+  pnpm runner. The Firebase CLI launcher was verified; local Node remains 25.9.0.
+  No alternate lockfile or duplicate CI workflow is introduced. The existing
+  notification-animation polling is retained.
+
+Local validation: 83 unit tests, lint, production build, nine Chromium browser
+suites, and the annual scraper self-test. Firestore emulator tests were not run:
+Java is unavailable and that separate check was excluded from this task. No live
+Google account data was used.
+
+## Production release of the merged recovery and CI fixes (2026-09-11)
+
+Deployed clean fork revision `c1af459f86790ed7e95b89c0c80d18846d7495e5`, after successful
+[Validate run 34573556072](https://github.com/noam-isaac/dib-it/actions/runs/34573556072)
+and a clean frozen install/build. Deployment `dpl_B3twMYAqXLgbE36tRVxmTXFHEBfh` is READY:
+https://dib-i5khly0dk-noamisaacs-projects.vercel.app.
+
+Both https://dib-it.vercel.app and https://dib-it.noam-isaac.com serve the new
+`index-h3sv2pcp.js` bundle. Fresh mobile browser contexts verified the actions menu,
+the new “איפוס העדפות התצוגה” recovery button, and preservation of a synthetic raw
+workspace after that reset. Vercel used its managed Bun 1.3.14 with the same frozen
+lockfile (Mantine 8.0.2); this is dependency-version parity, not identical Bun binaries.
+Branch protection was enabled and read back with required `validate`, strict status
+checks, administrator enforcement, and force pushes/deletions disabled.
+
 ## Recovery from a corrupt display preference (2026-09-11)
 
 Fixes review finding R01 (P1). `getLocalStorage` parsed every stored value with a bare
@@ -59,10 +109,10 @@ downloaded DOC, while the student's own ID is still refused at the field. No doc
 outside the allocated slots changed; the retained original DOC and its hashes are untouched.
 Native Word rendering of the shortened-name case was not re-inspected.
 
-`tests/browser/dx-regressions.mjs` now toggles the study-plan switch through its control rather
-than its label. Mantine's input overlays the label, so a label click depended on the installed
-Mantine patch version; the untracked pnpm lockfile resolves 8.3.18 while the committed
-`bun.lock` pins 8.0.2.
+Earlier switch-test runs used inconsistent Mantine versions (8.3.18 versus 8.0.2).
+The current test clicks the visible switch root on the dependency baseline in `bun.lock`.
+There is no pnpm project lockfile. Use the frozen Bun installation documented in
+[Developing](../README.md#developing) before comparing test results.
 
 
 ## Schedule context and restore flow (2026-09-07)
