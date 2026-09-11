@@ -101,11 +101,13 @@ In the **תוכנית** tab, choose a degree start year and search programs acro
 
 ## Timetable PDF and images
 
-In the **מערכת** tab, use **פעולות → הדפסה/שמירה כ-PDF** to fit the existing
-timetable onto a landscape page, or **שמירת מערכת השעות כתמונה (PNG)** to save
-the displayed timetable at twice its screen resolution. Both use the site's
-schedule, with the hour scale on the right; PNG also preserves its light/dark appearance. Exports are created in
-your browser; no schedule is uploaded. Other tabs print in portrait.
+In the **מערכת** tab, **פעולות → ייצוא ל־PDF או לתמונה** opens a choice of PDF,
+copying an image to the clipboard, or saving a PNG. Copying never downloads a file;
+if the browser denies clipboard access, you can retry or explicitly choose saving.
+The image uses a wider DOM copy of the existing timetable and expands its hour
+spacing to fit overlapping lesson text, without changing the on-screen schedule.
+It preserves the current theme and right-side hours. Exports are created locally
+in the browser. Other tabs retain native portrait printing.
 
 ## Registration forms
 

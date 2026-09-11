@@ -1,12 +1,5 @@
 :root {
-  --accent: rgb(79, 101, 34);
-  --secondary: rgb(232, 201, 142);
-  --accent-gradient: linear-gradient(
-    45deg,
-    var(--accent),
-    rgb(232, 201, 142) 30%,
-    white 60%
-  );
+  --accent: var(--mantine-primary-color-light-color);
 }
 
 h1,
@@ -30,6 +23,10 @@ body,
     Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
   height: 100%;
   line-height: 1.5;
+}
+
+#schedule-container {
+  isolation: isolate;
 }
 
 #schedule-container * {
@@ -131,6 +128,7 @@ body,
   }
 
   .dont-print,
+  .mantine-Modal-root,
   .mantine-Menu-dropdown,
   .mantine-Tooltip-tooltip,
   .mantine-Notifications-root {

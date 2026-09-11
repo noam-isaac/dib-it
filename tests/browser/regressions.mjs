@@ -188,6 +188,7 @@ try {
     await restore(incoming)
     const dialog = page.getByRole("dialog", { name: "שחזור מקובץ" })
     await dialog.getByText("משוחזרת — תיפתח לאחר השחזור", { exact: true }).waitFor()
+    if (process.env.DIBIT_SCREENSHOT_DIR) await dialog.screenshot({ path: `${process.env.DIBIT_SCREENSHOT_DIR}/restore-${viewport.width}.png`, animations: "disabled" })
     assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), before)
     await dialog.getByRole("button", { name: "ביטול", exact: true }).click()
     assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), before)

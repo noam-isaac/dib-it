@@ -132,8 +132,6 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
       {!validInput && <Text size="sm" c="dimmed">הוסיפו קורסים ומסלולים עם שמות שונים ותקציב נקודות שלם וחיובי.</Text>}
       {error && <Alert color="red" role="alert" mt="xs">{error}</Alert>}
       <Button
-        variant="gradient"
-        gradient={{ from: "blue", to: "grape", deg: 90 }}
         loading={loading}
         disabled={!validInput}
         fullWidth

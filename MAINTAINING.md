@@ -48,3 +48,12 @@ release steps.
 Browser regression servers use distinct Vite `cacheDir` directories. Keep test
 caches separate from the interactive dev server: changing optimizer settings in a
 shared cache can mix Mantine module instances and crash a running preview.
+
+## Interface colors
+
+Use Mantine's neutral `default` variant for ordinary actions and equally weighted
+choices. Low-emphasis utility controls use `subtle` with `gray`. Reserve the existing
+cyan primary color for a form's main action, navigation links and selected/on states. Red identifies
+destructive actions and errors, yellow warnings, and green successful/completed
+states. Menus do not assign different colors to file formats or services. Course
+colors identify courses and remain independent of action/status colors.

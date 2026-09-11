@@ -16,7 +16,6 @@ import { activePlanView } from "../plans"
 import { getICS } from "../serialize"
 import {
   downloadFile,
-  downloadScheduleImage,
   FIRST_SEMESTER,
   formatSemesterInHebrew,
   uploadJson,
@@ -26,12 +25,12 @@ import CourseCard from "./CourseCard"
 import GoogleSaveButtons from "./GoogleSaveButtons"
 import RegistrationModal from "./RegistrationModal"
 import PlanSelector from "./PlanSelector"
+import ScheduleExportModal from "./ScheduleExportModal"
 import { downloadWorkspaceBackup, openScheduleRestore } from "./RestoreScheduleModal"
 
 const Sidebar = () => {
   const courseInfo = useCourseInfo()
   const [search, setSearch] = useState("")
-  const [exportingImage, setExportingImage] = useState(false)
   const [compactView, setCompactView] = useLocalStorage<boolean>({
     key: "Sidebar Compact",
     defaultValue: false,
@@ -99,7 +98,7 @@ const Sidebar = () => {
         <Menu>
           <Menu.Target>
             <Tooltip label="פעולות">
-              <ActionIcon size="lg" variant="light" aria-label="פעולות">
+              <ActionIcon size="lg" variant="default" aria-label="פעולות">
                 <i className="fa-solid fa-ellipsis-vertical" aria-hidden="true" />
               </ActionIcon>
             </Tooltip>
@@ -115,7 +114,7 @@ const Sidebar = () => {
             <Menu.Divider />
             <Tooltip label="הורידו קובץ JSON שמכיל את כל המערכות שלכם">
               <Menu.Item
-                color="cyan"
+
                 leftSection={<i className="fa-solid fa-download" aria-hidden="true" />}
                 onClick={() => downloadWorkspaceBackup()}
               >
@@ -123,7 +122,7 @@ const Sidebar = () => {
               </Menu.Item>
             </Tooltip>
             <Menu.Item
-              color="cyan"
+
               leftSection={<i className="fa-solid fa-upload" aria-hidden="true" />}
               onClick={async () => {
                 try {
@@ -140,7 +139,7 @@ const Sidebar = () => {
             <GoogleSaveButtons />
 
             <Menu.Item
-              color="blue"
+
               leftSection={<i className="fa-solid fa-calendar" aria-hidden="true" />}
               onClick={async () => {
                 try {
@@ -180,7 +179,7 @@ const Sidebar = () => {
               ייצוא ל-Apple/Google Calendar
             </Menu.Item>
             <Menu.Item
-              color="blue"
+
               leftSection={<i className="fa-solid fa-file-word" aria-hidden="true" />}
               onClick={() =>
                 modals.open({
@@ -202,27 +201,19 @@ const Sidebar = () => {
             </Menu.Item>
             <Menu.Item
               leftSection={<i className="fa-solid fa-print" aria-hidden="true" />}
-              color="violet"
-              onClick={window.print}
-            >
-              הדפסה/שמירה כ-PDF
-            </Menu.Item>
-            {(!dibIt.tab || dibIt.tab === "schedule") && <Menu.Item
-              leftSection={<i className="fa-regular fa-image" aria-hidden="true" />}
-              color="violet"
-              disabled={exportingImage}
-              onClick={async () => {
-                setExportingImage(true)
-                try { await downloadScheduleImage(semester) }
-                catch (error) {
-                  notifications.show({ title: "שמירת התמונה נכשלה", message: error instanceof Error ? error.message : "נסו שוב.", color: "red" })
-                } finally { setExportingImage(false) }
+
+              onClick={() => {
+                if (dibIt.tab && dibIt.tab !== "schedule") return window.print()
+                modals.open({ title: "איך לייצא את מערכת השעות?", centered: true,
+                  children: <ScheduleExportModal semester={semester} /> })
               }}
-            >שמירת מערכת השעות כתמונה (PNG)</Menu.Item>}
+            >
+              {(!dibIt.tab || dibIt.tab === "schedule") ? "ייצוא ל־PDF או לתמונה" : "הדפסה/שמירה כ-PDF"}
+            </Menu.Item>
 
             <Menu.Item
               leftSection={<i className="fa-solid fa-gavel" aria-hidden="true" />}
-              color="orange"
+
               onClick={() =>
                 modals.open({
                   title: "המלצות בידינג אוטומטיות",
@@ -244,7 +235,7 @@ const Sidebar = () => {
         </Menu>
       </div>
 
-      {semesterLoad.failed && <Button variant="subtle" size="compact-sm" onClick={semesterLoad.retry}>טעינת רשימת הסמסטרים נכשלה — ניסיון נוסף</Button>}
+      {semesterLoad.failed && <Button variant="subtle" color="gray" size="compact-sm" onClick={semesterLoad.retry}>טעינת רשימת הסמסטרים נכשלה — ניסיון נוסף</Button>}
       <Autocomplete
         size="md"
         mt={10}

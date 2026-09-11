@@ -93,7 +93,7 @@ const ExamSearch = ({ initialDate }: { initialDate: string }) => {
           }}
         />
         <Button
-          variant="subtle"
+          variant="subtle" color="gray"
           size="xs"
           onClick={() => setAdvanced(!advanced)}
         >
@@ -101,7 +101,7 @@ const ExamSearch = ({ initialDate }: { initialDate: string }) => {
         </Button>
         {(start || end || query || faculty) && (
           <Button
-            variant="subtle"
+            variant="subtle" color="gray"
             size="xs"
             onClick={() => {
               setStart("")

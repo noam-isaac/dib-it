@@ -26,7 +26,7 @@ const RestoreScheduleModal = ({ backup, source }: { backup: PlanWorkspace; sourc
         ))}
       </ul>
       <Text size="sm">כדי שתוכלו לחזור למצב הנוכחי, הורידו גיבוי לפני השחזור. אפשר לשחזר אותו מאותו תפריט.</Text>
-      <Button variant="light" styles={{ label: { whiteSpace: "normal" } }} h="auto" py="xs" onClick={() => {
+      <Button variant="default" styles={{ label: { whiteSpace: "normal" } }} h="auto" py="xs" onClick={() => {
         try {
           downloadWorkspaceBackup("dibit-before-restore.json")
           setError("")
@@ -35,7 +35,7 @@ const RestoreScheduleModal = ({ backup, source }: { backup: PlanWorkspace; sourc
         }
       }}>הורדת גיבוי של המערכות הנוכחיות</Button>
       {error && <Text role="alert" c="red" size="sm">{error}</Text>}
-      <Group justify="flex-end">
+      <Group justify="space-between">
         <Button variant="default" data-autofocus onClick={() => modals.closeAll()}>ביטול</Button>
         <Button color="red" onClick={() => {
           try {

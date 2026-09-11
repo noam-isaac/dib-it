@@ -58,9 +58,9 @@ const PlanSelector = () => {
         }}
       />
       <Group gap="xs">
-        <Button variant="light" size="sm" onClick={() => edit("create")} leftSection={<i className="fa-solid fa-plus" aria-hidden="true" />}>מערכת שעות חדשה</Button>
-        <Button variant="light" size="sm" onClick={() => edit("duplicate")} leftSection={<i className="fa-solid fa-copy" aria-hidden="true" />}>שכפול מערכת השעות</Button>
-        <Button variant="light" size="sm" onClick={() => edit("rename")} leftSection={<i className="fa-solid fa-pen" aria-hidden="true" />}>שינוי שם</Button>
+        <Button variant="default" size="sm" onClick={() => edit("create")} leftSection={<i className="fa-solid fa-plus" aria-hidden="true" />}>מערכת שעות חדשה</Button>
+        <Button variant="default" size="sm" onClick={() => edit("duplicate")} leftSection={<i className="fa-solid fa-copy" aria-hidden="true" />}>שכפול מערכת השעות</Button>
+        <Button variant="default" size="sm" onClick={() => edit("rename")} leftSection={<i className="fa-solid fa-pen" aria-hidden="true" />}>שינוי שם</Button>
         <Button variant="light" size="sm" color="red" disabled={workspace.plans.length <= 1} leftSection={<i className="fa-solid fa-trash" aria-hidden="true" />} onClick={() => modals.openConfirmModal({
           title: "מחיקת מערכת שעות",
           centered: true,

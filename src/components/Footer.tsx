@@ -6,8 +6,9 @@ const Footer = () => {
       style={{
         textAlign: "center",
         width: "100%",
-        backgroundColor: "var(--secondary)",
-        color: "black",
+        backgroundColor: "var(--mantine-color-body)",
+        color: "var(--mantine-color-dimmed)",
+        borderTop: "1px solid var(--mantine-color-default-border)",
       }}
       className="footer dont-print"
     >

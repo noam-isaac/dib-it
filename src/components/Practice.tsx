@@ -88,7 +88,6 @@ const PracticeInfo = ({
                 <Menu.Item
                   component="a"
                   href={examLink}
-                  variant="white"
                   leftSection={<i className="fa-solid fa-file-pdf" />}
                   target="_blank"
                 >
@@ -114,7 +113,7 @@ const PracticeInfo = ({
       )}
 
       {loadingSemesterInfo && <Loader size="xs" mr="xs" />}
-      {semesterLoad.failed && <Button variant="subtle" size="compact-xs" onClick={semesterLoad.retry}>טעינת פרטי הסמסטר נכשלה — ניסיון נוסף</Button>}
+      {semesterLoad.failed && <Button variant="subtle" color="gray" size="compact-xs" onClick={semesterLoad.retry}>טעינת פרטי הסמסטר נכשלה — ניסיון נוסף</Button>}
     </>
   )
 }
@@ -145,7 +144,7 @@ const Practice = () => {
 
   if (courseLoad.failed) return <Alert color="red" role="alert">
     לא ניתן לטעון את מאגר המבחנים לתרגול.
-    <Button variant="subtle" onClick={courseLoad.retry}>ניסיון נוסף</Button>
+    <Button variant="subtle" color="gray" onClick={courseLoad.retry}>ניסיון נוסף</Button>
   </Alert>
   if (loadingCourses) return <Loader size="sm" />
   if (!examDates.length) return <Text c="dimmed" p="md">אין מבחנים לתרגול בקורסים שנבחרו. בחרו קבוצות בקורסים עם מועדי מבחנים בסמסטר הנוכחי.</Text>

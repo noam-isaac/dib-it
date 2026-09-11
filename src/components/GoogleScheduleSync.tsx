@@ -99,8 +99,8 @@ const EnabledGoogleScheduleSync = () => {
     <div className="dont-print" dir="rtl" style={{ textAlign: "center", padding: 4 }}>
       <Text size="sm" role="status">{status === "conflict" ? "העותקים במכשיר ובגוגל שונים — בחרו איזה מהם לשמור." : "המערכות נשמרו במכשיר. הסנכרון לגוגל לא הושלם."}</Text>
       {status === "error" && <Text size="sm" dir="auto">{error}</Text>}
-      {status === "conflict" && <Button size="compact-xs" variant="subtle" onClick={() => setOpened(true)}>בחירת המערכות לסנכרון</Button>}
-      {status === "error" && <Button size="compact-xs" variant="subtle" title={error} onClick={() => setRetry(value => value + 1)}>ניסיון נוסף</Button>}
+      {status === "conflict" && <Button size="compact-xs" variant="subtle" color="gray" onClick={() => setOpened(true)}>בחירת המערכות לסנכרון</Button>}
+      {status === "error" && <Button size="compact-xs" variant="subtle" color="gray" title={error} onClick={() => setRetry(value => value + 1)}>ניסיון נוסף</Button>}
       <Modal opened={opened} onClose={() => setOpened(false)} title="בחירת המערכות לסנכרון" centered>
         <Stack dir="rtl">
           <Alert color="yellow">המערכות במכשיר ובגוגל שונות. הסנכרון ממתין לבחירתכם כדי לא לדרוס שינויים. הבחירה תחליף את כל המערכות בעותק השני ותסתנכרן למכשירים המחוברים.</Alert>
@@ -111,8 +111,8 @@ const EnabledGoogleScheduleSync = () => {
           </Group>
           <Text>במכשיר: {getWorkspace().plans.map(plan => plan.name).join(", ")}</Text>
           <Text>בגוגל: {remote?.plans.map(plan => plan.name).join(", ") || "אין גיבוי"}</Text>
-          <Button onClick={() => { controller.current?.resolve("upload", remote); setOpened(false) }}>החלפת גוגל במערכות מהמכשיר</Button>
-          {remote && <Button onClick={() => { controller.current?.resolve("download", remote); setOpened(false) }}>החלפת המערכות במכשיר בעותק מגוגל</Button>}
+          <Button variant="light" color="red" onClick={() => { controller.current?.resolve("upload", remote); setOpened(false) }}>החלפת גוגל במערכות מהמכשיר</Button>
+          {remote && <Button variant="light" color="red" onClick={() => { controller.current?.resolve("download", remote); setOpened(false) }}>החלפת המערכות במכשיר בעותק מגוגל</Button>}
         </Stack>
       </Modal>
     </div>
