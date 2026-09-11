@@ -24,8 +24,11 @@ recovery contract and preference-only reset, and PR #20's required `validate` jo
 - R04 clarification: explicitly identify scheduling-only Lautman entries omitted from
   the Word form, while preserving the previously merged export fixes.
 - Bun remains authoritative. Local Bun 1.4.2 was installed and verified in a fresh
-  shell; CI now pins that version and Node 22. No alternate lockfile or duplicate
-  CI workflow is introduced. The existing notification-animation polling is retained.
+  shell; `package.json` records that version and CI reads it, with Node 22 for browser
+  scripts. Normal setup uses installed `bun`/`bunx` directly, without a temporary
+  pnpm runner. The Firebase CLI launcher was verified; local Node remains 25.9.0.
+  No alternate lockfile or duplicate CI workflow is introduced. The existing
+  notification-animation polling is retained.
 
 Local validation: 83 unit tests, lint, production build, nine Chromium browser
 suites, and the annual scraper self-test. Firestore emulator tests were not run:

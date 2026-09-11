@@ -36,9 +36,18 @@ You will download an ICS file, which you can import to [Google calendar](https:/
 | --- | --- |
 | Bun | Installs project dependencies, runs package scripts, and runs unit tests through `bun:test`. Use 1.4.2 to match the CI baseline. |
 | Node.js | Runs the Playwright browser scripts and Firebase integration scripts. CI uses Node 22. |
-| pnpm | Launches standalone tools with `pnpm dlx`, such as the Firebase and Vercel CLIs, or a temporary Bun executable. It does not manage this project's dependencies. |
 | Python 3 | Runs the annual-course scraper and its self-test. |
 | Java 21+ | Runs the local Firestore emulator for integration tests. The website itself does not need Java. |
+
+Install Bun once for your user account using the [official installer](https://bun.com/docs/installation):
+
+```sh
+curl -fsSL https://bun.sh/install | bash -s "bun-v1.4.2"
+```
+
+Open a new terminal and check `bun --version` reports `1.4.2`. Bun and `bunx`
+should resolve from `~/.bun/bin`. The version is recorded in `package.json`;
+GitHub Actions reads that same version.
 
 After cloning, use:
 
@@ -50,16 +59,7 @@ bun run dev
 For validation, install the browser once with `bunx playwright install chromium`,
 then run `bun run check`. Run `bun run test:firebase` separately when Java is available.
 
-If Bun is not installed on your PATH, the equivalent commands are:
-
-```sh
-pnpm dlx bun@1.4.2 install --frozen-lockfile
-pnpm dlx bun@1.4.2 run dev
-pnpm dlx bun@1.4.2 x playwright install chromium
-pnpm dlx bun@1.4.2 run check
-```
-
-Here pnpm only supplies the Bun executable; Bun still installs and runs the project.
+Use `bunx` to launch standalone tools such as Vercel and Firebase.
 Do not run `pnpm install`, `pnpm add`, or `npm install` in this checkout, or add a
 second lockfile. To intentionally change dependencies, use `bun add`/`bun update`
 and review `package.json` and `bun.lock` together. Routine setup, CI, and Vercel use
@@ -129,7 +129,7 @@ For Google sign-in and schedule backup, copy `.env.example` to `.env.local` and 
 
 The Firebase project must allow authenticated users to read and write only their own `users/{uid}` document. Backups replace that document so deleted courses do not reappear; restore checks the payload and keeps the current semester and tab. Using a different Firebase project does not migrate backups from the old site's project; use file backup/restore to transfer them.
 
-`firestore.rules` permits access only to the signed-in user's own backup. Collection listing, other users' backups, and subcollections are denied. Run `bun run test:firebase` with pnpm and Java 21 or newer to verify this against a local emulator. The suite uses the `demo-dibit` project and refuses to run without the expected localhost emulator address.
+`firestore.rules` permits access only to the signed-in user's own backup. Collection listing, other users' backups, and subcollections are denied. Run `bun run test:firebase` with Java 21 or newer to verify this against a local emulator. The suite uses the `demo-dibit` project and refuses to run without the expected localhost emulator address.
 
 For this fork, Google backup uses an unbilled **Spark** project with one free-tier Standard database in Tel Aviv (`me-west1`), as specified in `firebase.json`. Local Google sign-in uses `http://127.0.0.1:5175`. Do not link a billing account, activate trial credits, upgrade to Blaze, or add paid services. On Spark, quota exhaustion can interrupt backup; do not resolve it by enabling billing. Local storage, file backup, and calendar export remain available. See [Firebase's pricing-plan documentation](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans). The local emulator tests neither create nor configure a cloud project.
 
@@ -143,13 +143,13 @@ publishing. Visual approval remains part of release review.
 
 Run `bun test`, `bun run lint`, and `bun run build`. For browser regressions, install Chromium once with `bunx playwright install chromium`, then run `bun run test:browser`. For Firefox/WebKit print-layout checks, install them with `bunx playwright install firefox webkit` and run `bun run test:print:browsers`; native OS print dialogs require an interactive check. This checks desktop and mobile layouts in Los Angeles and Jerusalem timezones using synthetic schedules and intercepted catalogs. Set `DIBIT_TEST_URL=https://your-deployment.example` to check a deployment instead of starting a local Vite server.
 
-Deploy with `bun run deploy` after linking the checkout to your Vercel project. The Vercel configuration uses the committed Bun lockfile.
+Deploy with `bun run deploy` after linking the checkout to your Vercel project. Vercel uses its managed Bun installation (1.3.14 at the last verified deployment) with `bun install --frozen-lockfile`. Its Bun version is managed by Vercel; the committed lockfile keeps dependency versions aligned with local development and CI.
 
 Use [preview.dib-it.noam-isaac.com](https://preview.dib-it.noam-isaac.com) as the permanent testing address. Firebase authorizes this hostname once; reuse it instead of adding each generated deployment hostname. It is bound to the current review branch, so production deployments do not replace it. For each release, deploy the reviewed branch as a preview, then update its branch binding and alias:
 
 ```sh
-pnpm dlx vercel api /v9/projects/dib-it/domains/preview.dib-it.noam-isaac.com -X PATCH -F gitBranch=<review-branch>
-pnpm dlx vercel alias set <ready-preview-url> preview.dib-it.noam-isaac.com
+bunx vercel api /v9/projects/dib-it/domains/preview.dib-it.noam-isaac.com -X PATCH -F gitBranch=<review-branch>
+bunx vercel alias set <ready-preview-url> preview.dib-it.noam-isaac.com
 ```
 
 Keep Vercel preview protection enabled. Share a temporary Vercel access link when needed. Preview currently uses the same Firebase project as production: signed-in schedule edits affect that account's cloud data. Use synthetic accounts with the emulator for automated tests.

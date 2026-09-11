@@ -1,9 +1,9 @@
 # Maintaining Dib It
 
 Use Bun for project dependencies and scripts, with `bun.lock` as the sole lockfile.
-Routine installs use `bun install --frozen-lockfile`; CI uses Bun 1.4.2.
-`pnpm dlx` is only a standalone tool launcher here, including the temporary Bun
-runner when Bun is absent from PATH. It is not a second project package manager.
+Routine installs use `bun install --frozen-lockfile`; `package.json` records the
+Bun version and CI reads it. Install Bun normally on the machine and use `bunx`
+for standalone CLIs.
 See [Developing](README.md#developing) for commands and dependency-drift recovery.
 
 Semester dates and the default semester come from Arazim's public `data/info.json`.

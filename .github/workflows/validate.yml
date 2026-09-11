@@ -24,8 +24,6 @@ jobs:
         with:
           node-version: '22'
       - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.4.2'
       - name: Install with the frozen Bun lockfile
         run: bun install --frozen-lockfile
       - name: Lint
