@@ -121,6 +121,25 @@ try {
     })
     await page.getByRole("button", { name: /valid.json/ }).waitFor()
     assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).customCourses["valid.json"]), catalog)
+    // R01: one unreadable display preference must not take the whole app down, and must
+    // not cost the user a schedule. It heals itself at the read boundary.
+    await page.evaluate(() => {
+      localStorage.setItem("Compact View", "broken-json")
+      localStorage.setItem("unrelated-setting", "keep")
+    })
+    await page.reload()
+    await page.locator("#content").waitFor()
+    assert.equal(await page.getByRole("heading", { name: "לא ניתן להציג את המערכת", exact: true }).count(), 0,
+      "a corrupt preference must never reach the recovery screen")
+    const healed = await page.evaluate(() => ({
+      compact: localStorage.getItem("Compact View"),
+      workspace: localStorage.getItem("Dib It"),
+      unrelated: localStorage.getItem("unrelated-setting"),
+    }))
+    assert.notEqual(healed.compact, "broken-json", "a corrupt preference must reset itself")
+    assert.equal(healed.workspace?.includes("12345678"), true, "healing a preference must keep schedules")
+    assert.equal(healed.unrelated, "keep", "healing must not touch unrelated origin storage")
+
     // Crash recovery downloads raw workspace data and cancellation never wipes it.
     const before = await page.evaluate(() => {
       const raw = JSON.stringify({ plans: [], activePlanId: "bad" })
@@ -138,6 +157,12 @@ try {
     const chunks = []
     for await (const chunk of await (await download).createReadStream()) chunks.push(chunk)
     assert.equal(Buffer.concat(chunks).toString(), before)
+    // Recovery offers a way out that does not cost the user their schedules.
+    await page.getByRole("button", { name: "איפוס העדפות התצוגה", exact: true }).click()
+    await page.getByRole("heading", { name: "לא ניתן להציג את המערכת", exact: true }).waitFor()
+    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), before,
+      "resetting preferences must never delete schedules")
+    assert.equal(await page.evaluate(() => localStorage.getItem("unrelated-setting")), "keep")
     page.once("dialog", dialog => dialog.dismiss())
     await page.getByRole("button", { name: "איפוס המערכות במכשיר", exact: true }).click()
     assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), before)

@@ -1,9 +1,21 @@
 import { useEffect, useState } from "react"
 
-export const getLocalStorage = <T = any>(key: string, defaultValue = {}) => {
-  return JSON.parse(
-    localStorage.getItem(key) ?? JSON.stringify(defaultValue)
-  ) as T
+/**
+ * Read a stored value. A malformed non-essential value resets itself here rather than
+ * throwing: one unreadable display preference must not take down the whole application.
+ * Values holding user data pass `recoverable: false` so the failure still surfaces instead
+ * of silently discarding a schedule.
+ */
+export const getLocalStorage = <T = any>(key: string, defaultValue = {}, recoverable = false) => {
+  const stored = localStorage.getItem(key)
+  if (stored === null) return defaultValue as T
+  try {
+    return JSON.parse(stored) as T
+  } catch (error) {
+    if (!recoverable) throw error
+    try { localStorage.removeItem(key) } catch { /* Nothing more to do if storage is locked. */ }
+    return defaultValue as T
+  }
 }
 
 export const setLocalStorage = (
@@ -19,13 +31,16 @@ export const setLocalStorage = (
 interface LocalStorageOptions {
   key: string
   defaultValue?: any
+  /** Set for keys holding user data, so corruption surfaces instead of resetting itself. */
+  essential?: boolean
 }
 
 export const useLocalStorage = <T>({
   key,
   defaultValue,
+  essential,
 }: LocalStorageOptions) => {
-  const [value, setValue] = useState<T>(() => getLocalStorage(key, defaultValue ?? null))
+  const [value, setValue] = useState<T>(() => getLocalStorage(key, defaultValue ?? null, !essential))
 
   useEffect(() => {
     if (!localStorage.getItem(key) && defaultValue) {
@@ -35,7 +50,10 @@ export const useLocalStorage = <T>({
     const listener = (e: StorageEvent) => {
       if (e.key === key) {
         if (e.newValue) {
-          setValue(JSON.parse(e.newValue))
+          // Another tab can write a malformed value; reject it instead of crashing here,
+          // where no error boundary can offer the user a way out.
+          try { setValue(JSON.parse(e.newValue)) }
+          catch { if (!essential) setValue(defaultValue ?? null) }
         } else {
           setValue(defaultValue ?? null)
         }
@@ -49,7 +67,7 @@ export const useLocalStorage = <T>({
 
   const userSetValue = (newValue: any) => {
     if (typeof newValue === "function") {
-      newValue = newValue(getLocalStorage(key, defaultValue ?? null))
+      newValue = newValue(getLocalStorage(key, defaultValue ?? null, !essential))
     }
     if (newValue !== undefined) {
       setLocalStorage(key, newValue)

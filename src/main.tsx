@@ -14,6 +14,7 @@ import "@mantine/dropzone/styles.css"
 
 import { notifications } from "@mantine/notifications"
 import { getLocalStorage } from "./hooks.ts"
+import { resetPreferences } from "./preferences.ts"
 import { DibIt, DibItCourse, setDibIt } from "./models.ts"
 import { downloadBlob } from "./utilities.ts"
 
@@ -167,8 +168,19 @@ const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
         ], { type: "application/json" }))}>הורדת הנתונים לפני איפוס</Button>
         <Button
           my={10}
-          color="red"
           leftSection={<i className="fa-solid fa-wrench" aria-hidden="true" />}
+          onClick={() => { resetPreferences(); window.location.reload() }}
+        >
+          איפוס העדפות התצוגה
+        </Button>
+        <p style={{ fontSize: 14, opacity: 0.8, margin: 0 }}>
+          מומלץ להתחיל מכאן: הפעולה מאפסת רק העדפות תצוגה ואינה נוגעת במערכות השעות.
+        </p>
+        <Button
+          my={10}
+          color="red"
+          variant="light"
+          leftSection={<i className="fa-solid fa-trash" aria-hidden="true" />}
           onClick={() => {
             if (!window.confirm("למחוק את מערכות השעות מהמכשיר? הורידו קודם עותק של הנתונים. הפעולה אינה מוחקת את הגיבוי בגוגל.")) return
             localStorage.removeItem("Dib It")
