@@ -25,7 +25,7 @@ const Settings = ({ hiddenTabs, onHiddenTabsChange }: {
     <div style={{ maxWidth: 600, marginBottom: 20 }}>
       <p>נתוני קורסים שנתיים</p>
       <p>{classification ? `אומתו לאחרונה: ${classification.verifiedAt}` : "נתוני השנה עדיין אינם זמינים. השינויים נשמרים עד לטעינתם."}</p>
-      <Button variant="subtle" loading={refreshing} onClick={async () => {
+      <Button variant="subtle" color="gray" loading={refreshing} onClick={async () => {
         setRefreshing(true); setRefreshFailed(false)
         try { await refreshAnnualClassification() }
         catch { setRefreshFailed(true) }

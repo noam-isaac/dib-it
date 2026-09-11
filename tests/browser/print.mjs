@@ -21,6 +21,8 @@ const catalog = Object.fromEntries([
   ["44444444", "אלגברה ליניארית", "10:00-12:00", "ב"],
   ["55555555", "מבוא ללוגיקה ולתורת הקבוצות", "12:00-14:00", "ג"],
   ["66666666", "יסודות ההסתברות", "10:00-12:00", "ד"],
+  ["77777777", "Theory of Functions of a Complex Variable 1", "10:00-11:00", "ב"],
+  ["88888888", "Syntax seminar: The interfaces of syntax", "10:00-11:00", "ב"],
 ].map(([id, name, time, day]) => [id, {
   name, groups: [{ group: "01", lecturer: "מרצה לבדיקה", lessons: [{ day, time, type: "שיעור", building: "בניין", room: "101" }] }],
   exams: [{ date: "15/02/2026", type: "בחינה סופית", moed: "א" }],
@@ -64,53 +66,76 @@ try {
       }
     }
     await assertTimeOnRight()
-    const screenWidth = await page.locator("#schedule-container").evaluate(el => el.clientWidth)
     const screenHeight = await page.locator("#schedule-container").evaluate(el => el.clientHeight)
-    if (theme === "apple") {
-      const before = await page.evaluate(() => localStorage.getItem("Dib It"))
-      await page.getByRole("button", { name: "פעולות", exact: true }).click()
-      const downloading = page.waitForEvent("download")
-      await page.getByRole("menuitem", { name: "שמירת מערכת השעות כתמונה (PNG)", exact: true }).click()
-      const download = await downloading
-      assert.equal(download.suggestedFilename(), "dibit-2026a.png")
-      const filename = `${output}/${engine}-schedule${width === 390 ? "-mobile" : ""}.png`
-      await download.saveAs(filename)
-      const png = await readFile(filename)
-      assert.equal(png.readUInt32BE(16), screenWidth * 2, "PNG captures the displayed timetable at twice its resolution")
-      assert.equal(png.readUInt32BE(20), screenHeight * 2, "PNG includes the full timetable height")
-      assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), before, "export never changes the workspace")
-      const colors = await page.evaluate(async data => {
-        const image = new Image()
-        image.src = data
-        await image.decode()
-        const canvas = document.createElement("canvas")
-        canvas.width = 112; canvas.height = 80
-        const context = canvas.getContext("2d")
-        context.drawImage(image, 0, 0, 112, 80)
-        return new Set(context.getImageData(0, 0, 112, 80).data).size
-      }, `data:image/png;base64,${png.toString("base64")}`)
-      assert.ok(colors > 20, "PNG contains rendered content, not a blank page")
-      if (engine === "chromium") {
-        await page.evaluate(() => {
-          window.originalToBlob = HTMLCanvasElement.prototype.toBlob
-          HTMLCanvasElement.prototype.toBlob = callback => callback(null)
-        })
-        await page.getByRole("button", { name: "פעולות", exact: true }).click()
-        await page.getByRole("menuitem", { name: "שמירת מערכת השעות כתמונה (PNG)", exact: true }).click()
-        await page.getByText("שמירת התמונה נכשלה", { exact: true }).waitFor()
-        await page.evaluate(() => { HTMLCanvasElement.prototype.toBlob = window.originalToBlob })
-        await page.getByRole("button", { name: "פעולות", exact: true }).click()
-        assert.equal(await page.getByRole("menuitem", { name: "שמירת מערכת השעות כתמונה (PNG)", exact: true }).isEnabled(), true)
-        await page.keyboard.press("Escape")
-      }
-    }
+    const before = await page.evaluate(() => localStorage.getItem("Dib It"))
     await page.getByRole("button", { name: "פעולות", exact: true }).click()
-    if (engine === "chromium") {
-      await page.getByRole("menuitem", { name: /הדפסה\/שמירה כ-PDF/ }).click()
-      assert.equal(await page.evaluate(() => window.printEvents), 1, "menu must invoke native printing")
+    assert.equal(await page.getByRole("menuitem", { name: /PNG/ }).count(), 0, "no separate image menu item")
+    await page.getByRole("menuitem", { name: "ייצוא ל־PDF או לתמונה", exact: true }).click()
+    const dialog = page.getByRole("dialog")
+    await dialog.getByRole("button", { name: "העתקת תמונה", exact: true }).waitFor()
+    assert.equal(await page.evaluate(() => window.printEvents), 0, "format is chosen before printing")
+    await page.waitForFunction(() => getComputedStyle(document.querySelector(".mantine-Modal-content")).opacity === "1")
+    assert.equal(await dialog.getByRole("button", { name: "העתקת תמונה", exact: true }).evaluate(button => {
+      const rect = button.getBoundingClientRect()
+      return document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)?.closest("button") === button
+    }), true, "timetable tiles cannot cover the chooser")
+    if (engine === "chromium" && width === 1280 && theme === "apple") await dialog.screenshot({ path: `${output}/export-chooser.png` })
+    const downloads = []
+    page.on("download", download => downloads.push(download))
+    await page.evaluate(() => {
+      window.originalToBlob = HTMLCanvasElement.prototype.toBlob
+      HTMLCanvasElement.prototype.toBlob = function (...args) {
+        const copy = document.querySelectorAll("#schedule-container")[1]
+        window.imageLayout = [...copy.querySelectorAll(':scope > div > div[style*="display: grid"] > div')].map(tile => ({
+          text: tile.textContent, height: tile.clientHeight, contentHeight: tile.scrollHeight,
+          width: tile.clientWidth, contentWidth: tile.scrollWidth,
+        }))
+        return window.originalToBlob.apply(this, args)
+      }
+      // Verify the Clipboard API boundary without replacing the user's system clipboard.
+      Object.defineProperty(navigator, "clipboard", { configurable: true, value: { write: async items => {
+        window.copyStartedDuringClick = navigator.userActivation.isActive
+        const blob = await items[0].getType("image/png")
+        window.copiedImage = { type: blob.type, size: blob.size }
+      } } })
+    })
+    await dialog.getByRole("button", { name: "העתקת תמונה", exact: true }).click()
+    await dialog.getByText("התמונה הועתקה — אפשר להדביק אותה כעת.", { exact: true }).waitFor()
+    assert.equal(downloads.length, 0, "copy does not download a file")
+    assert.deepEqual(await page.evaluate(() => [window.copyStartedDuringClick, window.copiedImage.type, window.copiedImage.size > 1000]), [true, "image/png", true])
+    const layout = await page.evaluate(() => window.imageLayout)
+    assert.equal(layout.length, Object.keys(catalog).length)
+    for (const tile of layout) {
+      assert.ok(tile.contentHeight <= tile.height + 1 && tile.contentWidth <= tile.width + 1, `complete image tile: ${tile.text}`)
     }
-    // Firefox's native print dialog blocks headless automation. Check its print CSS with the menu open.
+    assert.equal(await page.locator("#schedule-container").count(), 1, "temporary DOM copy is removed")
+    const downloading = page.waitForEvent("download")
+    await dialog.getByRole("button", { name: "שמירת תמונה (PNG)", exact: true }).click()
+    const download = await downloading
+    assert.equal(download.suggestedFilename(), "dibit-2026a.png")
+    const filename = `${output}/${engine}-${theme}-${width}-image.png`
+    await download.saveAs(filename)
+    const png = await readFile(filename)
+    assert.equal(png.readUInt32BE(16), 2800, "image is reflowed at readable width even on mobile")
+    assert.ok(png.readUInt32BE(20) > 2400, "dense overlapping text expands the time grid")
+    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), before, "export never changes the workspace")
+    if (engine === "chromium") {
+      await page.evaluate(() => { navigator.clipboard.write = async () => { throw new DOMException("denied", "NotAllowedError") } })
+      await dialog.getByRole("button", { name: "העתקת תמונה", exact: true }).click()
+      await dialog.getByRole("alert").waitFor()
+      assert.equal(downloads.length, 1, "clipboard denial never triggers an automatic download")
+      await page.evaluate(() => { HTMLCanvasElement.prototype.toBlob = callback => callback(null) })
+      await dialog.getByRole("button", { name: "שמירת תמונה (PNG)", exact: true }).click()
+      await dialog.getByText("לא ניתן ליצור את התמונה. נסו שוב.", { exact: true }).waitFor()
+      assert.equal(await page.locator("#schedule-container").count(), 1, "encoder failure removes its DOM copy")
+      await page.evaluate(() => { HTMLCanvasElement.prototype.toBlob = window.originalToBlob })
+      assert.equal(await dialog.getByRole("button", { name: "שמירת תמונה (PNG)", exact: true }).isEnabled(), true)
+      await dialog.getByRole("button", { name: "הדפסה / PDF", exact: true }).click()
+      assert.equal(await page.evaluate(() => window.printEvents), 1, "PDF choice invokes native printing")
+    }
+    // Firefox's native print dialog blocks headless automation. Check its print CSS with the chooser open.
     await page.emulateMedia({ media: "print" })
+    assert.equal(await page.locator(".mantine-Modal-root:visible").count(), 0)
     assert.equal(await page.locator(".mantine-Menu-dropdown:visible").count(), 0)
     assert.equal(await page.locator(".mantine-Tooltip-tooltip:visible").count(), 0)
     assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme), "light")
@@ -129,6 +154,7 @@ try {
     }
     await page.emulateMedia({ media: "screen" })
     assert.equal(await page.locator("#schedule-container").evaluate(el => el.clientHeight), screenHeight, "printing preserves screen density")
+    await page.keyboard.press("Escape")
     if (theme === "apple" && engine === "chromium") {
       await page.getByRole("button", { name: "מבחנים", exact: true }).click()
       await page.emulateMedia({ media: "print" })

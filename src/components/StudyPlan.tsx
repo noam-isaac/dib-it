@@ -163,7 +163,7 @@ const StudyPlan = () => {
     >
       {(planLoad.failed || courseLoad.failed || semesterLoad.failed) && <Alert color="red" role="alert" mb="xs">
         לא ניתן לטעון את נתוני תוכניות הלימוד. הבחירות שלכם נשמרו.
-        <Button variant="subtle" onClick={() => { planLoad.retry(); courseLoad.retry(); semesterLoad.retry() }}>ניסיון נוסף</Button>
+        <Button variant="subtle" color="gray" onClick={() => { planLoad.retry(); courseLoad.retry(); semesterLoad.retry() }}>ניסיון נוסף</Button>
       </Alert>}
       {loadingAllTimeCourseInfo && (
         <p
@@ -196,7 +196,7 @@ const StudyPlan = () => {
           />
           {savedIndex >= 0 && (
             <Tooltip label="הסרה מהמעבר המהיר">
-              <ActionIcon size="lg" variant="subtle" aria-label="הסרה מהמעבר המהיר"
+              <ActionIcon size="lg" variant="subtle" color="gray" aria-label="הסרה מהמעבר המהיר"
                 onClick={() => setDibIt({ ...dibIt, savedStudyPlans: savedStudyPlans.filter((_, index) => index !== savedIndex) })}>
                 <i className="fa-solid fa-xmark" aria-hidden="true" />
               </ActionIcon>
@@ -244,7 +244,7 @@ const StudyPlan = () => {
       {savedIndex < 0 && <Button
         mt="xs"
         size="compact-sm"
-        variant="subtle"
+        variant="subtle" color="gray"
         leftSection={<i className="fa-solid fa-bookmark" aria-hidden="true" />}
         disabled={!plans[dibIt.school ?? ""]?.[dibIt.studyPlan ?? ""]}
         onClick={() => setDibIt(saveStudyPlan(dibIt))}
@@ -340,7 +340,7 @@ const StudyPlan = () => {
                       {included && (
                         <Badge
                           mr={5}
-                          variant="filled"
+                          variant="light"
                           color="green"
                           leftSection={<i className="fa-solid fa-check" />}
                         >
@@ -353,7 +353,7 @@ const StudyPlan = () => {
                           undefined && (
                           <Badge
                             mr={5}
-                            variant="filled"
+                            variant="light"
                             color="green"
                             leftSection={<i className="fa-solid fa-check" />}
                           >
@@ -373,9 +373,9 @@ const StudyPlan = () => {
                         >
                           <Badge
                             mr={5}
-                            variant="filled"
-                            color="red"
-                            leftSection={<i className="fa-solid fa-xmark" />}
+                            variant="light"
+                            color="yellow"
+                            leftSection={<i className="fa-solid fa-exclamation-circle" />}
                           >
                             חסרות דרישות קדם
                           </Badge>
@@ -387,7 +387,7 @@ const StudyPlan = () => {
                         courseInfo[courseId] === undefined && (
                           <Badge
                             mr={5}
-                            color="red"
+                            color="gray"
                             leftSection={<i className="fa-solid fa-xmark" />}
                           >
                             לא עובר בסמסטר הנבחר
@@ -400,8 +400,8 @@ const StudyPlan = () => {
                         ).length === 0 && (
                           <Badge
                             mr={5}
-                            variant="filled"
-                            color="green"
+                            variant="light"
+                            color="gray"
                             leftSection={<i className="fa-solid fa-check" />}
                           >
                             אין מבחן

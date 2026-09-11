@@ -193,7 +193,7 @@ const Exams = () => {
     <>
       <Group justify="flex-end" className="dont-print">
         <Button
-          variant="subtle"
+          variant="subtle" color="gray"
           size="sm"
           onClick={() => setSearchDate(searchDate === null ? "" : null)}
         >

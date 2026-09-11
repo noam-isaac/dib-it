@@ -157,7 +157,7 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
             >
               <Badge
                 mr={5}
-                color="red"
+                color="yellow"
                 leftSection={<i className="fa-solid fa-exclamation-circle" />}
               >
                 חסרות דרישות קדם

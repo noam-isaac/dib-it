@@ -1,5 +1,65 @@
 # UI and export verification
 
+## Maintenance verification — 2026-09-11
+
+- Confirmed the existing behavior: annual data refreshes daily, retains valid data
+  on failure, and exposes its verification date and retry in Settings. Bidding
+  assignments reset when the dialog closes; point budgets remain saved.
+- All five current Firestore integration tests passed against localhost using
+  `bun run test:firebase` with the existing Temurin Java 21 runtime. Coverage includes
+  backup replacement/deletion, multi-plan round trips, access restrictions,
+  client synchronization, reconnection and competing edits. Real-account Google
+  sign-in was not exercised by these tests.
+- The annual-data refresh workflow completed successfully in
+  [run 34577408745](https://github.com/noam-isaac/dib-it/actions/runs/34577408745),
+  following successful runs on September 9 and 10.
+- Practice panels use stable course IDs. Legacy position-based open/closed state
+  does not reopen panels; recorded practice history remains separate and intact.
+
+## Control colors, labels and restore alignment — local review (2026-09-11)
+
+- Equal export choices now share neutral buttons. The timetable menu label is
+  "ייצוא ל־PDF או לתמונה"; other tabs retain the print label. The guide describes
+  the chooser and landscape timetable correctly.
+- Restore actions use the row's two edges: cancel at the right, destructive
+  confirmation at the left. Backup is a neutral secondary action.
+- Removed per-format/service menu colors, the bidding gradient, and the unrelated
+  olive/gold header/footer palette. Ordinary actions use neutral Mantine variants;
+  cyan remains the existing action/navigation accent. Course colors remain intact.
+- Warning, error and success indicators retain semantic color and text. Missing
+  prerequisites are warnings; absence of an exam/semester offering is neutral.
+  Google overwrite choices are destructive actions, with explicit red styling.
+- The rule is documented in MAINTAINING.md using existing Mantine props and theme
+  variables; no new color framework or dependency. Local browser hot reload shows
+  the updated chooser. `bun run check` passed: 83 unit tests, lint, build, all
+  nine Chromium suites and scraper checks. Light/dark UI and restore alignment
+  were visually inspected. Changes await user review and explicit release approval.
+
+## Image export correction — local review (2026-09-11)
+
+- The existing PDF menu action opens a compact chooser for PDF, copy image, or
+  explicitly save PNG. Removed the separate image menu item. Other tabs still
+  print directly; the chooser is hidden in print output. The timetable has an
+  isolated stacking context so its high-z-index lesson tiles cannot cover dialogs.
+- Image capture reflows a temporary DOM copy of the site's existing timetable at
+  1400 CSS pixels and increases hour spacing from measured tile overflow. It
+  excludes native tile scrolling while preserving the theme, labels and lessons.
+  The temporary copy is removed on success and failure; the live layout and
+  workspace are never resized or changed.
+- Copy uses the browser Clipboard API with a promised PNG started during the
+  click. Denied/unsupported access shows an error and never silently downloads.
+  Image generation is awaited for cleanup even if the clipboard rejects early.
+- Chromium, Firefox and WebKit checks cover dense overlapping Hebrew/English
+  titles, full tile bounds, 2800px PNGs, unchanged workspace, cleanup, and print.
+  Clipboard writes are intercepted at the API boundary to avoid replacing the
+  user's system clipboard; checks consume the real generated PNG and verify user
+  activation. Permission denial and encoder failure are also exercised.
+- Full local `bun run check` passed: 83 unit tests, lint, build, all nine Chromium
+  suites and the scraper self-test. Generated light/dark images and the chooser
+  were visually inspected. After the final stacking correction, the build, all
+  three engines' export checks and Chromium course-interaction checks passed.
+- Changes remain local and uncommitted. No merge or deployment is authorized.
+
 ## Product review decisions (2026-09-11)
 
 - Timetable exports: PDF prints the existing on-screen timetable, fitted to a

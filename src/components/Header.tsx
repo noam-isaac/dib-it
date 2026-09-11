@@ -13,8 +13,9 @@ const Header = () => {
       id="header"
       className="dont-print"
       style={{
-        backgroundColor: "#4f6522",
-        color: "white",
+        backgroundColor: "var(--mantine-color-body)",
+        borderBottom: "1px solid var(--mantine-color-default-border)",
+        color: "var(--mantine-color-text)",
         width: "100%",
         height: 75,
         flex: "none",
@@ -23,7 +24,7 @@ const Header = () => {
         alignItems: "center",
       }}
     >
-      <a href="/" aria-label="דיביט של נועם" style={{ color: "white", marginInline: 12 }}>
+      <a href="/" aria-label="דיביט של נועם" style={{ color: "var(--mantine-color-text)", marginInline: 12 }}>
         <i className="fa-solid fa-calendar-days" style={{ fontSize: 28 }} aria-hidden="true" />
       </a>
       <h3
@@ -38,7 +39,7 @@ const Header = () => {
       >
         <i
           className="fa-brands fa-github"
-          style={{ marginInlineStart: 10, fontSize: 24, color: "white" }}
+          style={{ marginInlineStart: 10, fontSize: 24, color: "var(--mantine-color-text)" }}
         />
       </a>
       <div style={{ flexGrow: 1 }} />
@@ -87,7 +88,7 @@ const AuthControls = () => {
       {(currentUser === null || currentUser === undefined) && (
         <Button
           mx="xs"
-          variant="white"
+          variant="default"
           leftSection={<i className="fa-solid fa-sign-in" />}
           loading={loading || busy}
           onClick={() => authenticate()}
@@ -110,7 +111,7 @@ const AuthControls = () => {
           </p>
           <Button
             mx="xs"
-            variant="white"
+            variant="default"
             leftSection={<i className="fa-solid fa-sign-out" />}
             loading={busy}
             onClick={() => authenticate(true)}

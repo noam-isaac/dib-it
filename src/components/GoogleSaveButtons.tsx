@@ -56,14 +56,13 @@ const EnabledGoogleSaveButtons = () => {
         ? "כל שינוי במערכות נשמר בגוגל ומתעדכן במכשירים המחוברים. לחצו כדי לכבות."
         : "לחצו כדי להפעיל שמירה ועדכון אוטומטיים של המערכות בגוגל."}>
         <Menu.Item renderRoot={props => <button {...props} role="menuitemcheckbox" aria-checked={automatic} />} closeMenuOnClick={false}
-          color={automatic ? "green" : undefined}
           leftSection={<i className="fa-solid fa-cloud" aria-hidden="true" />}
           rightSection={
             // The state is spelled out as well as drawn: the switch alone read as decoration.
             <Group gap={6} wrap="nowrap" aria-hidden="true">
-              <Text size="xs" fw={600} c={automatic ? "green" : "dimmed"}>{automatic ? "מופעל" : "כבוי"}</Text>
+              <Text size="xs" fw={600} c={automatic ? "cyan" : "dimmed"}>{automatic ? "מופעל" : "כבוי"}</Text>
               <i className={`fa-solid fa-toggle-${automatic ? "on" : "off"}`}
-                style={{ fontSize: 20, color: `var(--mantine-color-${automatic ? "green-6" : "dimmed"})` }} />
+                style={{ fontSize: 20, color: `var(--mantine-color-${automatic ? "cyan-6" : "dimmed"})` }} />
             </Group>
           }
           onClick={() => setAutomatic(!automatic)}>
@@ -71,11 +70,11 @@ const EnabledGoogleSaveButtons = () => {
         </Menu.Item>
       </Tooltip>
       <Tooltip label="פעולה זו תחליף את כל מערכות השעות ששמורות בגוגל">
-        <Menu.Item disabled={busy} color="green" leftSection={<i className="fa-solid fa-save" aria-hidden="true" />} onClick={save}>
+        <Menu.Item disabled={busy} leftSection={<i className="fa-solid fa-save" aria-hidden="true" />} onClick={save}>
           גיבוי בגוגל
         </Menu.Item>
       </Tooltip>
-      <Menu.Item disabled={busy} color="green" leftSection={<i className="fa-solid fa-sync" aria-hidden="true" />} onClick={restore}>
+      <Menu.Item disabled={busy} leftSection={<i className="fa-solid fa-sync" aria-hidden="true" />} onClick={restore}>
         שחזור מגוגל
       </Menu.Item>
     </>

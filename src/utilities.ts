@@ -64,18 +64,39 @@ export const downloadBlob = (filename: string, blob: Blob) => {
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
-export const downloadScheduleImage = async (semester: string) => {
+export const createScheduleImage = async () => {
   const element = document.getElementById("schedule-container")
-  if (!element) throw new Error("פתחו את לשונית המערכת כדי לשמור אותה כתמונה.")
-  await document.fonts.ready
-  const { toBlob } = await import("html-to-image")
-  const blob = await toBlob(element, {
-    pixelRatio: 2,
-    backgroundColor: matchMedia("(prefers-color-scheme: dark)").matches ? "#222" : "#fff",
-    skipFonts: true, // The timetable uses system fonts.
-  })
-  if (!blob) throw new Error("לא ניתן ליצור את התמונה. נסו שוב.")
-  downloadBlob(`dibit-${semester}.png`, blob)
+  if (!element) throw new Error("פתחו את לשונית המערכת כדי ליצור תמונה.")
+  // Reflow a DOM copy of the existing timetable; never resize the live schedule.
+  const wrapper = document.createElement("div")
+  wrapper.setAttribute("aria-hidden", "true")
+  wrapper.inert = true
+  Object.assign(wrapper.style, { position: "fixed", left: "-10000px", top: "0" })
+  const copy = element.cloneNode(true) as HTMLElement
+  Object.assign(copy.style, { width: "1400px", maxWidth: "none", overflowWrap: "anywhere" })
+  copy.style.setProperty("--schedule-hour-height", "100px")
+  wrapper.append(copy)
+  document.body.append(wrapper)
+  try {
+    await document.fonts.ready
+    // Apple tiles scroll on screen. Let their content determine the image height.
+    for (const child of copy.querySelectorAll<HTMLElement>('[style*="overflow: auto"]')) {
+      child.style.overflow = "visible"
+    }
+    const tiles = [...copy.querySelectorAll<HTMLElement>(':scope > div > div[style*="display: grid"] > div')]
+    const ratio = Math.max(1, ...tiles.map(tile => tile.scrollHeight / Math.max(1, tile.clientHeight)))
+    copy.style.setProperty("--schedule-hour-height", `${Math.ceil(100 * ratio) + 8}px`)
+    const { toBlob } = await import("html-to-image")
+    const blob = await toBlob(copy, {
+      pixelRatio: 2,
+      backgroundColor: matchMedia("(prefers-color-scheme: dark)").matches ? "#222" : "#fff",
+      skipFonts: true, // The timetable uses system fonts.
+    })
+    if (!blob) throw new Error("לא ניתן ליצור את התמונה. נסו שוב.")
+    return blob
+  } finally {
+    wrapper.remove()
+  }
 }
 
 export const uploadJson = (): Promise<any> => {
