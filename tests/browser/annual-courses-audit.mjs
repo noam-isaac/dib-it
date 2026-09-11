@@ -5,7 +5,7 @@ import { createServer } from "vite"
 
 const catalogs = JSON.parse(await readFile(new URL("../fixtures/annual-catalogs-2026.json", import.meta.url)))
 const course = { id: "10313103", groups: ["01"] }
-const server = process.env.DIBIT_TEST_URL ? undefined : await createServer({ cacheDir: "node_modules/.vite-test-annual-courses-audit", server: { host: "127.0.0.1", port: 0 } })
+const server = process.env.DIBIT_TEST_URL ? undefined : await createServer({ define: { "import.meta.env.VITE_ENABLE_GOOGLE_SYNC": '\"false\"' }, cacheDir: "node_modules/.vite-test-annual-courses-audit", server: { host: "127.0.0.1", port: 0 } })
 let browser
 let failures = 0
 try {
@@ -22,6 +22,7 @@ try {
     let completed
     let recovered = false
     const loaded = new Promise(resolve => { completed = resolve })
+    await page.route("**/*", route => new URL(route.request().url()).origin === new URL(process.env.DIBIT_TEST_URL ?? `http://127.0.0.1:${server.httpServer.address().port}`).origin ? route.continue() : route.abort())
     await page.route("https://arazim-project.com/data/**", async route => {
       const filename = new URL(route.request().url()).pathname.split("/").pop()
       if (filename === "courses-2026b.json") {

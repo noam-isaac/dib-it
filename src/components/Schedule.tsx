@@ -9,7 +9,7 @@ import {
 import { useCourseInfo } from "../CourseInfoContext"
 import { useLocalStorage } from "../hooks"
 import { useDibIt } from "../models"
-import { getColor, parseTime } from "../utilities"
+import { getColor, parseTime, revealCourse } from "../utilities"
 
 const googleWideScheduleTheme = createTheme("google", {
   hourHeight: "var(--schedule-hour-height, 85px)",
@@ -134,7 +134,7 @@ const Schedule = () => {
 
             const card = document.getElementById(`course-${id}`)
             if (card) {
-              card.scrollIntoView({ behavior: "instant" })
+              revealCourse(id)
               card.style.scale = "1.03"
               setTimeout(() => (card.style.scale = "1"), 500)
             }

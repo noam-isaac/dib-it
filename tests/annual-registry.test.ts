@@ -42,3 +42,25 @@ test("a deferred edit to a course confirmed nonannual never changes the other se
   acceptAnnualFeed({ version: 1, years: { "2096": data } })
   expect(applyAnnualChanges(view, changes, {})).toEqual({ courses: view.courses, pending: [] })
 })
+
+test("corrected classification retires obsolete course/group edits without touching semester selections", () => {
+  for (const [year, groups] of [["2095", { "87654321": ["02"] }], ["2094", { "12345678": ["02"] }]] as const) {
+    acceptAnnualFeed({ version: 1, years: { [year]: data } })
+    const course = { id: "12345678", groups: ["01"] }
+    const before = { [`${year}a`]: [course], [`${year}b`]: [course] }
+    const view = { semester: `${year}a`, courses: { ...before, [`${year}a`]: [] } }
+    const pending = applyAnnualChanges(view, annualChanges(before, view), {}).pending
+    expect(pending).toHaveLength(1)
+    acceptAnnualFeed({ version: 1, years: { [year]: { ...data, verifiedAt: "2026-09-10", groups } } })
+    expect(applyAnnualChanges(view, pending, {})).toEqual({ courses: view.courses, pending: [] })
+  }
+})
+
+test("removing a custom annual source retires its edit when the year is classified", () => {
+  const course = { id: "local", groups: ["01"] }
+  const view = { semester: "2026a", courses: { "2026a": [], "2026b": [course] },
+    customCourses: { custom: { local: { groups: [{ group: "01", lessons: [{ type: "שנתי" }] }] } } } }
+  const changes = annualChanges({ "2026a": [course] }, view)
+  expect(changes).toHaveLength(1)
+  expect(applyAnnualChanges({ ...view, customCourses: {} }, changes, {})).toEqual({ courses: view.courses, pending: [] })
+})

@@ -49,6 +49,7 @@ try {
     }
     const errors = []
     page.on("pageerror", error => errors.push(error.message))
+    await page.route("**/*", route => new URL(route.request().url()).origin === new URL(process.env.DIBIT_TEST_URL ?? `http://127.0.0.1:${server.httpServer.address().port}`).origin ? route.continue() : route.abort())
     await page.route("https://arazim-project.com/data/**", route => {
       const filename = new URL(route.request().url()).pathname.split("/").pop()
       const json = filename === "info.json" ? {

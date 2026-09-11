@@ -14,6 +14,10 @@ const legacy = {
 }
 
 describe("saved schedule plans", () => {
+  test("a user can keep the former default name through normalization", () => {
+    const renamed = renamePlan(normalizePlans(legacy), "default", "התוכנית שלי")
+    expect(normalizePlans(renamed).plans[0].name).toBe("התוכנית שלי")
+  })
   test("annual courses and group selections sync within the same year and plan in both directions", () => {
     for (const semester of ["2026a", "2026b"]) {
       const other = semester === "2026a" ? "2026b" : "2026a"
@@ -68,7 +72,7 @@ describe("saved schedule plans", () => {
     const workspace = normalizePlans(legacy)
     expect(activePlanView(workspace)).toEqual({ ...legacy, activePlanId: "default" })
     expect(normalizePlans(workspace)).toEqual(workspace)
-    expect(normalizePlans({ ...workspace, plans: [{ ...workspace.plans[0], name: "התוכנית שלי" }] }).plans[0].name).toBe("מערכת השעות שלי")
+    expect(normalizePlans({ ...workspace, plans: [{ ...workspace.plans[0], name: "התוכנית שלי" }] }).plans[0].name).toBe("התוכנית שלי")
     expect(legacy).toEqual(before)
     expect(isScheduleBackup(workspace)).toBe(true)
   })

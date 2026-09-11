@@ -19,11 +19,11 @@ const catalog = {
 const initial = {
   semester: "2026a", tab: "schedule", activePlanId: "first",
   plans: [{ id: "first", name: "בדיקה", courses: { "2026a": [
-    { id: "01234567", groups: ["01"] }, { id: "1234", groups: ["01"] },
+    { id: "01234567", groups: ["01"] }, { id: "1234", groups: ["01"] }, { id: "L1", groups: ["01"] },
   ] } }],
 }
 
-const server = await createServer({ cacheDir: "node_modules/.vite-registration-form-test", server: { host: "127.0.0.1", port: 0 } })
+const server = await createServer({ define: { "import.meta.env.VITE_ENABLE_GOOGLE_SYNC": '\"false\"' }, cacheDir: "node_modules/.vite-registration-form-test", server: { host: "127.0.0.1", port: 0 } })
 let browser
 try {
   await server.listen()
@@ -32,7 +32,8 @@ try {
   page.setDefaultTimeout(10000)
   const errors = []
   page.on("pageerror", error => errors.push(error.message))
-  await page.route("https://arazim-project.com/data/**", route => {
+  await page.route("**/*", route => new URL(route.request().url()).origin === new URL(process.env.DIBIT_TEST_URL ?? `http://127.0.0.1:${server.httpServer.address().port}`).origin ? route.continue() : route.abort())
+    await page.route("https://arazim-project.com/data/**", route => {
     const filename = new URL(route.request().url()).pathname.split("/").pop()
     return route.fulfill({ json: filename === "info.json"
       ? { currentSemester: "2026a", semesters: { "2026a": { startDate: "2025-10-26", endDate: "2026-01-25" } } }
@@ -48,6 +49,7 @@ try {
   await page.getByRole("menuitem", { name: "יצירת טופס רישום ב-Word", exact: true }).click()
   const dialog = page.getByRole("dialog")
   await dialog.getByText("טופס רישום לקורסים", { exact: true }).waitFor()
+  await dialog.getByRole("status").filter({ hasText: "סמינר לאוטמן (L1)" }).waitFor()
 
   const unusable = dialog.getByRole("row").filter({ hasText: "קורס בלי מספר תקני" })
   await unusable.getByText("לא בטופס", { exact: true }).waitFor()

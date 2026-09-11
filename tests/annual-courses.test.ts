@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test"
-import { annualGroupIds, syncAnnualCourses } from "../src/annualCourses"
+import { annualGroupIds } from "../src/annualCourses"
+import { activePlanView, normalizePlans, updateActivePlan } from "../src/plans"
+import type { DibIt } from "../src/models"
 import catalogs from "./fixtures/annual-catalogs-2026.json"
+
+const updateCourses = (previous: DibIt["courses"], view: DibIt, catalogs: Record<string, SemesterCourses>) =>
+  activePlanView(updateActivePlan(normalizePlans({ ...view, courses: previous }), view, catalogs)).courses
 
 test("identical semester offerings are not annual: official phantom lab counterexample", () => {
   const id = "01911111"
@@ -8,7 +13,7 @@ test("identical semester offerings are not annual: official phantom lab countere
   expect(catalogs["2026a"][id].exams).toEqual(catalogs["2026b"][id].exams)
   expect(catalogs["2026a"][id].groups[0].lecturer).toEqual(catalogs["2026b"][id].groups[0].lecturer)
   expect(annualGroupIds({}, "2026a", id)).toEqual([])
-  expect(syncAnnualCourses({}, { semester: "2026a", courses }, catalogs)).toEqual(courses)
+  expect(updateCourses({}, { semester: "2026a", courses }, catalogs)).toEqual(courses)
 })
 
 test("official annual status survives changed lecturers and exams; unknown years never inherit it", () => {
@@ -18,7 +23,7 @@ test("official annual status survives changed lecturers and exams; unknown years
     ...catalogs["2026b"][id], exams: [{ date: "01/07/2026" }],
     groups: [{ ...catalogs["2026b"][id].groups[0], lecturer: "Changed lecturer" }],
   } } }
-  expect(syncAnnualCourses({}, { semester: "2026a", courses }, changed)!["2026b"]).toEqual(courses["2026a"])
+  expect(updateCourses({}, { semester: "2026a", courses }, changed)!["2026b"]).toEqual(courses["2026a"])
   expect(annualGroupIds({}, "2099a", id)).toEqual([])
   expect(annualGroupIds({}, "2026a", id)).toEqual(["01"])
 })
@@ -28,7 +33,7 @@ test("real annual project syncs in both directions despite different semester ro
   for (const semester of ["2026a", "2026b"]) {
     const other = semester === "2026a" ? "2026b" : "2026a"
     const course = { id: "10313103", groups: ["01"] }
-    const result = syncAnnualCourses({}, { semester, courses: { [semester]: [course] } }, catalogs)!
+    const result = updateCourses({}, { semester, courses: { [semester]: [course] } }, catalogs)!
     expect(result[other]).toEqual([course])
     expect(catalogs["2026a"][course.id].groups[0].lessons[0].room).not.toBe(catalogs["2026b"][course.id].groups[0].lessons[0].room)
   }
@@ -36,7 +41,7 @@ test("real annual project syncs in both directions despite different semester ro
 
 test("a real semester-only calculus course stays in its own semester", () => {
   const courses = { "2026a": [{ id: "03661100", groups: ["01"] }] }
-  expect(syncAnnualCourses({}, { semester: "2026a", courses }, catalogs)).toEqual(courses)
+  expect(updateCourses({}, { semester: "2026a", courses }, catalogs)).toEqual(courses)
 })
 
 const group = (group: string, lecturer = "Lecturer") => ({ group, lecturer, lessons: [] })
@@ -47,9 +52,9 @@ const mixed = {
 test("syncs shared groups, preserves semester-only selections, and removes shared selections", () => {
   const before = { "2026a": [{ id: "10313103", groups: ["02"] }], "2026b": [{ id: "10313103", groups: ["03"] }] }
   const selected = { ...before, "2026a": [{ id: "10313103", groups: ["01", "02"] }] }
-  const added = syncAnnualCourses(before, { semester: "2026a", courses: selected }, mixed)!
+  const added = updateCourses(before, { semester: "2026a", courses: selected }, mixed)!
   expect(added["2026b"][0].groups).toEqual(["03", "01"])
-  const removed = syncAnnualCourses(added, { semester: "2026a", courses: { ...added, "2026a": [] } }, mixed)!
+  const removed = updateCourses(added, { semester: "2026a", courses: { ...added, "2026a": [] } }, mixed)!
   expect(removed["2026b"][0].groups).toEqual(["03"])
   expect(before["2026b"][0].groups).toEqual(["03"])
 })
@@ -57,7 +62,7 @@ test("syncs shared groups, preserves semester-only selections, and removes share
 test("does not synchronize a verified group missing from the other catalog", () => {
   const courses = { "2026a": [{ id: "10313103", groups: ["01"] }] }
   for (const target of [undefined, { groups: [group("02")] }]) {
-    expect(syncAnnualCourses({}, { semester: "2026a", courses }, {
+    expect(updateCourses({}, { semester: "2026a", courses }, {
       "2026a": mixed["2026a"], "2026b": { "10313103": target },
     })).toEqual(courses)
   }
@@ -65,8 +70,8 @@ test("does not synchronize a verified group missing from the other catalog", () 
 
 test("late catalog reconciliation preserves selections already saved in either semester", () => {
   const courses = { "2026a": [{ id: "10313103", groups: [] }], "2026b": [{ id: "10313103", groups: ["01", "03"] }] }
-  const result = syncAnnualCourses(courses, { semester: "2026a", courses }, mixed)!
+  const result = updateCourses(courses, { semester: "2026a", courses }, mixed)!
   expect(result["2026b"][0].groups).toEqual(["01", "03"])
-  const reconciled = syncAnnualCourses(result, { semester: "2026b", courses: result }, mixed)!
+  const reconciled = updateCourses(result, { semester: "2026b", courses: result }, mixed)!
   expect(reconciled["2026a"][0].groups).toEqual([])
 })

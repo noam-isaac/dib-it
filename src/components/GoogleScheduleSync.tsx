@@ -6,7 +6,7 @@ import { auth, firestore } from "../firebase"
 import { useLocalStorage } from "../hooks"
 import { getWorkspace, setWorkspace } from "../models"
 import type { PlanWorkspace } from "../plans"
-import { readCloudSchedule, scheduleKey, startScheduleSync, type SyncStatus } from "../scheduleSync"
+import { cloudScheduleData, readCloudSchedule, scheduleKey, startScheduleSync, type SyncStatus } from "../scheduleSync"
 import { downloadBlob } from "../utilities"
 
 const EnabledGoogleScheduleSync = () => {
@@ -25,6 +25,9 @@ const EnabledGoogleScheduleSync = () => {
     setStatus("connecting")
     const uid = user.uid
     const reference = doc(firestore!, "users", uid)
+    let listenerFailed = false
+    let listenerTimer: ReturnType<typeof setTimeout> | undefined
+    let unsubscribe: (() => void) | undefined
     const sync = startScheduleSync({
       read: getWorkspace,
       apply: setWorkspace,
@@ -40,10 +43,11 @@ const EnabledGoogleScheduleSync = () => {
         if (auth!.currentUser?.uid !== uid) throw new Error("Account changed")
         const cloud = readCloudSchedule(snapshot.data())
         const upload = decide(cloud)
-        if (upload) transaction.set(reference, JSON.parse(JSON.stringify(upload)))
+        if (upload) transaction.set(reference, cloudScheduleData(upload, uid))
         return cloud
       }),
       status: (next, cloud, failure) => {
+        if (listenerFailed) return
         setStatus(next)
         if (next === "conflict") setRemote(cloud ?? null)
         if (failure) setError(failure instanceof Error ? failure.message : "נסו שוב מאוחר יותר.")
@@ -51,22 +55,36 @@ const EnabledGoogleScheduleSync = () => {
     })
     controller.current = sync
     sync.schedule(0)
-    const unsubscribe = onSnapshot(reference, { includeMetadataChanges: true }, snapshot => {
-      if (!snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites) sync.schedule(0)
-    }, failure => { setError(failure.message); setStatus("error") })
+    const listen = () => {
+      clearTimeout(listenerTimer)
+      unsubscribe?.()
+      unsubscribe = onSnapshot(reference, { includeMetadataChanges: true }, snapshot => {
+        if (!snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites) {
+          listenerFailed = false
+          sync.schedule(0)
+        }
+      }, failure => {
+        listenerFailed = true
+        setError(failure.message)
+        setStatus("error")
+        listenerTimer = setTimeout(listen, 30000)
+      })
+    }
+    listen()
     let localKey = scheduleKey(getWorkspace())
     const changed = (event: StorageEvent) => {
       if (event.key !== "Dib It" && event.key !== null) return
       const nextKey = scheduleKey(getWorkspace())
       if (nextKey !== localKey) { localKey = nextKey; sync.schedule() }
     }
-    const resume = () => sync.schedule(0)
+    const resume = () => { if (listenerFailed) listen(); sync.schedule(0) }
     window.addEventListener("storage", changed)
     window.addEventListener("online", resume)
     window.addEventListener("focus", resume)
     return () => {
       sync.stop()
-      unsubscribe()
+      clearTimeout(listenerTimer)
+      unsubscribe?.()
       controller.current = null
       window.removeEventListener("storage", changed)
       window.removeEventListener("online", resume)
@@ -80,6 +98,7 @@ const EnabledGoogleScheduleSync = () => {
   return (
     <div className="dont-print" dir="rtl" style={{ textAlign: "center", padding: 4 }}>
       <Text size="sm" role="status">{status === "conflict" ? "העותקים במכשיר ובגוגל שונים — בחרו איזה מהם לשמור." : "המערכות נשמרו במכשיר. הסנכרון לגוגל לא הושלם."}</Text>
+      {status === "error" && <Text size="sm" dir="auto">{error}</Text>}
       {status === "conflict" && <Button size="compact-xs" variant="subtle" onClick={() => setOpened(true)}>בחירת המערכות לסנכרון</Button>}
       {status === "error" && <Button size="compact-xs" variant="subtle" title={error} onClick={() => setRetry(value => value + 1)}>ניסיון נוסף</Button>}
       <Modal opened={opened} onClose={() => setOpened(false)} title="בחירת המערכות לסנכרון" centered>

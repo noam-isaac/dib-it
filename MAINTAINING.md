@@ -1,5 +1,11 @@
 # Maintaining Dib It
 
+Use Bun for project dependencies and scripts, with `bun.lock` as the sole lockfile.
+Routine installs use `bun install --frozen-lockfile`; CI uses Bun 1.4.2.
+`pnpm dlx` is only a standalone tool launcher here, including the temporary Bun
+runner when Bun is absent from PATH. It is not a second project package manager.
+See [Developing](README.md#developing) for commands and dependency-drift recovery.
+
 Semester dates and the default semester come from Arazim's public `data/info.json`.
 Course catalogs come from `data/courses-{semester}.json`; degree programs come from
 `data/plans-{year}.json`. The application does not contain a `semesterInfo.tsx` file

@@ -30,11 +30,45 @@ You will download an ICS file, which you can import to [Google calendar](https:/
 
 # Developing
 
-To start developing Dib It, you need to follow these steps:
+**Bun is this project's package manager. `bun.lock` is the only dependency lockfile.**
 
-- Clone the repository and install the dependencies with `bun install`. This project uses the committed Bun lockfile.
-- By default, schedules are saved locally in the browser. File backup, restore, and calendar export are available without signing in.
-- Run a local development server with `bun run dev`.
+| Tool | Role here |
+| --- | --- |
+| Bun | Installs project dependencies, runs package scripts, and runs unit tests through `bun:test`. Use 1.4.2 to match the CI baseline. |
+| Node.js | Runs the Playwright browser scripts and Firebase integration scripts. CI uses Node 22. |
+| pnpm | Launches standalone tools with `pnpm dlx`, such as the Firebase and Vercel CLIs, or a temporary Bun executable. It does not manage this project's dependencies. |
+| Python 3 | Runs the annual-course scraper and its self-test. |
+| Java 21+ | Runs the local Firestore emulator for integration tests. The website itself does not need Java. |
+
+After cloning, use:
+
+```sh
+bun install --frozen-lockfile
+bun run dev
+```
+
+For validation, install the browser once with `bunx playwright install chromium`,
+then run `bun run check`. Run `bun run test:firebase` separately when Java is available.
+
+If Bun is not installed on your PATH, the equivalent commands are:
+
+```sh
+pnpm dlx bun@1.4.2 install --frozen-lockfile
+pnpm dlx bun@1.4.2 run dev
+pnpm dlx bun@1.4.2 x playwright install chromium
+pnpm dlx bun@1.4.2 run check
+```
+
+Here pnpm only supplies the Bun executable; Bun still installs and runs the project.
+Do not run `pnpm install`, `pnpm add`, or `npm install` in this checkout, or add a
+second lockfile. To intentionally change dependencies, use `bun add`/`bun update`
+and review `package.json` and `bun.lock` together. Routine setup, CI, and Vercel use
+`bun install --frozen-lockfile` to retain the reviewed versions. If another package
+manager has replaced `node_modules`, remove that generated directory and reinstall
+with the frozen Bun command before testing.
+
+By default, schedules are saved locally in the browser. File backup, restore, and
+calendar export are available without signing in.
 
 You are **highly encouraged** to send pull requests or feature requests!
 
@@ -79,6 +113,16 @@ The export module and template load only when requested. See [template provenanc
 
 While signed in, the three-dot menu offers manual Google backup and restore, plus an automatic-sync toggle. Automatic sync is off by default; the choice is saved in this browser. When enabled, all schedule plans and shared settings sync through the existing private Firebase document. Edits are batched after a one-second pause; server updates arrive through a realtime listener. The selected tab, semester and active plan stay local. Offline edits remain in localStorage and retry on reconnect, focus, or after 30 seconds following an error. On a new device an empty workspace loads the cloud schedules. If existing local and cloud schedules differ on first sign-in, or both have changed since the last sync, syncing pauses for a choice with downloads of both copies available. Transaction checks prevent a concurrent cloud edit from being silently overwritten. Switching accounts also requires a choice before uploading different local schedules. File restores sync to the other signed-in devices too. Routine syncing and success states take no space on the page; only errors and conflicts appear below the header.
 
+Google uploads are limited to one Firestore document (1 MiB, including field names,
+UTF-8 text and map overhead), field names of at most 1,500 bytes, and at most 20
+nested map/array levels. Manual and automatic uploads check these limits first.
+Oversized or unsupported payloads stay local and can still be downloaded as file
+backups. Automatic retries pause until local data changes or you explicitly retry;
+reduce custom catalogs or unused plans after saving a file backup. A failed realtime
+listener reconnects after 30 seconds or on focus/network recovery, and successful
+writes do not hide a failed listener. See [Firestore storage sizing](https://firebase.google.com/docs/firestore/storage-size)
+and [limits](https://firebase.google.com/docs/firestore/quotas).
+
 Calendar export works without sign-in. It downloads an ICS file for manual import into Google Calendar on a computer or Apple Calendar. Lessons use Jerusalem wall time, including minutes and daylight-saving transitions, and exams are all-day entries. Each weekly lesson is exported as individual dated events through the end of the semester; holidays and cancellations are not inferred. This is a snapshot, not automatic calendar synchronization. See [Google's import instructions](https://support.google.com/calendar/answer/37118).
 
 For Google sign-in and schedule backup, copy `.env.example` to `.env.local` and supply the four Firebase web app values. Complete configuration enables Google sign-in and backup controls; automatic sync is a separate user choice. `VITE_ENABLE_GOOGLE_SYNC=false` explicitly disables it. The original ignored `src/firebase.json` format is also supported, with environment values taking precedence. Without complete configuration, the site continues in local mode. Enable the Google provider in Firebase Authentication and authorize the deployment domain (and localhost for development). See [Firebase's Google sign-in setup](https://firebase.google.com/docs/auth/web/google-signin).
@@ -90,6 +134,12 @@ The Firebase project must allow authenticated users to read and write only their
 For this fork, Google backup uses an unbilled **Spark** project with one free-tier Standard database in Tel Aviv (`me-west1`), as specified in `firebase.json`. Local Google sign-in uses `http://127.0.0.1:5175`. Do not link a billing account, activate trial credits, upgrade to Blaze, or add paid services. On Spark, quota exhaustion can interrupt backup; do not resolve it by enabling billing. Local storage, file backup, and calendar export remain available. See [Firebase's pricing-plan documentation](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans). The local emulator tests neither create nor configure a cloud project.
 
 ## Validation and Vercel
+
+`bun run check` runs unit tests, lint, the production build, all Chromium browser suites,
+and the annual scraper self-test. The `Validate` GitHub workflow runs it with the frozen
+Bun lockfile on pull requests and pushes to `main`. The `validate` job is required by
+branch protection. Firestore emulator tests remain a separate optional command. `bun run deploy` also runs `check` before
+publishing. Visual approval remains part of release review.
 
 Run `bun test`, `bun run lint`, and `bun run build`. For browser regressions, install Chromium once with `bunx playwright install chromium`, then run `bun run test:browser`. For Firefox/WebKit print-layout checks, install them with `bunx playwright install firefox webkit` and run `bun run test:print:browsers`; native OS print dialogs require an interactive check. This checks desktop and mobile layouts in Los Angeles and Jerusalem timezones using synthetic schedules and intercepted catalogs. Set `DIBIT_TEST_URL=https://your-deployment.example` to check a deployment instead of starting a local Vite server.
 

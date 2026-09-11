@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test"
 import { normalizePlans } from "../src/plans"
-import { readCloudSchedule, scheduleKey, startScheduleSync, syncDecision, withLocalNavigation, type SyncStatus } from "../src/scheduleSync"
+import { CloudScheduleError, cloudScheduleData, readCloudSchedule, scheduleKey, startScheduleSync, syncDecision, withLocalNavigation, type SyncStatus } from "../src/scheduleSync"
+import { isScheduleBackup } from "../src/scheduleBackup"
 
 const workspace = (id = "one") => normalizePlans({ semester: "2026a", courses: { "2026a": [{ id, groups: ["01"] }] } })
 const pause = () => new Promise(resolve => setTimeout(resolve, 10))
@@ -149,4 +150,39 @@ test("sign-out cancels an in-flight transaction before it writes", async () => {
   await pause()
   expect(state.writes).toBe(0)
   expect(state.base).toBe(scheduleKey(workspace()))
+})
+
+test("cloud size accounts for UTF-8 and map overhead while local backups remain valid", () => {
+  const local = workspace()
+  expect(cloudScheduleData(local, "test-user")).toEqual(JSON.parse(JSON.stringify(local)))
+  local.customCourses = { custom: { large: { name: "א".repeat(550000) } } }
+  expect(isScheduleBackup(local)).toBe(true)
+  expect(() => cloudScheduleData(local, "test-user")).toThrow(CloudScheduleError)
+  local.customCourses = { custom: Object.fromEntries(Array.from({ length: 24000 }, (_, i) => [String(i), { name: "test" }])) }
+  expect(new TextEncoder().encode(JSON.stringify(local)).length).toBeLessThan(1048576)
+  expect(() => cloudScheduleData(local, "test-user")).toThrow(CloudScheduleError)
+  local.customCourses = { ["א".repeat(751)]: {} }
+  expect(() => cloudScheduleData(local, "test-user")).toThrow(CloudScheduleError)
+})
+
+test("permanent upload failures stop retries until the local data changes", async () => {
+  let local = workspace()
+  let calls = 0
+  let status: SyncStatus = "connecting"
+  const sync = startScheduleSync({
+    read: () => local, apply: () => {}, base: () => undefined, remember: () => {},
+    exchange: async () => { calls++; throw new CloudScheduleError("Too large") },
+    status: next => { status = next },
+  })
+  try {
+    sync.schedule(0)
+    await until(() => status === "error")
+    sync.schedule(0)
+    await pause()
+    expect(calls).toBe(1)
+    expect(status).toBe("error")
+    local = workspace("smaller")
+    sync.schedule(0)
+    await until(() => calls === 2)
+  } finally { sync.stop() }
 })

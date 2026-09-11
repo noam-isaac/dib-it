@@ -20,9 +20,12 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: '1.4.2'
       - name: Install with the frozen Bun lockfile
         run: bun install --frozen-lockfile
       - name: Lint
@@ -38,3 +41,5 @@ jobs:
         # schedules, intercepted catalogs. The Firestore emulator suite (test:firebase)
         # needs Java and stays a documented local check.
         run: bun run test:browser
+      - name: Annual scraper self-test
+        run: python3 scripts/refresh-annual-courses.py --self-test

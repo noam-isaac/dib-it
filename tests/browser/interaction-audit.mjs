@@ -83,6 +83,24 @@ try {
     setDibIt(view)
   })
   await page.getByText(/אין מבחנים לתרגול בקורסים שנבחרו/).waitFor()
+  await page.evaluate(async () => {
+    const { getDibIt, setDibIt } = await import("/src/models.ts")
+    const view = getDibIt()
+    view.courses[view.semester][0].groups = ["01"]
+    setDibIt(view)
+  })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole("button", { name: "מבחנים", exact: true }).click()
+  await page.getByRole("button", { name: "חיפוש מבחנים בתאריך 2026-02-02", exact: true }).click()
+  // The earlier mobile collapse is still active; both existing and new courses must reveal it.
+  await page.getByRole("button", { name: "בחירת קבוצות", exact: true }).click()
+  await page.waitForFunction(() => document.activeElement?.matches('#course-22222222 input[type="checkbox"]'))
+  assert.equal(await page.locator("#course-list").isVisible(), true)
+  await page.getByRole("button", { name: "הסתרת קורסים (1)", exact: true }).click()
+  await page.getByLabel("תאריך / מתאריך").fill("2026-02-01")
+  await page.getByRole("button", { name: "הוספת קורס", exact: true }).click()
+  await page.waitForFunction(() => document.activeElement?.matches('#course-11111111 input[type="checkbox"]'))
+  assert.equal(await page.locator("#course-list").isVisible(), true)
   assert.deepEqual(errors, [])
   console.log("PASS mobile collapse, practice lazy loading and stable expansion, bidding failure/retry/missing data/stale results, empty practice")
 } finally {

@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test"
+import { expect, spyOn, test } from "bun:test"
+import MiniSearch from "minisearch"
 import { filterSearchOptions, searchItems } from "../src/search"
 import catalog from "./fixtures/study-programs-2025.json"
 
@@ -62,4 +63,19 @@ test("dropdowns retain option data, limit ranked matches and restore the full li
   expect(filterSearchOptions({ options, search: "מתמטיקה", limit: 0 })).toEqual([])
   expect(searchItems([], "מתמטיקה חג")).toEqual([])
   expect(options).toEqual(before)
+})
+
+test("cached indexes keep numeric filters and current option metadata, and invalidate changed labels", () => {
+  const indexed = spyOn(MiniSearch.prototype, "addAll")
+  try {
+    const items = [{ label: "מתמטיקה 1234", value: "old" }, { label: "מתמטיקה 5678", value: "other" }]
+    expect(searchItems(items, "מתמטיקה 5678", 1)).toEqual([items[1]])
+    const updated = items.map(item => ({ ...item, value: "new" }))
+    expect(searchItems(updated, "מתמטיקה 1234")[0].value).toBe("new")
+    expect(indexed).toHaveBeenCalledTimes(1)
+    updated[0].label = "משפטים 1234"
+    expect(searchItems(updated, "מתמטיקה 1234")).toEqual([])
+    expect(searchItems(updated, "משפטים 1234")).toEqual([updated[0]])
+    expect(indexed).toHaveBeenCalledTimes(2)
+  } finally { indexed.mockRestore() }
 })

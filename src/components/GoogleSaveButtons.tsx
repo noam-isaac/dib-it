@@ -6,7 +6,7 @@ import { useState } from "react"
 import { auth, firestore } from "../firebase"
 import { getWorkspace } from "../models"
 import { useLocalStorage } from "../hooks"
-import { scheduleKey } from "../scheduleSync"
+import { cloudScheduleData, scheduleKey } from "../scheduleSync"
 import { openScheduleRestore } from "./RestoreScheduleModal"
 
 const EnabledGoogleSaveButtons = () => {
@@ -40,7 +40,7 @@ const EnabledGoogleSaveButtons = () => {
     setBusy(true)
     try {
       const workspace = getWorkspace()
-      await setDoc(doc(firestore!, "users", currentUser.uid), JSON.parse(JSON.stringify(workspace)))
+      await setDoc(doc(firestore!, "users", currentUser.uid), cloudScheduleData(workspace, currentUser.uid))
       if (auth!.currentUser?.uid !== currentUser.uid) return
       localStorage.setItem("Dib It Sync", JSON.stringify({ uid: currentUser.uid, base: scheduleKey(workspace) }))
       notifications.show({ title: "השמירה בגוגל בוצעה בהצלחה", message: "כל מערכות השעות נשמרו בגוגל.", color: "green" })
