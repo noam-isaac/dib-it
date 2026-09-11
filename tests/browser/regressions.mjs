@@ -143,7 +143,9 @@ try {
     const notice = page.locator(".mantine-Notification-root").filter({ hasText: "יצירת הטופס נכשלה" }).last()
     await notice.waitFor()
     await notice.getByRole("button").click({ trial: true })
-    const hit = await notice.evaluate(element => {
+    // The notice slides in from the edge; on a slow runner its centre can still be off-screen
+    // for a moment. Wait for it to settle before asking what is drawn on top of it.
+    const probe = () => notice.evaluate(element => {
       const rect = element.getBoundingClientRect()
       const x = rect.x + rect.width / 2, y = rect.y + rect.height / 2
       const top = document.elementFromPoint(x, y)
@@ -151,6 +153,8 @@ try {
         rect: [rect.x, rect.y, rect.width, rect.height].map(Math.round),
         top: top ? `${top.tagName}.${top.className}` : null }
     })
+    let hit = await probe()
+    for (let i = 0; i < 50 && !hit.covered; i++) { await page.waitForTimeout(100); hit = await probe() }
     assert.equal(hit.covered, true, `Export errors must appear above the modal overlay: ${JSON.stringify(hit)}`)
     assert.equal(await page.evaluate(() => Object.values(localStorage).some(value => value.includes("012345678"))), false)
     await notice.getByRole("button").click()
