@@ -143,10 +143,15 @@ try {
     const notice = page.locator(".mantine-Notification-root").filter({ hasText: "יצירת הטופס נכשלה" }).last()
     await notice.waitFor()
     await notice.getByRole("button").click({ trial: true })
-    assert.equal(await notice.evaluate(element => {
+    const hit = await notice.evaluate(element => {
       const rect = element.getBoundingClientRect()
-      return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))
-    }), true, "Export errors must appear above the modal overlay")
+      const x = rect.x + rect.width / 2, y = rect.y + rect.height / 2
+      const top = document.elementFromPoint(x, y)
+      return { covered: element.contains(top), x, y, viewport: [innerWidth, innerHeight],
+        rect: [rect.x, rect.y, rect.width, rect.height].map(Math.round),
+        top: top ? `${top.tagName}.${top.className}` : null }
+    })
+    assert.equal(hit.covered, true, `Export errors must appear above the modal overlay: ${JSON.stringify(hit)}`)
     assert.equal(await page.evaluate(() => Object.values(localStorage).some(value => value.includes("012345678"))), false)
     await notice.getByRole("button").click()
     await page.getByRole("textbox", { name: "שם התלמיד/ה" }).fill("ישראל ישראלי")
