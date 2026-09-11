@@ -16,6 +16,7 @@ import { activePlanView } from "../plans"
 import { getICS } from "../serialize"
 import {
   downloadFile,
+  downloadScheduleImage,
   FIRST_SEMESTER,
   formatSemesterInHebrew,
   uploadJson,
@@ -30,7 +31,7 @@ import { downloadWorkspaceBackup, openScheduleRestore } from "./RestoreScheduleM
 const Sidebar = () => {
   const courseInfo = useCourseInfo()
   const [search, setSearch] = useState("")
-  const [coursesCollapsed, setCoursesCollapsed] = useState(false)
+  const [exportingImage, setExportingImage] = useState(false)
   const [compactView, setCompactView] = useLocalStorage<boolean>({
     key: "Sidebar Compact",
     defaultValue: false,
@@ -206,6 +207,18 @@ const Sidebar = () => {
             >
               הדפסה/שמירה כ-PDF
             </Menu.Item>
+            {(!dibIt.tab || dibIt.tab === "schedule") && <Menu.Item
+              leftSection={<i className="fa-regular fa-image" aria-hidden="true" />}
+              color="violet"
+              disabled={exportingImage}
+              onClick={async () => {
+                setExportingImage(true)
+                try { await downloadScheduleImage(semester) }
+                catch (error) {
+                  notifications.show({ title: "שמירת התמונה נכשלה", message: error instanceof Error ? error.message : "נסו שוב.", color: "red" })
+                } finally { setExportingImage(false) }
+              }}
+            >שמירת מערכת השעות כתמונה (PNG)</Menu.Item>}
 
             <Menu.Item
               leftSection={<i className="fa-solid fa-gavel" aria-hidden="true" />}
@@ -246,7 +259,6 @@ const Sidebar = () => {
           const courseId = split[split.length - 1].split(")")[0]
           if (courseInfo[courseId] !== undefined) {
             setSearch("")
-            setCoursesCollapsed(false)
             if (currentCourses.some(course => course.id === courseId)) return
             if (!dibIt.courses) {
               dibIt.courses = {}
@@ -270,17 +282,7 @@ const Sidebar = () => {
         maxDropdownHeight={300}
       />
 
-      {currentCourses.length > 0 && <Button
-        className="course-list-toggle"
-        variant="subtle"
-        mb="xs"
-        aria-expanded={!coursesCollapsed}
-        aria-controls="course-list"
-        onClick={() => setCoursesCollapsed(!coursesCollapsed)}
-      >
-        {coursesCollapsed ? "הצגת קורסים" : "הסתרת קורסים"} ({currentCourses.length})
-      </Button>}
-      <div id="course-list" className={coursesCollapsed ? "courses-collapsed" : undefined}>
+      <div id="course-list">
       {currentCourses.map((course, index) => (
         <CourseCard
           key={course.id}

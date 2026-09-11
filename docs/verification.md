@@ -1,5 +1,34 @@
 # UI and export verification
 
+## Product review decisions (2026-09-11)
+
+- Timetable exports: PDF prints the existing on-screen timetable, fitted to a
+  landscape page with the shared hour-height CSS variable. PNG captures that same
+  element at twice its displayed resolution, including its current theme and
+  light/dark appearance. There is no separate export renderer, heading or legend.
+  The image encoder loads only when exporting; no schedule data is uploaded.
+  User requested the shared design on the site and exports, with hour labels on
+  the right. The grid now runs RTL; day ordering and lesson placement are retained.
+  Chromium, Firefox and WebKit checks assert this on screen and in print, and the
+  updated landscape PDF was rendered and visually inspected.
+  Validation: `bun run check` passed (83 unit tests, lint, build, all nine Chromium
+  suites and scraper self-test). Firefox/WebKit print and PNG checks also passed.
+  Rendered desktop/mobile PDFs were visually inspected: the 08:00–20:00 timetable
+  fits one landscape page with all six Hebrew course titles. PNG checks cover full
+  element dimensions, rendered content, unchanged workspace and encoder-failure
+  recovery. PNG follows screen density, so compact mobile text wraps as on the site.
+  `bun.lock` adds only `html-to-image@1.11.13`; existing versions are unchanged.
+- Footer/contact links and guide/Word-export wording: user approved keeping them
+  as they are, including Arazim attribution, fork feedback, license and export guidance.
+- Introduction: user reviewed the current popup and approved keeping both its
+  automatic first-visit display and the footer link for reopening it. No behavior
+  change is needed.
+- Mobile course list: user requested removing the show/hide control. Removed the
+  button, collapse state and related CSS; course cards remain visible at all widths.
+  Exam-search and timetable navigation retain scrolling and group-control focus.
+  Lint, production build and the existing Chromium interaction suite passed,
+  including mobile focus for existing and newly added courses.
+
 ## Reconciled review fixes and toolchain (2026-09-11)
 
 Reconciles the complete local WIP onto `c1af459`, retaining PR #19's `essential`

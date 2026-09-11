@@ -44,12 +44,12 @@ const themes: Record<
 }
 
 const DAY_INDEX: Record<string, number> = {
-  א: 5,
-  ב: 4,
-  ג: 3,
-  ד: 2,
-  ה: 1,
-  ו: 0,
+  א: 0,
+  ב: 1,
+  ג: 2,
+  ד: 3,
+  ה: 4,
+  ו: 5,
 }
 
 const Schedule = () => {
@@ -64,12 +64,12 @@ const Schedule = () => {
   const currentCourses = (dibIt.courses ?? {})[dibIt.semester ?? ""] ?? []
 
   const data: DaySchedule[] = [
-    { name: "שישי", events: [] },
-    { name: "חמישי", events: [] },
-    { name: "רביעי", events: [] },
-    { name: "שלישי", events: [] },
-    { name: "שני", events: [] },
     { name: "ראשון", events: [] },
+    { name: "שני", events: [] },
+    { name: "שלישי", events: [] },
+    { name: "רביעי", events: [] },
+    { name: "חמישי", events: [] },
+    { name: "שישי", events: [] },
   ]
 
   for (const course of currentCourses) {
@@ -89,10 +89,8 @@ const Schedule = () => {
         day.events.push({
             startTime: start / 60,
             endTime: end / 60,
-            title: `${courseInfo[course.id]?.name} (${lesson.type})`,
-            description: `${lesson.building}  ${lesson.room} ${
-              info.lecturer !== null ? " (" + info.lecturer + ")" : ""
-            }`,
+            title: `${courseInfo[course.id]?.name}${lesson.type ? ` (${lesson.type})` : ""}`,
+            description: [lesson.building, lesson.room, info.lecturer].filter(Boolean).join(" · "),
             // @ts-ignore
             id: course.id,
             color: getColor(course),
@@ -113,7 +111,7 @@ const Schedule = () => {
       }}
     >
       <div
-        dir="ltr"
+        dir="rtl"
         id="schedule-container"
         className={compactView ? "" : "wide"}
         style={{ minWidth: compactView ? undefined : 600, maxWidth: "100%" }}

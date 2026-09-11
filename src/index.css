@@ -45,6 +45,16 @@ body,
   margin-right: 1px !important;
 }
 
+/* The renderer uses physical right borders; place them at each RTL day's end. */
+#schedule-container > div > div[style*="border-right"] {
+  transform: translateX(-100%);
+}
+
+#schedule-container > div > div[style*="grid-column: 1;"] {
+  padding-right: 0 !important;
+  padding-left: 1rem;
+}
+
 #schedule-container > div > div > div > div > :first-child {
   display: none;
 }
@@ -69,19 +79,7 @@ body,
   flex-direction: column;
 }
 
-.courses-collapsed {
-  display: none;
-}
-
 @media only screen and (min-width: 800px) {
-  #sidebar .course-list-toggle {
-    display: none;
-  }
-
-  .courses-collapsed {
-    display: block;
-  }
-
   .adaptive-flex {
     flex-direction: row;
   }
@@ -118,6 +116,12 @@ body,
     size: A4 portrait;
     margin: 10mm;
   }
+  @page timetable {
+    size: A4 landscape;
+    margin: 12mm;
+  }
+
+  body:has(#schedule-container) { page: timetable; }
 
   body {
     background: white !important;
@@ -148,7 +152,7 @@ body,
   }
 
   #schedule-container {
-    --schedule-hour-height: 18mm;
+    --schedule-hour-height: 12mm;
     break-inside: avoid;
   }
 

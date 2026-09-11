@@ -64,6 +64,20 @@ export const downloadBlob = (filename: string, blob: Blob) => {
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
+export const downloadScheduleImage = async (semester: string) => {
+  const element = document.getElementById("schedule-container")
+  if (!element) throw new Error("פתחו את לשונית המערכת כדי לשמור אותה כתמונה.")
+  await document.fonts.ready
+  const { toBlob } = await import("html-to-image")
+  const blob = await toBlob(element, {
+    pixelRatio: 2,
+    backgroundColor: matchMedia("(prefers-color-scheme: dark)").matches ? "#222" : "#fff",
+    skipFonts: true, // The timetable uses system fonts.
+  })
+  if (!blob) throw new Error("לא ניתן ליצור את התמונה. נסו שוב.")
+  downloadBlob(`dibit-${semester}.png`, blob)
+}
+
 export const uploadJson = (): Promise<any> => {
   return new Promise((resolve, reject) => {
     const element = document.getElementById("upload") as HTMLInputElement
@@ -127,9 +141,8 @@ export const sumHours = (info: SemesterCourses, view: DibIt) => {
   return minutes / 60
 }
 
-/** Reveal the mobile list before focusing a course's group control. */
+/** Scroll to a course and focus its group control after rendering. */
 export const revealCourse = (id: string) => {
-  document.querySelector<HTMLButtonElement>('[aria-controls="course-list"][aria-expanded="false"]')?.click()
   requestAnimationFrame(() => {
     const card = document.getElementById(`course-${id}`)
     card?.scrollIntoView({ behavior: "smooth", block: "center" })
