@@ -73,7 +73,7 @@ try {
     await page.getByRole("alert").filter({ hasText: "לא ניתן לטעון את נתוני תוכניות" }).waitFor()
     failedPlan = false
     await page.getByRole("button", { name: "ניסיון נוסף", exact: true }).click()
-    await page.getByRole("switch", { name: "הצג רק קורסים שעוברים בסמסטר הנבחר ומיין לפי השתלבות בתקופת מבחנים", exact: true }).check()
+    await page.locator(".mantine-Switch-root").filter({ hasText: "הצג רק קורסים שעוברים בסמסטר הנבחר ומיין לפי השתלבות בתקופת מבחנים" }).click()
     await page.getByRole("heading", { name: "קורסי חובה", exact: true }).waitFor()
     const year = page.getByRole("textbox", { name: "שנת התחלת התואר", exact: true })
     await year.click()

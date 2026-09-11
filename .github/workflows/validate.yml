@@ -1,0 +1,40 @@
+name: Validate
+# The release gate the review (R10) found missing: nothing ran the unit tests, lint,
+# build or browser regressions before a change reached main or production. This does,
+# with the committed Bun lockfile that deployment uses, so CI and Vercel resolve the
+# same dependency versions. Branch protection on main requires the "validate" job.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: validate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install with the frozen Bun lockfile
+        run: bun install --frozen-lockfile
+      - name: Lint
+        run: bun run lint
+      - name: Type-check and build
+        run: bun run build
+      - name: Unit tests
+        run: bun test
+      - name: Install Chromium for browser regressions
+        run: bunx playwright install --with-deps chromium
+      - name: Browser regressions
+        # Desktop and mobile layouts in Los Angeles and Jerusalem timezones, synthetic
+        # schedules, intercepted catalogs. The Firestore emulator suite (test:firebase)
+        # needs Java and stays a documented local check.
+        run: bun run test:browser
