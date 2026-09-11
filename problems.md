@@ -35,6 +35,17 @@ feature history, preservation of existing user data, and the smallest implementa
 that meets those requirements. A feature's presence in documentation establishes
 its intended behavior, not approval of the unresolved product choices above.
 
+### Status — 2026-09-11
+
+| Finding | Status |
+| --- | --- |
+| R01 P1 recovery deletes schedules | **Resolved** — PR #19. Non-essential preferences self-heal at the read boundary; the workspace opts out via `essential`; recovery leads with a preference-only reset. Reproduced before and after. |
+| R04 P2 Lautman entries block Word export | **Resolved** — PR #13 excluded them; PR #15 made every unusable row degrade and report instead of failing. |
+| R08 P2 untracked pnpm baseline | **Resolved** — both files removed on 2026-09-10. `bun.lock` is the only lockfile. `dx-regressions.mjs` was changed under the drifted install to click the switch input; consider restoring the label click once local installs use Bun. |
+| R10 P2 no release-path validation | **Resolved** — PR #20 adds `validate.yml` (frozen Bun lockfile; lint, build, unit, browser). Branch protection on `main` requires it. The review had not inspected protection; `main` had none. |
+| R16 P3 duplicated registration checks | **Resolved** — the duplicate `checkText` calls were removed in the PR #15 rewrite of `validate`. |
+| R02, R03, R05, R06, R07, R09, R11–R15 | **Open.** An uncommitted, in-progress working-tree change on 2026-09-11 touched R02/R03 (`annualCourses.ts`, `plans.ts`), R12 (`normalizePlans`), R14 (`Sidebar.tsx`, `useWorkspace` signature) and R15 (`syncAnnualCourses` removed). It is preserved on branch `wip/uncommitted-on-main-2026-09-11` as a partial snapshot and is not verified. |
+
 ### Coverage and justified changes
 
 All 88 tracked changed paths and both untracked package-manager files were reviewed,

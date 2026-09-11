@@ -1,5 +1,33 @@
 # UI and export verification
 
+## Recovery from a corrupt display preference (2026-09-11)
+
+Fixes review finding R01 (P1). `getLocalStorage` parsed every stored value with a bare
+`JSON.parse`, so one unreadable preference crashed the whole app to the recovery screen,
+whose only exit deleted the user's schedules, left the corrupt key in place and returned
+to the same screen.
+
+- Non-essential values reset themselves at the read boundary and return their default.
+  The workspace passes `essential: true` and still surfaces corruption, because silently
+  discarding a schedule would be worse than the crash.
+- The cross-tab storage listener no longer parses untrusted input unguarded.
+- Recovery leads with "איפוס העדפות התצוגה", which clears only the keys listed in
+  `src/preferences.ts`. Schedules and unrelated origin storage are preserved. Deleting
+  schedules remains available but is no longer the only option.
+- The recovery download is deliberately still the raw workspace so it stays restorable
+  through the existing שחזור flow.
+
+Reproduced in Chromium before the change by setting `Compact View` to `broken-json`: crash,
+recovery download omitting the failing value, schedule deleted on reset, corrupt key
+retained, error screen returned. After the change: no crash, key healed, schedule intact,
+unrelated storage untouched; a corrupt workspace still reaches recovery, and the
+preference reset there preserves both it and unrelated storage. Both cases are now in the
+existing recovery test in `tests/browser/dx-regressions.mjs`, which previously covered only
+an invalid workspace. 76 unit tests, ESLint, the TypeScript/Vite build and all nine browser
+suites pass. The `Sidebar Compact` key shares the same shape and is covered by the same
+read-boundary change; it was not separately reproduced.
+
+
 ## Word registration export validation (2026-09-09)
 
 Fixes issue #14. The export previously refused to run over values the dialog never asks the
