@@ -99,6 +99,14 @@ Existing schedules and older backups become the first plan automatically. Local 
 
 In the **תוכנית** tab, choose a degree start year and search programs across all faculties; each result includes its faculty. Click **שמירה למעבר מהיר** to bookmark the selected program. Save additional programs, then use **מעבר מהיר בין תוכניות** to restore their faculty and program without changing your courses or degree start year. Remove the selected shortcut with the × beside the quick-access selector; this preserves the active program and courses. These shortcuts are kept with each schedule and included in backups. Course cards with zero scheduled hours use a neutral background, dashed border, and **ללא שעות במערכת** label; selecting a timed group restores their course color.
 
+## Timetable PDF and images
+
+In the **מערכת** tab, use **פעולות → הדפסה/שמירה כ-PDF** to fit the existing
+timetable onto a landscape page, or **שמירת מערכת השעות כתמונה (PNG)** to save
+the displayed timetable at twice its screen resolution. Both use the site's
+schedule, with the hour scale on the right; PNG also preserves its light/dark appearance. Exports are created in
+your browser; no schedule is uploaded. Other tabs print in portrait.
+
 ## Registration forms
 
 Under the sidebar's **פעולות** menu, choose **יצירת טופס רישום ב-Word**. Enter your name and nine-digit ID, preview the selected courses, and download a genuine `.doc` directly from the browser. It fills a prepared copy of the supplied original registration form, retaining its logos, typography, digit boxes, tables, page setup and printed תשפ״ז heading. It does not reconstruct a DOCX or use a local helper, server-side document conversion, or Microsoft Word at export time.
