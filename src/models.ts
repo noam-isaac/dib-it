@@ -1,3 +1,4 @@
+import { importSemesterCourses, type CatalogCourses } from "./catalog"
 import { getLocalStorage, setLocalStorage, useLocalStorage } from "./hooks"
 import { activePlanView, normalizePlans, updateActivePlan, reconcileActivePlan, PlanWorkspace } from "./plans"
 
@@ -8,13 +9,15 @@ export const refreshAnnualClassification = async () => {
   setWorkspace(getWorkspace())
 }
 
-const semesterCatalogs: Record<string, SemesterCourses> = {}
+let semesterCatalogs: Record<string, CatalogCourses> = {}
 export const cacheSemesterCourses = (semester: string, catalog: SemesterCourses) => {
-  semesterCatalogs[semester] = catalog
+  const imported = importSemesterCourses(semester, catalog)
+  semesterCatalogs = { ...semesterCatalogs, [semester]: imported }
   const workspace = getWorkspace()
-  if (workspace.semester?.slice(0, 4) !== semester.slice(0, 4)) return
+  if (workspace.semester?.slice(0, 4) !== semester.slice(0, 4)) return imported
   const updated = reconcileActivePlan(workspace, semesterCatalogs)
   if (JSON.stringify(updated) !== JSON.stringify(workspace)) setLocalStorage("Dib It", updated)
+  return imported
 }
 
 export const getWorkspace = () => normalizePlans(getLocalStorage<DibIt | PlanWorkspace>("Dib It"))

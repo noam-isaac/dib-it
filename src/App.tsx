@@ -20,6 +20,7 @@ import { refreshAnnualClassification, cacheSemesterCourses, getDibIt, useDibIt }
 import { sumHours } from "./utilities"
 import { filterSearchOptions } from "./search"
 import { lautmanCourses } from "./lautmanCourses"
+import { assertCourseCatalog, importSemesterCourses, selectedCatalogConflicts, type CatalogCourses } from "./catalog"
 
 const startDateString = `date=${encodeURIComponent(new Date().toDateString())}`
 
@@ -30,14 +31,20 @@ const App = () => {
     key: "Hidden Tabs",
     defaultValue: [],
   })
-  const [catalog, setCatalog] = useState<{ semester: string; courses: SemesterCourses } | null>(null)
+  const [catalog, setCatalog] = useState<{ semester: string; courses: CatalogCourses } | null>(null)
   const [loadError, setLoadError] = useState(false)
   const [retry, setRetry] = useState(0)
-  const courses = useMemo<SemesterCourses>(
-    () => Object.assign({}, catalog && catalog.semester === dibIt.semester ? catalog.courses : {}, ...Object.values(dibIt.customCourses ?? {})),
+  const catalogReady = catalog !== null && catalog.semester === dibIt.semester
+  const courses = useMemo<CatalogCourses>(
+    () => ({
+      ...(catalog?.semester === dibIt.semester ? catalog?.courses : {}),
+      ...(dibIt.semester ? importSemesterCourses(dibIt.semester,
+        Object.fromEntries(Object.values(dibIt.customCourses ?? {}).flatMap(Object.entries))) : {}),
+    }),
     [catalog, dibIt.semester, dibIt.customCourses],
   )
 
+  const conflicts = selectedCatalogConflicts(dibIt.courses?.[dibIt.semester ?? ""] ?? [], courses)
   const hours = sumHours(courses, dibIt)
 
   useEffect(() => {
@@ -52,15 +59,13 @@ const App = () => {
         return
       }
       const result = await cachedFetch<SemesterCourses>(
-        `https://arazim-project.com/data/courses-${semester}.json?${startDateString}`
+        `https://arazim-project.com/data/courses-${semester}.json?${startDateString}`, assertCourseCatalog,
       )
       if (cancelled) return
-      if (!result || typeof result !== "object" || Array.isArray(result)) throw new Error("Invalid catalog")
-      setCatalog({ semester, courses: { ...result, ...lautmanCourses } })
-      cacheSemesterCourses(semester, result)
+      setCatalog({ semester, courses: cacheSemesterCourses(semester, { ...result, ...lautmanCourses }) })
       const otherSemester = semester.slice(0, 4) + (semester.endsWith("a") ? "b" : "a")
       void cachedFetch<SemesterCourses>(
-        `https://arazim-project.com/data/courses-${otherSemester}.json?${startDateString}`
+        `https://arazim-project.com/data/courses-${otherSemester}.json?${startDateString}`, assertCourseCatalog,
       ).then(other => cacheSemesterCourses(otherSemester, other)).catch(() => {})
     }
     void load().catch(() => { if (!cancelled) setLoadError(true) })
@@ -115,7 +120,7 @@ const App = () => {
                   width: "calc(100% - 20px)",
                 }}
               >
-                <Sidebar key={`${dibIt.activePlanId}:${dibIt.semester}:${retry}`} />
+                <Sidebar key={`${dibIt.activePlanId}:${dibIt.semester}:${retry}`} catalogReady={catalogReady} />
                 <div id="content">
                   <div
                     className="adaptive-flex"
@@ -143,9 +148,9 @@ const App = () => {
                       ))}
                     </Button.Group>
                     <div style={{ flexGrow: 1 }} />
-                    <p style={{ fontSize: 22 }}>שעות: {hours}</p>
+                    <p style={{ fontSize: 22 }}>שעות: {catalogReady ? hours : "—"}{catalogReady && conflicts.length > 0 && " (חלקי)"}</p>
                   </div>
-                  {!catalog || catalog.semester !== dibIt.semester ? (
+                  {!catalogReady ? (
                     <div role={loadError ? "alert" : "status"} style={{ padding: 20 }}>
                       <p>{loadError ? "לא ניתן לטעון את נתוני הסמסטר. המערכות שלכם נשמרו במכשיר." : "טוען את הקורסים של הסמסטר..."}</p>
                       {loadError ? <Button mt="sm" onClick={() => setRetry(value => value + 1)}>ניסיון נוסף</Button> : <Loader mt="sm" />}

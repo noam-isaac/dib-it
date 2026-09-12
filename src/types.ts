@@ -100,7 +100,7 @@ interface SemesterCourseGroupInfo {
   /** The group's ID, for example "01". */
   group?: string
   /** The groups's lecturer separated by commas. */
-  lecturer?: string
+  lecturer?: string | null
   /** The group's lessons and their time & locations. */
   lessons?: SemesterCourseGroupLessonInfo[]
 }

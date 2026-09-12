@@ -1,3 +1,5 @@
+import { useMemo } from "react"
+import { assertCourseCatalog, importSemesterCourses } from "../catalog"
 import {
   Accordion,
   Alert,
@@ -24,35 +26,19 @@ const PracticeInfo = ({
   semester: string
   gradeInfo: any
 }) => {
-  const [semesterInfo, loadingSemesterInfo, semesterLoad] = useURLValue<SemesterCourses>(
-    `https://arazim-project.com/data/courses-${semester}.json`
+  const [source, loadingSemesterInfo, semesterLoad] = useURLValue<SemesterCourses>(
+    `https://arazim-project.com/data/courses-${semester}.json`, assertCourseCatalog,
   )
 
+  const semesterInfo = useMemo(() => importSemesterCourses(semester, source), [semester, source])
   const mean = ((((gradeInfo ?? {})[course.id] ?? {})[semester] ?? {})["00"] ??
     [])[0]?.mean
-  const lecturers = new Set<string>()
-  // Initially, only show teahers of שיעור.
-  for (const group of semesterInfo[course.id]?.groups ?? []) {
-    if (!group.lessons?.some((lesson) => lesson.type === "שיעור")) {
-      continue
-    }
-
-    for (const lecturer of group.lecturer?.split(",") ?? []) {
-      lecturers.add(lecturer.trim())
-    }
-  }
-  // If this is empty, show everyone.
-  if (lecturers.size === 0) {
-    for (const group of semesterInfo[course.id]?.groups ?? []) {
-      for (const lecturer of group.lecturer?.split(",") ?? []) {
-        lecturers.add(lecturer.trim())
-      }
-    }
-  }
-  let lecturersString = [...lecturers].sort().join(", ")
-  if (lecturersString !== "") {
-    lecturersString = ` (${lecturersString})`
-  }
+  const groups = [...semesterInfo[course.id]?.groups.values() ?? []].flatMap(group => group.status === "ready" ? [group.data] : [])
+  const lectureGroups = groups.filter(group => group.lessons?.some(lesson => lesson.type === "שיעור"))
+  const lectureNames = lectureGroups.flatMap(group => group.lecturer?.split(",").map(name => name.trim()).filter(Boolean) ?? [])
+  const lecturers = [...new Set(lectureNames.length ? lectureNames : groups
+    .flatMap(group => group.lecturer?.split(",").map(name => name.trim()).filter(Boolean) ?? []))].sort().join(", ")
+  const lecturersString = lecturers ? ` (${lecturers})` : ""
   const examLinks = semesterInfo[course.id]?.exam_links ?? []
   const linksString =
     examLinks.length === 1

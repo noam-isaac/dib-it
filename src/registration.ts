@@ -1,3 +1,4 @@
+import { assertCatalogSelection, selectedGroups, type CatalogCourses, type CourseDetails } from "./catalog"
 import type { DibItCourse } from "./models"
 import { lautmanCourses } from "./lautmanCourses"
 
@@ -36,25 +37,17 @@ export const registrationDefaults = (
 /** Preserve leading zeroes and include each selected, currently valid group once. */
 export const getRegistrationRows = (
   courses: DibItCourse[],
-  info: SemesterCourses,
+  info: CatalogCourses,
 ): RegistrationRow[] => {
-  const rows: RegistrationRow[] = [],
-    seen = new Set<string>()
-  for (const course of courses) {
+  assertCatalogSelection(courses, info)
+  return [...new Map(courses.flatMap(course => {
     // Local scheduling entries have no official registration course number.
-    if (Object.prototype.hasOwnProperty.call(lautmanCourses, course.id)) continue
-    const data = info[course.id]
-    for (const group of course.groups ?? []) {
-      const key = `${course.id}/${group}`
-      const selected = data?.groups?.find((g) => g.group === group)
-      if (!selected || seen.has(key))
-        continue
-      seen.add(key)
-      const lessonType = [...new Set(selected.lessons?.map((lesson) => lesson.type?.trim()).filter(Boolean))].join(" ו")
-      rows.push({ courseId: course.id, name: data?.name?.trim() ?? "", group, lessonType })
-    }
-  }
-  return rows
+    if (Object.prototype.hasOwnProperty.call(lautmanCourses, course.id)) return []
+    return selectedGroups(course, info[course.id]).flatMap(group => group.status === "ready" ? [{
+      courseId: course.id, name: info[course.id]?.name?.trim() ?? "", group: group.group,
+      lessonType: [...new Set(group.data.lessons?.map(lesson => lesson.type?.trim()).filter(Boolean))].join(" ו"),
+    }] : [])
+  }).map(row => [`${row.courseId}/${row.group}`, row])).values()]
 }
 
 export interface RegistrationDepartment {
@@ -62,7 +55,7 @@ export interface RegistrationDepartment {
   name: string
 }
 
-export const getRegistrationDepartments = (rows: RegistrationRow[], info: SemesterCourses): Record<string, RegistrationDepartment> => {
+export const getRegistrationDepartments = (rows: RegistrationRow[], info: Readonly<Record<string, CourseDetails | undefined>>): Record<string, RegistrationDepartment> => {
   const names = new Map<string, Set<string>>()
   for (const row of rows) {
     const code = row.courseId.slice(0, 4)

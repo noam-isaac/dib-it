@@ -1,3 +1,4 @@
+import { selectedGroups, type CatalogCourse, type CourseDetails } from "./catalog"
 import type { DibItCourse } from "./models"
 
 /** Parse the source's calendar dates without retaining the current time of day. */
@@ -20,12 +21,10 @@ export const dateKey = (date: Date) =>
 
 export const isCourseScheduled = (
   course: DibItCourse,
-  info?: SemesterCourseInfo,
+  info?: CatalogCourse,
 ) =>
-  info?.groups?.some(
-    (group) =>
-      group.group !== undefined && course.groups?.includes(group.group),
-  ) ?? false
+  selectedGroups(course, info).length > 0
+
 
 export interface CourseExam {
   id: string
@@ -39,7 +38,7 @@ export interface CourseExam {
 
 export const collectExams = (
   courses: DibItCourse[],
-  info: SemesterCourses,
+  info: Readonly<Record<string, CourseDetails | undefined>>,
 ): CourseExam[] => {
   const exams: CourseExam[] = []
   const seen = new Set<string>()

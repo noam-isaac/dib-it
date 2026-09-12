@@ -1,3 +1,4 @@
+import { importCatalogs } from "./catalog-fixtures"
 import { expect, test } from "bun:test"
 import { acceptAnnualFeed, annualYear, isAnnualFeed } from "../src/annualRegistry"
 import { annualChanges, applyAnnualChanges } from "../src/annualCourses"
@@ -25,12 +26,12 @@ test("edits made before a year's classification survive until the feed arrives",
   const changes = annualChanges(before, view)
   expect(changes[0].awaitingClassification).toBe(true)
   const catalogs = Object.fromEntries(["2097a", "2097b"].map(semester => [semester, { [course.id]: { groups: [{ group: "01" }] } }]))
-  const waiting = applyAnnualChanges(view, changes, catalogs)
+  const waiting = applyAnnualChanges(view, changes, importCatalogs(catalogs))
   expect(waiting.pending).toEqual(changes)
   expect(waiting.courses).toEqual(view.courses)
   expect(isScheduleBackup({ plans: [{ id: "plan", name: "Plan", courses: view.courses, pendingAnnualChanges: changes }], activePlanId: "plan" })).toBe(true)
   acceptAnnualFeed({ version: 1, years: { "2097": data } })
-  const resolved = applyAnnualChanges(view, waiting.pending, catalogs)
+  const resolved = applyAnnualChanges(view, waiting.pending, importCatalogs(catalogs))
   expect(resolved.pending).toEqual([])
   expect(resolved.courses).toEqual({ "2097a": [], "2097b": [] })
 })
@@ -40,7 +41,7 @@ test("a deferred edit to a course confirmed nonannual never changes the other se
   const view = { semester: "2096a", courses: { ...before, "2096a": [] } }
   const changes = annualChanges(before, view)
   acceptAnnualFeed({ version: 1, years: { "2096": data } })
-  expect(applyAnnualChanges(view, changes, {})).toEqual({ courses: view.courses, pending: [] })
+  expect(applyAnnualChanges(view, changes, importCatalogs({}))).toEqual({ courses: view.courses, pending: [] })
 })
 
 test("corrected classification retires obsolete course/group edits without touching semester selections", () => {
@@ -49,10 +50,10 @@ test("corrected classification retires obsolete course/group edits without touch
     const course = { id: "12345678", groups: ["01"] }
     const before = { [`${year}a`]: [course], [`${year}b`]: [course] }
     const view = { semester: `${year}a`, courses: { ...before, [`${year}a`]: [] } }
-    const pending = applyAnnualChanges(view, annualChanges(before, view), {}).pending
+    const pending = applyAnnualChanges(view, annualChanges(before, view), importCatalogs({})).pending
     expect(pending).toHaveLength(1)
     acceptAnnualFeed({ version: 1, years: { [year]: { ...data, verifiedAt: "2026-09-10", groups } } })
-    expect(applyAnnualChanges(view, pending, {})).toEqual({ courses: view.courses, pending: [] })
+    expect(applyAnnualChanges(view, pending, importCatalogs({}))).toEqual({ courses: view.courses, pending: [] })
   }
 })
 
@@ -62,5 +63,5 @@ test("removing a custom annual source retires its edit when the year is classifi
     customCourses: { custom: { local: { groups: [{ group: "01", lessons: [{ type: "שנתי" }] }] } } } }
   const changes = annualChanges({ "2026a": [course] }, view)
   expect(changes).toHaveLength(1)
-  expect(applyAnnualChanges({ ...view, customCourses: {} }, changes, {})).toEqual({ courses: view.courses, pending: [] })
+  expect(applyAnnualChanges({ ...view, customCourses: {} }, changes, importCatalogs({}))).toEqual({ courses: view.courses, pending: [] })
 })

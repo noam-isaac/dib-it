@@ -1,3 +1,4 @@
+import { importCatalogs } from "./catalog-fixtures"
 import { expect, test } from "bun:test"
 import { annualGroupIds } from "../src/annualCourses"
 import { activePlanView, normalizePlans, updateActivePlan } from "../src/plans"
@@ -5,7 +6,7 @@ import type { DibIt } from "../src/models"
 import catalogs from "./fixtures/annual-catalogs-2026.json"
 
 const updateCourses = (previous: DibIt["courses"], view: DibIt, catalogs: Record<string, SemesterCourses>) =>
-  activePlanView(updateActivePlan(normalizePlans({ ...view, courses: previous }), view, catalogs)).courses
+  activePlanView(updateActivePlan(normalizePlans({ ...view, courses: previous }), view, importCatalogs(catalogs))).courses
 
 test("identical semester offerings are not annual: official phantom lab counterexample", () => {
   const id = "01911111"
@@ -45,6 +46,21 @@ test("a real semester-only calculus course stays in its own semester", () => {
 })
 
 const group = (group: string, lecturer = "Lecturer") => ({ group, lecturer, lessons: [] })
+test("annual checks look up course IDs directly and preserve custom-source precedence", () => {
+  const id = "10313103"
+  const annual = { groups: [{ group: "02", lessons: [{ type: "שנתי" }] }] }
+  const indexed = (source: SemesterCourses) => new Proxy(source, {
+    ownKeys: () => { throw new Error("Annual checks must not enumerate a whole catalog") },
+  })
+  const customCourses = { first: indexed({ [id]: { groups: [group("01")] } }), last: indexed({ [id]: annual }) }
+  const courses = { "2026a": [{ id, groups: ["02"] }] }
+  expect(annualGroupIds({ customCourses }, "2026a", id)).toEqual(["02"])
+  const view = { semester: "2026a", customCourses, courses }
+  const result = activePlanView(updateActivePlan(normalizePlans({ ...view, courses: {} }), view))
+  expect(result.courses?.["2026b"]).toEqual(courses["2026a"])
+  expect(courses).toEqual({ "2026a": [{ id, groups: ["02"] }] })
+})
+
 const mixed = {
   "2026a": { "10313103": { groups: [group("01"), group("02")] } },
   "2026b": { "10313103": { groups: [group("01"), group("03")] } },

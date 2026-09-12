@@ -30,13 +30,13 @@ const prerequisites = (value: unknown): boolean => {
 }
 
 /** Validate the nested catalog too: it is consumed directly by course and exam views. */
-const courseCatalog = (value: unknown): boolean =>
+export const isCourseCatalog = (value: unknown): value is Record<string, SemesterCourseInfo> =>
   object(value) && Object.values(value).every(course =>
     textFields(course, ["name", "faculty"]) &&
     (course.exams === undefined || (Array.isArray(course.exams) && course.exams.every(exam =>
       textFields(exam, ["date", "moed", "hour", "type"])))) &&
     (course.groups === undefined || (Array.isArray(course.groups) && course.groups.every(group =>
-      textFields(group, ["group", "lecturer"]) &&
+      textFields(group, ["group"]) && (group.lecturer == null || typeof group.lecturer === "string") &&
       (group.lessons === undefined || (Array.isArray(group.lessons) && group.lessons.every(lesson =>
         textFields(lesson, ["day", "time", "type", "building", "room"]))))))) &&
     (course.exam_links === undefined || strings(course.exam_links)) &&
@@ -61,7 +61,7 @@ const isLegacySchedule = (value: unknown): value is DibIt => {
   if (value.practicedExams !== undefined &&
     (!object(value.practicedExams) || !Object.values(value.practicedExams).every(strings))) return false
   if (value.customCourses !== undefined &&
-    (!object(value.customCourses) || !Object.values(value.customCourses).every(courseCatalog))) return false
+    (!object(value.customCourses) || !Object.values(value.customCourses).every(isCourseCatalog))) return false
   if (value.savedStudyPlans !== undefined &&
     (!Array.isArray(value.savedStudyPlans) || !value.savedStudyPlans.every(plan =>
       object(plan) && typeof plan.school === "string" && !!plan.school.trim() &&

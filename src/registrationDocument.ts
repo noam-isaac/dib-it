@@ -1,3 +1,4 @@
+import type { CourseDetails } from "./catalog"
 import JSZip from "jszip"
 import manifest from "./assets/registration-template.json"
 import {
@@ -153,7 +154,7 @@ export const fillRegistrationTemplate = async (
 export const createRegistrationDownload = async (
   details: RegistrationDetails,
   rows: RegistrationRow[],
-  info: SemesterCourses,
+  info: Readonly<Record<string, CourseDetails | undefined>>,
   template?: ArrayBuffer,
 ): Promise<{ filename: string; blob: Blob; notes: string[] }> => {
   if (!rows.length) error("יש לבחור קבוצות לימוד לפני יצירת הטופס.")

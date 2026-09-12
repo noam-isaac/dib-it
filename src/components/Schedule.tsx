@@ -1,3 +1,4 @@
+import { selectedGroups, selectedCatalogConflicts } from "../catalog"
 import { useColorScheme } from "@mantine/hooks"
 import {
   CalendarEvent,
@@ -43,15 +44,6 @@ const themes: Record<
   apple: [compactScheduleTheme, wideScheduleTheme],
 }
 
-const DAY_INDEX: Record<string, number> = {
-  א: 0,
-  ב: 1,
-  ג: 2,
-  ד: 3,
-  ה: 4,
-  ו: 5,
-}
-
 const Schedule = () => {
   const courseInfo = useCourseInfo()
   const [compactView] = useLocalStorage<boolean>({
@@ -63,41 +55,26 @@ const Schedule = () => {
 
   const currentCourses = (dibIt.courses ?? {})[dibIt.semester ?? ""] ?? []
 
-  const data: DaySchedule[] = [
-    { name: "ראשון", events: [] },
-    { name: "שני", events: [] },
-    { name: "שלישי", events: [] },
-    { name: "רביעי", events: [] },
-    { name: "חמישי", events: [] },
-    { name: "שישי", events: [] },
-  ]
-
-  for (const course of currentCourses) {
-    for (const group of course.groups ?? []) {
-      const info = courseInfo[course.id]?.groups?.find((g) => g.group === group)
-
-      if (info === undefined) {
-        continue
-      }
-
-      for (const lesson of info.lessons ?? []) {
-        const times = lesson.time?.split("-")
-        const day = data[DAY_INDEX[lesson.day ?? ""]]
-        if (times?.length !== 2 || !day) continue
-        const start = parseTime(times[0]), end = parseTime(times[1])
-        if (start === undefined || end === undefined || end <= start) continue
-        day.events.push({
-            startTime: start / 60,
-            endTime: end / 60,
-            title: `${courseInfo[course.id]?.name}${lesson.type ? ` (${lesson.type})` : ""}`,
-            description: [lesson.building, lesson.room, info.lecturer].filter(Boolean).join(" · "),
-            // @ts-ignore
-            id: course.id,
-            color: getColor(course),
-          })
-      }
-    }
-  }
+  const events = currentCourses.flatMap(course => selectedGroups(course, courseInfo[course.id])
+    .flatMap(group => group.status === "ready" ? (group.data.lessons ?? []).flatMap(lesson => {
+      const times = lesson.time?.split("-")
+      if (times?.length !== 2) return []
+      const start = parseTime(times[0]), end = parseTime(times[1])
+      if (start === undefined || end === undefined || end <= start) return []
+      return [{
+        day: lesson.day,
+        startTime: start / 60,
+        endTime: end / 60,
+        title: `${courseInfo[course.id]?.name}${lesson.type ? ` (${lesson.type})` : ""}`,
+        description: [lesson.building, lesson.room, group.data.lecturer].filter(Boolean).join(" · "),
+        id: course.id,
+        color: getColor(course),
+      }]
+    }) : []))
+  const data: DaySchedule[] = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי"].map((name, day) => ({
+    name, events: events.filter(event => event.day === "אבגדהו"[day]),
+  }))
+  const conflicts = selectedCatalogConflicts(currentCourses, courseInfo)
 
   return (
     <div
@@ -116,6 +93,10 @@ const Schedule = () => {
         className={compactView ? "" : "wide"}
         style={{ minWidth: compactView ? undefined : 600, maxWidth: "100%" }}
       >
+        {conflicts.length > 0 && <p role="alert" style={{ padding: 8 }}>
+          המערכת וסך השעות חלקיים: נתוני קבוצות {conflicts.join(", ")} סותרים במקור.
+          הבחירות נשמרו, אך לא ניתן להציג את השיעורים או לייצא עד לתיקון הנתונים או ביטול הבחירה בקבוצות אלה.
+        </p>}
         <ScheduleView
           darkMode={colorScheme === "dark"}
           theme={

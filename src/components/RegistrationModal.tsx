@@ -1,3 +1,4 @@
+import type { CatalogCourses } from "../catalog"
 import {
   Badge,
   Button,
@@ -23,7 +24,7 @@ const RegistrationModal = ({
   planName: string
   semester: string
   courses: DibItCourse[]
-  info: SemesterCourses
+  info: CatalogCourses
 }) => {
   const [details, setDetails] = useState(() => registrationDefaults(semester))
   const [busy, setBusy] = useState(false)

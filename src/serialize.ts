@@ -1,3 +1,4 @@
+import { assertCatalogSelection, selectedGroups, type CatalogCourses } from "./catalog"
 import * as ics from "ics"
 import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
@@ -16,9 +17,10 @@ const DAYS = ["א", "ב", "ג", "ד", "ה", "ו", "ש"]
 export const createCalendar = (
   semester: string,
   courses: DibItCourse[],
-  courseInfo: SemesterCourses,
+  courseInfo: CatalogCourses,
   info?: GeneralSemesterInfo,
 ): string => {
+  assertCatalogSelection(courses, courseInfo, semester)
   if (!info?.startDate || !info.endDate) {
     throw new Error("תאריכי הסמסטר עדיין אינם זמינים לייצוא.")
   }
@@ -52,9 +54,9 @@ export const createCalendar = (
   for (const c of courses) {
     const course = courseInfo[c.id]
     if (!course || !isCourseScheduled(c, course)) continue
-    for (const group of course.groups ?? []) {
-      if (!group.group || !c.groups?.includes(group.group)) continue
-      for (const [index, lesson] of (group.lessons ?? []).entries()) {
+    for (const group of selectedGroups(c, course)) {
+      if (group.status !== "ready") continue
+      for (const [index, lesson] of (group.data.lessons ?? []).entries()) {
         const times = lesson.time?.split("-")
         const weekday = DAYS.indexOf(lesson.day ?? "")
         if (times?.length !== 2 || weekday < 0) continue
@@ -72,7 +74,7 @@ export const createCalendar = (
           add({
             uid: `${semester}-${c.id}-${group.group}-${index}-${key}@dibit`,
             title: `${course.name ?? c.id}${lesson.type ? ` (${lesson.type})` : ""}`,
-            description: `מרצה: ${group.lecturer ?? ""}\nמספר קורס: ${c.id}\nקבוצה: ${group.group}`,
+            description: `מרצה: ${group.data.lecturer ?? ""}\nמספר קורס: ${c.id}\nקבוצה: ${group.group}`,
             location: [lesson.building, lesson.room].filter(Boolean).join(" "),
             start: dayjs
               .tz(`${key} ${clock(from)}`, "Asia/Jerusalem")
@@ -97,7 +99,7 @@ export const createCalendar = (
 export const getICS = async (
   semester: string,
   courses: DibItCourse[],
-  courseInfo: SemesterCourses,
+  courseInfo: CatalogCourses,
 ): Promise<string> => {
   const generalInfo = await cachedFetch<GeneralInfo>(
     "https://arazim-project.com/data/info.json",
