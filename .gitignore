@@ -11,3 +11,4 @@ scripts/*.json
 !.env.example
 .playwright-mcp/
 *-debug.log
+/performance/

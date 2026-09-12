@@ -41,7 +41,7 @@ const StudyPlan = () => {
     plan.school === dibIt.school && plan.studyPlan === dibIt.studyPlan)
   const [allTimeCourseInfo, loadingAllTimeCourseInfo, courseLoad] =
     useURLValue<AllTimeCourses>("https://arazim-project.com/data/courses.json")
-  const [generalInfo, , semesterLoad] = useURLValue<GeneralInfo>(
+  const [generalInfo, loadingSemesters, semesterLoad] = useURLValue<GeneralInfo>(
     "https://arazim-project.com/data/info.json"
   )
   const [plans, loadingPlans, planLoad] = useURLValue<
@@ -59,6 +59,7 @@ const StudyPlan = () => {
       >
     >
   >(dibIt.degreeStartYear ? `https://arazim-project.com/data/plans-${dibIt.degreeStartYear}.json` : null)
+  const dataReady = !loadingAllTimeCourseInfo && !loadingSemesters && !loadingPlans && !courseLoad.failed && !semesterLoad.failed && !planLoad.failed
   const planOptions = Object.entries(plans).flatMap(([school, programs]) =>
     Object.keys(programs ?? {}).sort().map(studyPlan => ({
       value: JSON.stringify([school, studyPlan]), label: `${studyPlan} — ${school}`, school, studyPlan,
@@ -165,7 +166,7 @@ const StudyPlan = () => {
         לא ניתן לטעון את נתוני תוכניות הלימוד. הבחירות שלכם נשמרו.
         <Button variant="subtle" color="gray" onClick={() => { planLoad.retry(); courseLoad.retry(); semesterLoad.retry() }}>ניסיון נוסף</Button>
       </Alert>}
-      {loadingAllTimeCourseInfo && (
+      {(loadingAllTimeCourseInfo || loadingSemesters || loadingPlans) && (
         <p
           style={{
             display: "flex",
@@ -174,7 +175,7 @@ const StudyPlan = () => {
             marginBottom: 10,
           }}
         >
-          <Loader size="sm" ml="xs" /> טוען מידע על קורסים מכל השנים...
+          <Loader size="sm" ml="xs" /> טוען נתוני תוכנית לימודים...
         </p>
       )}
       {savedStudyPlans.length > 0 && (
@@ -208,6 +209,7 @@ const StudyPlan = () => {
         mt="xs"
         allowDeselect
         label="שנת התחלת התואר"
+        disabled={loadingSemesters || semesterLoad.failed}
         leftSection={<i className="fa-solid fa-calendar" />}
         value={dibIt?.degreeStartYear === "" ? null : dibIt.degreeStartYear}
         onChange={(v) => setDibIt({ ...dibIt, degreeStartYear: v ?? "" })}
@@ -227,7 +229,7 @@ const StudyPlan = () => {
         placeholder={dibIt.degreeStartYear ? "חיפוש תוכנית בכל הפקולטות" : "בחרו תחילה שנת התחלת תואר"}
         searchable
         allowDeselect={false}
-        disabled={!dibIt.degreeStartYear || loadingPlans}
+        disabled={!dibIt.degreeStartYear || !dataReady}
         rightSection={loadingPlans ? <Loader size="xs" /> : undefined}
         leftSection={<i className="fa-solid fa-book" aria-hidden="true" />}
         data={planOptions}
@@ -266,7 +268,7 @@ const StudyPlan = () => {
         onChange={(e) => setSorted(e.currentTarget.checked)}
       />
 
-      {(plans[dibIt.school!] ?? {})[dibIt.studyPlan ?? ""] !== undefined &&
+      {dataReady && (plans[dibIt.school!] ?? {})[dibIt.studyPlan ?? ""] !== undefined &&
         Object.keys((plans[dibIt.school!] ?? {})[dibIt.studyPlan!]).map(
           (key) => {
             const textColor = hash.hsl(key)[2] > 0.5 ? "black" : "white"

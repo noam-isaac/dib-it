@@ -18,13 +18,17 @@ try {
   browser = await chromium.launch()
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
   page.setDefaultTimeout(10000)
-  const errors = [], historyRequests = []
+  const errors = [], historyRequests = [], metadataRequests = []
+  let releaseCatalog
+  const catalogGate = new Promise(resolve => { releaseCatalog = resolve })
   let failBidding = true
   page.on("pageerror", error => errors.push(error.message))
-  await page.route("**/*", route => {
+  await page.route("**/*", async route => {
     const url = new URL(route.request().url())
     if (url.hostname === "127.0.0.1") return route.continue()
     const filename = url.pathname.split("/").pop()
+    if (filename === "courses-2026a.json") await catalogGate
+    if (filename === "courses.json" || filename === "grades.json") metadataRequests.push(filename)
     if (filename === "bidding.json") return failBidding
       ? route.fulfill({ status: 503, body: "Unavailable" })
       : route.fulfill({ json: { [ids[0]]: { "2025a": { "01": [{ faculty: "A", minimal: 10 }, { faculty: "B", minimal: 20 }] } } } })
@@ -40,6 +44,10 @@ try {
     localStorage.setItem("Dib It", JSON.stringify({ semester: "2026a", tab: "practice", courses: { "2026a": ids.map(id => ({ id, groups: ["01"] })) } }))
   }, ids)
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
+  await page.getByRole("button", { name: "פעולות", exact: true }).waitFor()
+  assert.deepEqual(metadataRequests, [], "card metadata must wait for the selected catalog")
+  assert.equal(await page.locator("#course-list > .card").count(), 0, "cards wait for the selected catalog")
+  releaseCatalog()
   const first = page.getByRole("button", { name: `קורס 1 (${ids[0]})`, exact: true })
   const second = page.getByRole("button", { name: `קורס 2 (${ids[1]})`, exact: true })
   await first.waitFor()
@@ -97,8 +105,33 @@ try {
   await page.getByRole("button", { name: "הוספת קורס", exact: true }).click()
   await page.waitForFunction(() => document.activeElement?.matches('#course-11111111 input[type="checkbox"]'))
   assert.equal(await page.locator("#course-list").isVisible(), true)
+
+  // Course selection changes the results, never the dataset being indexed.
+  await page.evaluate(async catalog => {
+    const { prepareSearch } = await import("/src/search.ts")
+    const { lautmanCourses } = await import("/src/lautmanCourses.ts")
+    const options = Object.entries({ ...catalog, ...lautmanCourses })
+      .map(([id, course]) => ({ label: `${course.name} (${id})` }))
+      .sort((a, b) => a.label < b.label ? -1 : a.label > b.label ? 1 : 0)
+    const prototype = Object.getPrototypeOf(prepareSearch(options))
+    const addAll = prototype.addAll
+    window.indexRebuilds = 0
+    prototype.addAll = function (...args) { window.indexRebuilds++; return addAll.apply(this, args) }
+  }, catalog)
+  const search = page.getByPlaceholder("חיפוש קורסים להוספה")
+  const option = page.getByRole("option", { name: `קורס 1 (${ids[0]})`, exact: true })
+  await page.locator(`#course-${ids[0]}`).getByRole("button", { name: "הסרת הקורס", exact: true }).click()
+  await search.fill("קורס")
+  await option.click()
+  await page.locator(`#course-${ids[0]}`).waitFor()
+  await search.fill("קורס")
+  assert.equal(await option.count(), 0, "selected courses must be excluded from search results")
+  await page.locator(`#course-${ids[0]}`).getByRole("button", { name: "הסרת הקורס", exact: true }).click()
+  await search.click()
+  await option.waitFor()
+  assert.equal(await page.evaluate(() => window.indexRebuilds), 0, "adding/removing a course must reuse the full catalog index")
   assert.deepEqual(errors, [])
-  console.log("PASS visible mobile courses and group focus, practice lazy loading and stable expansion, bidding failure/retry/missing data/stale results, empty practice")
+  console.log("PASS metadata ordering, stable search index and selected-course filtering, mobile group focus, practice lazy loading, bidding recovery")
 } finally {
   await browser?.close()
   await server.close()

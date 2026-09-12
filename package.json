@@ -13,7 +13,7 @@
     "check": "bun test && bun run lint && bun run build && bun run test:browser && python3 scripts/refresh-annual-courses.py --self-test",
     "test": "bun test",
     "refresh:annual": "python3 scripts/refresh-annual-courses.py",
-    "test:browser": "node tests/browser/regressions.mjs && node tests/browser/annual-courses.mjs && node tests/browser/catalog-history.mjs && node tests/browser/catalog-loading.mjs && node tests/browser/catalog-validation.mjs && node tests/browser/catalog-conflicts.mjs && node tests/browser/annual-courses-audit.mjs && node tests/browser/schedule-sync.mjs && node tests/browser/dx-regressions.mjs && node tests/browser/print.mjs && node tests/browser/registration-form.mjs && node tests/browser/interaction-audit.mjs && node tests/browser/annual-feed.mjs",
+    "test:browser": "node tests/browser/regressions.mjs && node tests/browser/annual-courses.mjs && node tests/browser/catalog-history.mjs && node tests/browser/catalog-loading.mjs && node tests/browser/data-readiness.mjs && node tests/browser/catalog-validation.mjs && node tests/browser/catalog-conflicts.mjs && node tests/browser/annual-courses-audit.mjs && node tests/browser/schedule-sync.mjs && node tests/browser/dx-regressions.mjs && node tests/browser/print.mjs && node tests/browser/registration-form.mjs && node tests/browser/interaction-audit.mjs && node tests/browser/annual-feed.mjs",
     "test:print:browsers": "DIBIT_BROWSER=firefox node tests/browser/print.mjs && DIBIT_BROWSER=webkit node tests/browser/print.mjs",
     "test:firebase": "bunx --package firebase-tools@15.29.0 firebase emulators:exec --project demo-dibit --only firestore \"node --test tests/integration/*.mjs\""
   },
