@@ -44,6 +44,7 @@ try {
     await page.getByPlaceholder("חיפוש קורסים להוספה").fill("צרפתית למתחילים")
     await page.getByRole("option", { name: "צרפתית למתחילים (21721600)", exact: true }).click()
     const card = page.locator("#course-21721600")
+    await card.waitFor()
     assert.equal(await card.getByRole("checkbox").count(), 2)
     await card.getByRole("checkbox", { name: /^קבוצה 01/ }).check()
     await page.getByText("שעות: 4", { exact: true }).waitFor()

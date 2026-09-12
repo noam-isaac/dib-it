@@ -4,16 +4,18 @@ import {
   Autocomplete,
   Button,
   Menu,
+  Loader,
   Select,
   Tooltip,
 } from "@mantine/core"
 import { modals } from "@mantine/modals"
 import { notifications } from "@mantine/notifications"
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useLocalStorage, useURLValue } from "../hooks"
 import { DibItCourse, setDibIt, useWorkspace } from "../models"
 import { activePlanView } from "../plans"
+import { prepareSearch, searchItems } from "../search"
 import { getICS } from "../serialize"
 import {
   downloadFile,
@@ -31,6 +33,24 @@ import { downloadWorkspaceBackup, openScheduleRestore } from "./RestoreScheduleM
 
 const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
   const courseInfo = useCourseInfo()
+  const courseOptions = useMemo(() => Object.keys(courseInfo).map(id => ({
+    id, value: `${courseInfo[id]?.name} (${id})`, label: `${courseInfo[id]?.name} (${id})`,
+  })).sort((a, b) => a.label < b.label ? -1 : a.label > b.label ? 1 : 0), [courseInfo])
+  useEffect(() => {
+    if (!catalogReady) return
+    let cancel = () => {}
+    const frame = requestAnimationFrame(() => {
+      const prepare = () => { prepareSearch(courseOptions) }
+      if (typeof window.requestIdleCallback === "function") {
+        const task = window.requestIdleCallback(prepare)
+        cancel = () => window.cancelIdleCallback(task)
+      } else {
+        const task = window.setTimeout(prepare, 0)
+        cancel = () => window.clearTimeout(task)
+      }
+    })
+    return () => { cancelAnimationFrame(frame); cancel() }
+  }, [catalogReady, courseOptions])
   const [search, setSearch] = useState("")
   const [compactView, setCompactView] = useLocalStorage<boolean>({
     key: "Sidebar Compact",
@@ -39,7 +59,7 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
   const workspace = useWorkspace()
   const dibIt = activePlanView(workspace)
   const activePlan = workspace.plans.find(plan => plan.id === workspace.activePlanId)!
-  const [generalInfo, , semesterLoad] = useURLValue<GeneralInfo>(
+  const [generalInfo, loadingSemesters, semesterLoad] = useURLValue<GeneralInfo>(
     "https://arazim-project.com/data/info.json"
   )
 
@@ -55,6 +75,7 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
   }
   const semester = dibIt.semester ?? ""
   const hasCatalogConflicts = selectedCatalogConflicts(currentCourses, courseInfo).length > 0
+  const selectedIds = new Set(currentCourses.map(course => course.id))
 
   return (
     <div
@@ -79,8 +100,10 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
         <label htmlFor="semester-selector">סמסטר:</label>
         <Select
           id="semester-selector"
+          disabled={loadingSemesters || semesterLoad.failed}
+          rightSection={loadingSemesters ? <Loader size="xs" /> : undefined}
           style={{ flex: 1, minWidth: 0 }}
-          value={semester || null}
+          value={loadingSemesters || semesterLoad.failed ? null : semester || null}
           onChange={(v) => {
             if (v) {
               dibIt.semester = v
@@ -269,10 +292,9 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
             setSearch(courseName)
           }
         }}
-        data={Object.keys(courseInfo)
-          .filter((id) => !currentCourses.some((course) => course.id === id))
-          .map((courseId) => `${courseInfo[courseId]?.name} (${courseId})`)
-          .sort()}
+        data={courseOptions}
+        filter={({ search, limit }) => searchItems(courseOptions, search)
+          .filter(course => !selectedIds.has(course.id)).slice(0, limit)}
         leftSection={<i className="fa-solid fa-search" aria-hidden="true" />}
         placeholder="חיפוש קורסים להוספה"
         limit={20}

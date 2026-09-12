@@ -1,4 +1,4 @@
-import { ActionIcon, Badge, Button, Checkbox, ColorInput, Tooltip } from "@mantine/core"
+import { ActionIcon, Alert, Loader, Badge, Button, Checkbox, ColorInput, Tooltip } from "@mantine/core"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useURLValue } from "../hooks"
 import { useDibIt } from "../models"
@@ -19,10 +19,10 @@ export interface CourseCardProps {
 }
 
 const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
-  const [allTimeCourseInfo] = useURLValue<AllTimeCourses>(
+  const [allTimeCourseInfo, loadingCourses, courseLoad] = useURLValue<AllTimeCourses>(
     "https://arazim-project.com/data/courses.json"
   )
-  const [gradeInfo] = useURLValue<any>(
+  const [gradeInfo, loadingGrades, gradeLoad] = useURLValue<any>(
     "https://arazim-project.com/data/grades.json"
   )
   const [dibIt, setDibIt] = useDibIt()
@@ -30,6 +30,12 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
   const annualGroups = annualGroupIds(dibIt, semester, course.id)
 
   const courseInfo = useCourseInfo()
+  if (courseLoad.failed || gradeLoad.failed) return <Alert color="red" role="alert">
+    לא ניתן לטעון את פרטי הקורס {course.id}.
+    <Button variant="subtle" color="gray" onClick={() => { courseLoad.retry(); gradeLoad.retry() }}>ניסיון נוסף</Button>
+  </Alert>
+  if (loadingCourses || loadingGrades) return <div role="status" aria-label="טוען פרטי קורס"><Loader size="sm" /></div>
+
   const courseColor = getColor(course)
   const hasHours = sumHours(courseInfo, { semester, courses: { [semester]: [course] } }) > 0
   const textColor = hasHours ? "white" : "var(--mantine-color-text)"

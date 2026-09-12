@@ -31,6 +31,9 @@ const PracticeInfo = ({
   )
 
   const semesterInfo = useMemo(() => importSemesterCourses(semester, source), [semester, source])
+  if (semesterLoad.failed) return <Button variant="subtle" color="gray" size="compact-xs" onClick={semesterLoad.retry}>טעינת פרטי הסמסטר נכשלה — ניסיון נוסף</Button>
+  if (loadingSemesterInfo) return <span role="status" aria-label="טוען פרטי סמסטר"><Loader size="xs" /></span>
+
   const mean = ((((gradeInfo ?? {})[course.id] ?? {})[semester] ?? {})["00"] ??
     [])[0]?.mean
   const groups = [...semesterInfo[course.id]?.groups.values() ?? []].flatMap(group => group.status === "ready" ? [group.data] : [])
@@ -98,8 +101,6 @@ const PracticeInfo = ({
         </Badge>
       )}
 
-      {loadingSemesterInfo && <Loader size="xs" mr="xs" />}
-      {semesterLoad.failed && <Button variant="subtle" color="gray" size="compact-xs" onClick={semesterLoad.retry}>טעינת פרטי הסמסטר נכשלה — ניסיון נוסף</Button>}
     </>
   )
 }
@@ -109,7 +110,7 @@ const Practice = () => {
   const [allTimeCourseInfo, loadingCourses, courseLoad] = useURLValue<AllTimeCourses>(
     "https://arazim-project.com/data/courses.json"
   )
-  const [gradeInfo] = useURLValue<any>(
+  const [gradeInfo, loadingGrades, gradeLoad] = useURLValue<any>(
     "https://arazim-project.com/data/grades.json"
   )
 
@@ -128,11 +129,11 @@ const Practice = () => {
     return !exists
   })
 
-  if (courseLoad.failed) return <Alert color="red" role="alert">
+  if (courseLoad.failed || gradeLoad.failed) return <Alert color="red" role="alert">
     לא ניתן לטעון את מאגר המבחנים לתרגול.
-    <Button variant="subtle" color="gray" onClick={courseLoad.retry}>ניסיון נוסף</Button>
+    <Button variant="subtle" color="gray" onClick={() => { courseLoad.retry(); gradeLoad.retry() }}>ניסיון נוסף</Button>
   </Alert>
-  if (loadingCourses) return <Loader size="sm" />
+  if (loadingCourses || loadingGrades) return <div role="status" aria-label="טוען מבחנים לתרגול"><Loader size="sm" /></div>
   if (!examDates.length) return <Text c="dimmed" p="md">אין מבחנים לתרגול בקורסים שנבחרו. בחרו קבוצות בקורסים עם מועדי מבחנים בסמסטר הנוכחי.</Text>
 
   return (
@@ -228,11 +229,7 @@ const Practice = () => {
                           setDibIt({ ...dibIt })
                         }}
                       />
-                      <PracticeInfo
-                        gradeInfo={gradeInfo}
-                        course={exam.course}
-                        semester={semester}
-                      />
+                      <PracticeInfo gradeInfo={gradeInfo} course={exam.course} semester={semester} />
                     </div>
                   )
                 }

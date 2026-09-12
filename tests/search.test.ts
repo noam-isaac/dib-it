@@ -1,6 +1,6 @@
 import { expect, spyOn, test } from "bun:test"
 import MiniSearch from "minisearch"
-import { filterSearchOptions, searchItems } from "../src/search"
+import { filterSearchOptions, prepareSearch, searchItems } from "../src/search"
 import catalog from "./fixtures/study-programs-2025.json"
 
 test("name searches handle Hebrew typos and reordered words across programs, faculties and courses", () => {
@@ -77,5 +77,23 @@ test("cached indexes keep numeric filters and current option metadata, and inval
     expect(searchItems(updated, "מתמטיקה 1234")).toEqual([])
     expect(searchItems(updated, "משפטים 1234")).toEqual([updated[0]])
     expect(indexed).toHaveBeenCalledTimes(2)
+  } finally { indexed.mockRestore() }
+})
+
+test("prepared indexes survive alternating datasets and evict the least recently used dataset", () => {
+  const indexed = spyOn(MiniSearch.prototype, "addAll")
+  const items = [{ label: "אלגברה 918273" }]
+  try {
+    const prepared = prepareSearch(items)
+    const faculty = [{ label: "פקולטה 918273" }]
+    searchItems(faculty, "פקולטה")
+    expect(searchItems(items, "אלגברה")).toEqual(items)
+    expect(prepareSearch(items)).toBe(prepared)
+    expect(indexed).toHaveBeenCalledTimes(2)
+    for (let i = 0; i < 3; i++) prepareSearch([{ label: `קורס 918273${i}` }])
+    expect(prepareSearch(items)).toBe(prepared)
+    expect(indexed).toHaveBeenCalledTimes(5)
+    searchItems(faculty, "פקולטה")
+    expect(indexed).toHaveBeenCalledTimes(6)
   } finally { indexed.mockRestore() }
 })

@@ -100,27 +100,27 @@ export const cachedFetch = async <T = any>(url: string, validate?: (value: unkno
 }
 
 export const useURLValue = <T>(url: string | null, validate?: (value: unknown) => void): [Partial<T>, boolean, { failed: boolean; retry: () => void }] => {
-  const [value, setValue] = useState<Partial<T>>({})
-  const [loading, setLoading] = useState(!!url)
-  const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
+  const [result, setResult] = useState<{
+    url: string; attempt: number; validate: typeof validate; value: Partial<T>; failed: boolean
+  }>()
+  const current = !!url && result?.url === url && result.attempt === attempt && result.validate === validate
 
   useEffect(() => {
-    setFailed(false)
-    if (!url) { setValue({}); setLoading(false); return }
+    if (!url) return
     let cancelled = false
-    setValue({})
-    setLoading(true)
-
     cachedFetch<T>(url, validate)
-      .then((v) => {
-        if (cancelled) return
-        setValue(v)
-        setLoading(false)
+      .then(value => {
+        if (!cancelled) setResult({ url, attempt, validate, value, failed: false })
       })
-      .catch(() => { if (!cancelled) { setLoading(false); setFailed(true) } })
+      .catch(() => {
+        if (!cancelled) setResult({ url, attempt, validate, value: {}, failed: true })
+      })
     return () => { cancelled = true }
   }, [url, attempt, validate])
 
-  return [value, loading, { failed, retry: () => setAttempt(value => value + 1) }]
+  return [current ? result.value : {}, !!url && !current, {
+    failed: current && result.failed,
+    retry: () => setAttempt(value => value + 1),
+  }]
 }
