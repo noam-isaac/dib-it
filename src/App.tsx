@@ -1,3 +1,4 @@
+import { generalInfoSchema, semesterCoursesSchema } from "./schemas"
 import { Button, Loader, MantineProvider } from "@mantine/core"
 import { useColorScheme } from "@mantine/hooks"
 import { ModalsProvider } from "@mantine/modals"
@@ -13,7 +14,7 @@ import Schedule from "./components/Schedule"
 import Settings from "./components/Settings"
 import Sidebar from "./components/Sidebar"
 import StudyPlan from "./components/StudyPlan"
-import { cachedFetch } from "./hooks"
+import { cachedFetch, reportError } from "./hooks"
 import { DibIt, useDibIt } from "./models"
 import { FIRST_SEMESTER } from "./utilities"
 
@@ -30,8 +31,9 @@ const sumHours = (courses: SemesterCourses, dibIt: DibIt) => {
       for (const lesson of info?.lessons ?? []) {
         try {
           const [startHourStr, endHourStr] = lesson?.time?.split("-")!
-          const startHour = parseInt(startHourStr.split(":")[0], 10)
-          const endHour = parseInt(endHourStr.split(":")[0], 10)
+          if (!startHourStr || !endHourStr) continue
+          const startHour = parseInt(startHourStr.split(":")[0] ?? "", 10)
+          const endHour = parseInt(endHourStr.split(":")[0] ?? "", 10)
           hours += endHour - startHour
         } catch (ignored) {}
       }
@@ -51,39 +53,42 @@ const App = () => {
   const hours = sumHours(courses, dibIt)
 
   useEffect(() => {
+    let active = true
     if (dibIt.semester) {
       setCourses({})
-      cachedFetch<SemesterCourses>(
-        `https://arazim-project.com/data/courses-${dibIt.semester}.json?${startDateString}`
+      cachedFetch(
+        `https://arazim-project.com/data/courses-${dibIt.semester}.json?${startDateString}`, semesterCoursesSchema
       )
         .then(async (result) => {
+          if (!active) return
           for (const customCourse of Object.values(dibIt.customCourses ?? {})) {
             result = { ...result, ...customCourse }
           }
           setCourses(result)
 
-          setPrefetching(true)
-          const generalInfo = await cachedFetch<GeneralInfo>(
-            "https://arazim-project.com/data/info.json"
+          const generalInfo = await cachedFetch(
+            "https://arazim-project.com/data/info.json", generalInfoSchema
           )
-          const prefetches: Promise<any>[] = []
+          const prefetches: Promise<SemesterCourses>[] = []
           for (const semester of Object.keys(generalInfo.semesters ?? {})
             .sort()
             .filter((semester) => semester >= FIRST_SEMESTER)) {
             prefetches.push(
-              cachedFetch<SemesterCourses>(
-                `https://arazim-project.com/data/courses-${semester}.json?${startDateString}`
+              cachedFetch(
+                `https://arazim-project.com/data/courses-${semester}.json?${startDateString}`, semesterCoursesSchema
               )
             )
           }
+          setPrefetching(true)
           try {
             await Promise.all(prefetches)
           } finally {
-            setPrefetching(false)
+            if (active) setPrefetching(false)
           }
         })
-        .catch(() => {})
+        .catch((error: unknown) => { if (active) reportError(error) })
     }
+    return () => { active = false }
   }, [dibIt.semester])
 
   const tab = dibIt.tab ?? "schedule"

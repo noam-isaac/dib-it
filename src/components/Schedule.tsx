@@ -1,3 +1,4 @@
+import { booleanSchema } from "../schemas"
 import { useColorScheme } from "@mantine/hooks"
 import {
   CalendarEvent,
@@ -5,7 +6,7 @@ import {
   ScheduleTheme,
   ScheduleView,
   createTheme,
-} from "react-schedule-view/src"
+} from "react-schedule-view/dist/index"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useLocalStorage } from "../hooks"
 import { useDibIt } from "../models"
@@ -54,7 +55,8 @@ const DAY_INDEX: Record<string, number> = {
 
 const Schedule = () => {
   const courseInfo = useCourseInfo()
-  const [compactView] = useLocalStorage<boolean>({
+  const [compactView] = useLocalStorage({
+    schema: booleanSchema,
     key: "Compact View",
     defaultValue: false,
   })
@@ -63,7 +65,7 @@ const Schedule = () => {
 
   const currentCourses = (dibIt.courses ?? {})[dibIt.semester ?? ""] ?? []
 
-  const data: DaySchedule[] = [
+  const data: DaySchedule<CalendarEvent & { id: string }>[] = [
     { name: "שישי", events: [] },
     { name: "חמישי", events: [] },
     { name: "רביעי", events: [] },
@@ -83,20 +85,23 @@ const Schedule = () => {
       for (const lesson of info.lessons ?? []) {
         try {
           const [startHourStr, endHourStr] = lesson.time!.split("-")
+          if (!startHourStr || !endHourStr) continue
           const startHour =
-            parseInt(startHourStr.split(":")[0], 10) +
-            parseInt(startHourStr.split(":")[1] ?? 0, 10) / 60
+            parseInt(startHourStr.split(":")[0] ?? "", 10) +
+            parseInt(startHourStr.split(":")[1] ?? "0", 10) / 60
           const endHour =
-            parseInt(endHourStr.split(":")[0], 10) +
-            parseInt(endHourStr.split(":")[1] ?? 0, 10) / 60
-          data[DAY_INDEX[lesson.day!]].events.push({
+            parseInt(endHourStr.split(":")[0] ?? "", 10) +
+            parseInt(endHourStr.split(":")[1] ?? "0", 10) / 60
+          const dayIndex = DAY_INDEX[lesson.day ?? ""]
+          const day = dayIndex === undefined ? undefined : data[dayIndex]
+          if (!day) continue
+          day.events.push({
             startTime: startHour,
             endTime: endHour,
             title: `${courseInfo[course.id]?.name} (${lesson.type})`,
             description: `${lesson.building}  ${lesson.room} ${
               info.lecturer !== null ? " (" + info.lecturer + ")" : ""
             }`,
-            // @ts-ignore
             id: course.id,
             color: getColor(course),
           })
@@ -124,14 +129,13 @@ const Schedule = () => {
           darkMode={colorScheme === "dark"}
           theme={
             compactView
-              ? themes[dibIt.theme ?? "apple"][0]
-              : themes[dibIt.theme ?? "apple"][1]
+              ? (themes[dibIt.theme ?? "apple"] ?? [compactScheduleTheme, wideScheduleTheme])[0]
+              : (themes[dibIt.theme ?? "apple"] ?? [compactScheduleTheme, wideScheduleTheme])[1]
           }
           daySchedules={data}
           viewStartTime={8}
           viewEndTime={20}
           handleEventClick={(event) => {
-            // @ts-ignore
             const id: string = event.id
 
             const card = document.getElementById(`course-${id}`)

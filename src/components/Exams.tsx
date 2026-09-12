@@ -50,32 +50,27 @@ const Exams = () => {
 
   for (const course of currentCourses) {
     for (const date of courseInfo[course.id]?.exams ?? []) {
-      const parsedDate = parseDateString(date.date!)
+      const parsedDate = parseDateString(date.date)
       if (parsedDate === undefined) {
         continue
       }
-      examDates.push({
+      const exam = {
         course,
         date: parsedDate,
-        type: date.type!,
-        moed: date.moed!,
-      })
-      if (dateToExams[parsedDate.toDateString()] === undefined) {
-        dateToExams[parsedDate.toDateString()] = []
+        type: date.type ?? "",
+        moed: date.moed ?? "",
       }
-      dateToExams[parsedDate.toDateString()].push(
-        examDates[examDates.length - 1]
-      )
+      examDates.push(exam)
+      ;(dateToExams[parsedDate.toDateString()] ??= []).push(exam)
     }
   }
   examDates.sort((a, b) => {
     return a.date.toISOString().localeCompare(b.date.toISOString())
   })
-  const firstExam = examDates.length > 0 ? examDates[0].date : undefined
-  const lastExam =
-    examDates.length > 0 ? examDates[examDates.length - 1].date : undefined
+  const firstExam = examDates[0]?.date
+  const lastExam = examDates[examDates.length - 1]?.date
 
-  if (!firstExam) {
+  if (!firstExam || !lastExam) {
     return <></>
   }
 
@@ -122,8 +117,10 @@ const Exams = () => {
                   {index === 0
                     ? stringifyDate(date)
                     : Math.round(
-                        (date.getTime() - examDates[index - 1].date.getTime()) /
-                          MILLISECONDS_IN_DAY
+                        (date.getTime() -
+                          (examDates[index - 1]?.date.getTime() ??
+                            date.getTime())) /
+                          MILLISECONDS_IN_DAY,
                       )}
                 </div>
               </Tooltip>
@@ -160,7 +157,8 @@ const Exams = () => {
           const date = new Date(d)
           const day = date.getDate()
           const exams = dateToExams[date.toDateString()]
-          if (exams !== undefined) {
+          const first = exams?.[0]
+          if (exams && first) {
             if (exams.length > 1) {
               return (
                 <Tooltip
@@ -186,13 +184,13 @@ const Exams = () => {
             } else {
               return (
                 <Tooltip
-                  label={`${courseInfo[exams[0].course.id]?.name} (מועד ${
-                    exams[0].moed
+                  label={`${courseInfo[first.course.id]?.name} (מועד ${
+                    first.moed
                   })`}
                 >
                   <div
                     style={{
-                      backgroundColor: getColor(exams[0].course),
+                      backgroundColor: getColor(first.course),
                       color: "white",
                       width: 30,
                       height: 30,

@@ -1,4 +1,9 @@
 import {
+  biddingSchema,
+  facultyPointsSchema,
+  possibleFacultiesSchema,
+} from "../schemas"
+import {
   ActionIcon,
   Button,
   Checkbox,
@@ -7,17 +12,19 @@ import {
 } from "@mantine/core"
 import { useEffect, useState } from "react"
 import autoBid, { getPossibleFaculties } from "../autoBid"
-import { cachedFetch, useLocalStorage } from "../hooks"
+import { cachedFetch, reportError, useLocalStorage } from "../hooks"
 import { DibItCourse } from "../models"
 
 const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
-  const [facultyPoints, setFacultyPoints] = useLocalStorage<
-    { faculty: string; points?: number }[]
-  >({ key: "Auto Bid Faculty Points", defaultValue: [] })
+  const [facultyPoints, setFacultyPoints] = useLocalStorage({
+    schema: facultyPointsSchema,
+    key: "Auto Bid Faculty Points", defaultValue: [],
+  })
   const [loading, setLoading] = useState(false)
-  const [possibleFaculties, setPossibleFaculties] = useLocalStorage<
-    Record<string, string[]>
-  >({ key: "Auto Bid Possible Faculties", defaultValue: {} })
+  const [possibleFaculties, setPossibleFaculties] = useLocalStorage({
+    schema: possibleFacultiesSchema,
+    key: "Auto Bid Possible Faculties", defaultValue: {},
+  })
   const [results, setResults] = useState<
     Record<string, Record<string, number>>
   >({})
@@ -42,7 +49,9 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
             placeholder="מסלול"
             value={faculty}
             onChange={(e) => {
-              facultyPoints[index].faculty = e.currentTarget.value
+              const point = facultyPoints[index]
+              if (!point) return
+              point.faculty = e.currentTarget.value
               setFacultyPoints([...facultyPoints])
             }}
           />
@@ -50,10 +59,12 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
           <NumberInput
             mr={5}
             placeholder="נקודות"
-            value={points}
+            value={points ?? ""}
             min={0}
             onChange={(v) => {
-              facultyPoints[index].points =
+              const point = facultyPoints[index]
+              if (!point) return
+              point.points =
                 typeof v === "number" ? v : undefined
               setFacultyPoints([...facultyPoints])
             }}
@@ -94,14 +105,15 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
                 label={faculty}
                 display="inline-block"
                 key={facultyIndex}
-                checked={possibleFaculties[courseId].includes(faculty)}
+                checked={possibleFaculties[courseId]?.includes(faculty) ?? false
+                }
                 onChange={(e) => {
                   if (e.currentTarget.checked) {
-                    possibleFaculties[courseId].push(faculty)
+                    ;(possibleFaculties[courseId] ??= []).push(faculty)
                   } else {
-                    possibleFaculties[courseId] = possibleFaculties[
-                      courseId
-                    ].filter((x) => x !== faculty)
+                    possibleFaculties[courseId] = (
+                      possibleFaculties[courseId] ?? []
+                    ).filter((x) => x !== faculty)
                   }
                   setPossibleFaculties({ ...possibleFaculties })
                 }}
@@ -119,8 +131,10 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
         leftSection={<i className="fa-solid fa-wand-magic-sparkles" />}
         onClick={async () => {
           setLoading(true)
-          const allTimeBiddingInfo = await cachedFetch<AllTimeBiddingInfo>(
-            "https://arazim-project.com/data/bidding.json"
+          try {
+            const allTimeBiddingInfo = await cachedFetch(
+              "https://arazim-project.com/data/bidding.json",
+              biddingSchema,
           )
           let newPossibleFaculties
           if (Object.keys(possibleFaculties).length === 0) {
@@ -141,7 +155,11 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
               allTimeBiddingInfo
             )
           )
-          setLoading(false)
+          } catch (error: unknown) {
+            reportError(error)
+          } finally {
+            setLoading(false)
+          }
         }}
       >
         חישוב המלצות (2, 3 - שג׳ר!)
@@ -151,8 +169,9 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
         .map((faculty, facultyIndex) => (
           <div key={facultyIndex} style={{ marginTop: 10, whiteSpace: "pre" }}>
             <h3>מסלול: {faculty}</h3>
-            {Object.keys(results[faculty])
-              .map((course) => `${course}: ${results[faculty][course]} נקודות`)
+            {Object.keys(results[faculty] ?? {})
+              .map((course) => `${course}: ${results[faculty]?.[course]} נקודות`,
+              )
               .join("\n")}
           </div>
         ))}

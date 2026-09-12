@@ -1,8 +1,10 @@
+import { z } from "zod"
+import { generalInfoSchema } from "./schemas"
 import { Button, MantineProvider } from "@mantine/core"
 import { useColorScheme } from "@mantine/hooks"
 import React from "react"
 import ReactDOM from "react-dom/client"
-import { ErrorBoundary, FallbackProps } from "react-error-boundary"
+import { ErrorBoundary } from "react-error-boundary"
 import App from "./App.tsx"
 
 import "./index.css"
@@ -13,7 +15,7 @@ import "@mantine/notifications/styles.css"
 import "@mantine/dropzone/styles.css"
 
 import { notifications } from "@mantine/notifications"
-import { cachedFetch, getLocalStorage } from "./hooks.ts"
+import { cachedFetch, getLocalStorage, reportError } from "./hooks.ts"
 import { DibIt, DibItCourse, getDibIt, setDibIt } from "./models.ts"
 
 const handleDeprecation = () => {
@@ -34,7 +36,9 @@ const handleDeprecation = () => {
     localStorage.removeItem(key)
   }
 
-  const data: Record<string, any> = {}
+  if (localStorage.getItem("Dib It") !== null) return
+
+  const data: Record<string, unknown> = {}
 
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i)!
@@ -45,7 +49,7 @@ const handleDeprecation = () => {
       k.includes("Dib It Serialize") ||
       k === "Semester"
     ) {
-      data[k] = getLocalStorage(k)
+      data[k] = getLocalStorage(k, z.unknown(), null)
     }
   }
 
@@ -53,7 +57,7 @@ const handleDeprecation = () => {
     const result: DibIt = {}
     let semester = ""
     if (data["Semester"]) {
-      semester = result.semester = data["Semester"]
+      semester = result.semester = z.string().parse(data["Semester"])
       delete data["Semester"]
     }
     if (data["Courses"]) {
@@ -69,26 +73,27 @@ const handleDeprecation = () => {
       delete data["Colors"]
     }
     if (data["School (Dib It Serialize)"]) {
-      result.school = data["School (Dib It Serialize)"]
+      result.school = z.string().parse(data["School (Dib It Serialize)"])
     }
     if (data["Study Plan (Dib It Serialize)"]) {
-      result.studyPlan = data["Study Plan (Dib It Serialize)"]
+      result.studyPlan = z.string().parse(data["Study Plan (Dib It Serialize)"])
     }
 
     const keys = Object.keys(data).sort()
     for (const key of keys) {
       if (key.startsWith("Courses")) {
         const semester = key.split(" ")[1]
-        const courses = data[key]
+        if (!semester) throw new Error("לא נמצא סמסטר למערכת הישנה. המקור נשמר.")
+        const courses = z.array(z.string().min(1)).parse(data[key])
         const groupsKey = `Groups ${semester}`
-        let groups: any = {}
+        let groups: Record<string, string[]> = {}
         if (data[groupsKey]) {
-          groups = data[groupsKey]
+          groups = z.record(z.string(), z.array(z.string())).parse(data[groupsKey])
         }
         const colorsKey = `Colors ${semester}`
-        let colors: any = {}
+        let colors: Record<string, string> = {}
         if (data[colorsKey]) {
-          colors = data[colorsKey]
+          colors = z.record(z.string(), z.string()).parse(data[colorsKey])
         }
 
         if (!result.courses) {
@@ -101,7 +106,7 @@ const handleDeprecation = () => {
 
         for (const course of courses) {
           const courseDict: DibItCourse = { id: course }
-          result.courses[semester].push(courseDict)
+          ;(result.courses[semester] ??= []).push(courseDict)
           if (groups[course]) {
             courseDict.groups = groups[course]
           }
@@ -112,7 +117,7 @@ const handleDeprecation = () => {
       }
     }
 
-    localStorage.clear()
+    // Validate and save before changing any legacy data; keep originals for recovery.
     setDibIt({ ...result })
     notifications.show({
       title: "עדכון ה-Dib It בוצע בהצלחה",
@@ -126,8 +131,8 @@ const handleDeprecation = () => {
 }
 
 const initialize = async () => {
-  const generalInfo = await cachedFetch<GeneralInfo>(
-    "https://arazim-project.com/data/info.json"
+  const generalInfo = await cachedFetch(
+    "https://arazim-project.com/data/info.json", generalInfoSchema
   )
   const dibIt = getDibIt()
   if (!dibIt.semester) {
@@ -135,10 +140,14 @@ const initialize = async () => {
   }
 }
 
-initialize()
-handleDeprecation()
+try {
+  handleDeprecation()
+  void initialize().catch(reportError)
+} catch (error: unknown) {
+  reportError(error)
+}
 
-const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
+const ErrorFallback: React.FC<{ error: unknown }> = ({ error }) => {
   const colorScheme = useColorScheme()
 
   const ls: Record<string, string> = {}
@@ -208,7 +217,7 @@ const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
         >
           <pre>{JSON.stringify(ls, null, 4)}</pre>
         </code>
-        {error?.message && (
+        {error instanceof Error && (
           <p style={{ marginBottom: 10 }}>
             תוכן השגיאה: <code>{error.message}</code>
           </p>

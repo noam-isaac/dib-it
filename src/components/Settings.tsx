@@ -1,11 +1,13 @@
+import { semesterCoursesSchema, booleanSchema } from "../schemas"
 import { Button, Select, Switch } from "@mantine/core"
-import { useLocalStorage } from "../hooks"
+import { reportError, useLocalStorage } from "../hooks"
 import { useDibIt } from "../models"
 import { Dropzone } from "@mantine/dropzone"
 
 const Settings = () => {
   const [dibIt, setDibIt] = useDibIt()
-  const [compactView, setCompactView] = useLocalStorage<boolean>({
+  const [compactView, setCompactView] = useLocalStorage({
+    schema: booleanSchema,
     key: "Compact View",
     defaultValue: false,
   })
@@ -34,14 +36,22 @@ const Settings = () => {
       />
       <Dropzone
         onDrop={async (files) => {
-          for (const file of files) {
-            const text = await file.text()
-            const data = JSON.parse(text)
-            if (!dibIt.customCourses) {
-              dibIt.customCourses = {}
-            }
-            dibIt.customCourses[file.name] = data
-            setDibIt({ ...dibIt })
+          try {
+            const entries = await Promise.all(
+              files.map(async (file) => {
+                const input: unknown = JSON.parse(await file.text())
+                return [file.name, semesterCoursesSchema.parse(input)] as const
+              }),
+            )
+            setDibIt((previous) => ({
+              ...previous,
+              customCourses: {
+                ...previous.customCourses,
+                ...Object.fromEntries(entries),
+              },
+            }))
+          } catch (error: unknown) {
+            reportError(error)
           }
         }}
         my="xs"
@@ -63,8 +73,9 @@ const Settings = () => {
           ml={5}
           rightSection={<i className="fa-solid fa-trash" />}
           onClick={() => {
-            delete dibIt.customCourses![filename]
-            setDibIt({ ...dibIt })
+            const customCourses = { ...dibIt.customCourses }
+            delete customCourses[filename]
+            setDibIt({ ...dibIt, customCourses })
           }}
         >
           {filename}

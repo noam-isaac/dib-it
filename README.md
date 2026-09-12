@@ -33,6 +33,12 @@ To start developing Dib It, you need to follow these steps:
 - Create a web app in the Firebase Console and put the configuration in `src/firebase.json`.
 - Run a local development server with `bun run dev` (or `npm run dev` or `yarn dev`)
 
+Run `bun run typecheck`, `bun run lint`, and `bun test` before submitting changes.
+The build checks both TypeScript configs and rejects explicit or unsafe `any` usage.
+Zod schemas in `src/schemas.ts` validate external data before it reaches app state.
+The install script compiles the source-only schedule dependency with its own config;
+our app uses its generated declarations without relaxing application checks.
+
 You are **highly encouraged** to send pull requests or feature requests!
 
 # Roadmap

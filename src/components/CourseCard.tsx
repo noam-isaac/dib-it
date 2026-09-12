@@ -1,3 +1,4 @@
+import { allTimeCoursesSchema, gradesSchema } from "../schemas"
 import { Badge, Button, Checkbox, ColorInput, Tooltip } from "@mantine/core"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useURLValue } from "../hooks"
@@ -17,24 +18,30 @@ export interface CourseCardProps {
 }
 
 const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
-  const [allTimeCourseInfo] = useURLValue<AllTimeCourses>(
-    "https://arazim-project.com/data/courses.json"
+  const [allTimeCourseInfo] = useURLValue(
+    "https://arazim-project.com/data/courses.json",
+    allTimeCoursesSchema,
+    {},
   )
-  const [gradeInfo] = useURLValue<any>(
-    "https://arazim-project.com/data/grades.json"
+  const [gradeInfo] = useURLValue(
+    "https://arazim-project.com/data/grades.json",
+    gradesSchema,
+    {},
   )
   const [dibIt, setDibIt] = useDibIt()
-  const course = dibIt.courses![semester][index]
+  const courses = dibIt.courses?.[semester] ?? []
+  const course = courses[index]
 
   const courseInfo = useCourseInfo()
+  if (!course) return null
   const courseColor = getColor(course)
 
   let sum = 0
   let count = 0
-  for (const semester in gradeInfo[course.id] ?? {}) {
-    for (const group in gradeInfo[course.id][semester]) {
-      for (const grades of gradeInfo[course.id][semester][group]) {
-        if (grades.mean !== undefined && grades.mean !== 0) {
+  for (const semester of Object.values(gradeInfo[course.id] ?? {})) {
+    for (const group of Object.values(semester)) {
+      for (const grades of group) {
+        if (grades.mean != null && grades.mean !== 0) {
           sum += grades.mean
           count++
         }
@@ -92,25 +99,27 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
               className="fa-solid fa-chevron-up"
               style={{ cursor: "pointer" }}
               onClick={() => {
-                const previous = dibIt.courses![semester][index - 1]
-                const current = dibIt.courses![semester][index]
-                dibIt.courses![semester][index] = previous
-                dibIt.courses![semester][index - 1] = current
+                const previous = courses[index - 1]
+                const current = courses[index]
+                if (!previous || !current) return
+                courses[index] = previous
+                courses[index - 1] = current
                 setDibIt({ ...dibIt })
               }}
             />
           )}
-          {index !== dibIt.courses![semester]?.length - 1 && (
+          {index !== courses?.length - 1 && (
             <i
               className="fa-solid fa-chevron-down"
               style={{
                 cursor: "pointer",
               }}
               onClick={() => {
-                const next = dibIt.courses![semester][index + 1]
-                const current = dibIt.courses![semester][index]
-                dibIt.courses![semester][index] = next
-                dibIt.courses![semester][index + 1] = current
+                const next = courses[index + 1]
+                const current = courses[index]
+                if (!next || !current) return
+                courses[index] = next
+                courses[index + 1] = current
                 setDibIt({ ...dibIt })
               }}
             />
@@ -121,7 +130,7 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
             className="fa-solid fa-trash"
             style={{ cursor: "pointer" }}
             onClick={() => {
-              dibIt.courses![semester].splice(index, 1)
+              courses.splice(index, 1)
               setDibIt({ ...dibIt })
             }}
           />
@@ -164,21 +173,22 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
           <Checkbox
             styles={{ input: { cursor: "pointer" } }}
             ml={10}
-            checked={course.groups?.includes(group.group!) ?? false}
+            checked={course.groups?.includes(group.group ?? "") ?? false}
             onChange={() => {
+              if (!group.group) return
               if (!course.groups) {
                 course.groups = []
               }
-              const index = course.groups.indexOf(group.group!)
+              const index = course.groups.indexOf(group.group ?? "")
               if (index !== -1) {
                 course.groups.splice(index, 1)
               } else {
-                course.groups.push(group.group!)
+                course.groups.push(group.group ?? "")
               }
               setDibIt({ ...dibIt })
             }}
           />
-          {group.group} ({group.lessons![0].type}): {group.lecturer}
+          {group.group} ({group.lessons?.[0]?.type ?? ""}): {group.lecturer}
         </div>
       ))}
       {compactView || (
@@ -264,7 +274,7 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
             <input
               type="hidden"
               name="sem"
-              value={SEMESTERS_TO_NUMBER[semester[4]]}
+              value={SEMESTERS_TO_NUMBER[semester.charAt(4)] ?? ""}
             />
             <input type="hidden" name="txtKurs" value={course.id} />
           </form>

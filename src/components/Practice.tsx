@@ -1,4 +1,10 @@
 import {
+  allTimeCoursesSchema,
+  gradesSchema,
+  semesterCoursesSchema,
+  type Grades,
+} from "../schemas"
+import {
   Accordion,
   Badge,
   Checkbox,
@@ -18,10 +24,12 @@ const PracticeInfo = ({
 }: {
   course: DibItCourse
   semester: string
-  gradeInfo: any
+  gradeInfo: Grades
 }) => {
-  const [semesterInfo, loadingSemesterInfo] = useURLValue<SemesterCourses>(
-    `https://arazim-project.com/data/courses-${semester}.json`
+  const [semesterInfo, loadingSemesterInfo] = useURLValue(
+    `https://arazim-project.com/data/courses-${semester}.json`,
+    semesterCoursesSchema,
+    {},
   )
 
   const mean = ((((gradeInfo ?? {})[course.id] ?? {})[semester] ?? {})["00"] ??
@@ -87,7 +95,8 @@ const PracticeInfo = ({
                   target="_blank"
                 >
                   {
-                    decodeURIComponent(examLink.split("/").reverse()[0]).split(
+                    decodeURIComponent(examLink.split("/").reverse()[0] ?? "",
+                    ).split(
                       ".pdf"
                     )[0]
                   }
@@ -97,7 +106,7 @@ const PracticeInfo = ({
           </Menu.Dropdown>
         </Menu>
       )}
-      {mean !== undefined && mean !== 0 && (
+      {mean != null && mean !== 0 && (
         <Badge
           mr="xs"
           color="gray"
@@ -114,11 +123,15 @@ const PracticeInfo = ({
 
 const Practice = () => {
   const courseInfo = useCourseInfo()
-  const [allTimeCourseInfo] = useURLValue<AllTimeCourses>(
-    "https://arazim-project.com/data/courses.json"
+  const [allTimeCourseInfo] = useURLValue(
+    "https://arazim-project.com/data/courses.json",
+    allTimeCoursesSchema,
+    {},
   )
-  const [gradeInfo] = useURLValue<any>(
-    "https://arazim-project.com/data/grades.json"
+  const [gradeInfo] = useURLValue(
+    "https://arazim-project.com/data/grades.json",
+    gradesSchema,
+    {},
   )
 
   const [dibIt, setDibIt] = useDibIt()
@@ -134,15 +147,15 @@ const Practice = () => {
 
   for (const course of currentCourses) {
     for (const date of courseInfo[course.id]?.exams ?? []) {
-      const parsedDate = parseDateString(date.date!)
+      const parsedDate = parseDateString(date.date)
       if (parsedDate === undefined) {
         continue
       }
       examDates.push({
         course,
         date: parsedDate,
-        type: date.type!,
-        moed: date.moed!,
+        type: date.type ?? "",
+        moed: date.moed ?? "",
       })
     }
   }
@@ -208,12 +221,13 @@ const Practice = () => {
                             dibIt.practicedExams[exam.course.id] = []
                           }
                           if (e.currentTarget.checked) {
-                            dibIt.practicedExams[exam.course.id].push(
+                            ;(dibIt.practicedExams[exam.course.id] ??= []).push(
                               semester + "a"
                             )
                           } else {
-                            dibIt.practicedExams[exam.course.id] =
-                              dibIt.practicedExams[exam.course.id].filter(
+                            dibIt.practicedExams[exam.course.id] = (
+                              dibIt.practicedExams[exam.course.id] ?? []
+                            ).filter(
                                 (s) => s !== semester + "a"
                               )
                           }
@@ -237,12 +251,13 @@ const Practice = () => {
                             dibIt.practicedExams[exam.course.id] = []
                           }
                           if (e.currentTarget.checked) {
-                            dibIt.practicedExams[exam.course.id].push(
+                            ;(dibIt.practicedExams[exam.course.id] ??= []).push(
                               semester + "b"
                             )
                           } else {
-                            dibIt.practicedExams[exam.course.id] =
-                              dibIt.practicedExams[exam.course.id].filter(
+                            dibIt.practicedExams[exam.course.id] = (
+                              dibIt.practicedExams[exam.course.id] ?? []
+                            ).filter(
                                 (s) => s !== semester + "b"
                               )
                           }

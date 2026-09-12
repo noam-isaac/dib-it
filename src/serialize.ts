@@ -1,3 +1,4 @@
+import { generalInfoSchema } from "./schemas"
 import * as ics from "ics"
 import { DibItCourse } from "./models"
 import { parseDateString } from "./utilities"
@@ -7,19 +8,18 @@ const MILLISECONDS_IN_DAY = 1000 * 60 * 60 * 24
 
 const DAYS = ["א", "ב", "ג", "ד", "ה", "ו", "ש"]
 
-export const getICS = (
+export const getICS = async (
   semester: string,
   courses: DibItCourse[],
   courseInfo: SemesterCourses
 ): Promise<string> => {
-  return new Promise(async (resolve, reject) => {
-    const generalInfo = await cachedFetch<GeneralInfo>(
-      "https://arazim-project.com/data/info.json"
+
+    const generalInfo = await cachedFetch(
+      "https://arazim-project.com/data/info.json", generalInfoSchema
     )
     const info = (generalInfo.semesters ?? {})[semester]
     if (!info || !info.startDate || !info.endDate) {
-      reject()
-      return
+      throw new Error("לא נמצאו תאריכי הסמסטר לייצוא.")
     }
 
     const events: ics.EventAttributes[] = []
@@ -60,8 +60,9 @@ export const getICS = (
           }
 
           const [startHourStr, endHourStr] = lesson?.time?.split("-")!
-          const startHour = parseInt(startHourStr.split(":")[0], 10)
-          const endHour = parseInt(endHourStr.split(":")[0], 10)
+          if (!startHourStr || !endHourStr) continue
+          const startHour = parseInt(startHourStr.split(":")[0] ?? "", 10)
+          const endHour = parseInt(endHourStr.split(":")[0] ?? "", 10)
 
           const startDate = new Date(
             new Date(info.startDate).getTime() +
@@ -86,8 +87,7 @@ export const getICS = (
                 .toISOString()
                 .replaceAll("-", "")
                 .replaceAll(":", "")
-                .replaceAll(".", "")
-                .replace("00Z", "Z"),
+                .replace(/\.\d{3}Z$/, "Z"),
             startInputType: "local",
             endInputType: "local",
             startOutputType: "local",
@@ -97,9 +97,11 @@ export const getICS = (
       }
     }
 
+  return new Promise((resolve, reject) => {
     ics.createEvents(events, (error, value) => {
       if (error) {
         reject(error)
+        return
       }
 
       if (value) {
@@ -108,7 +110,7 @@ export const getICS = (
           "TZID:Asia/Jerusalem\r\nDTSTART:"
         )
         resolve(icsWithTimezone)
-      }
+      } else { reject(new Error("יצירת קובץ היומן נכשלה.")) }
     })
   })
 }

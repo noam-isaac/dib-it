@@ -1,3 +1,4 @@
+import { dibItSchema, booleanSchema, generalInfoSchema } from "../schemas"
 import {
   ActionIcon,
   Autocomplete,
@@ -10,7 +11,7 @@ import { modals } from "@mantine/modals"
 import { notifications } from "@mantine/notifications"
 import { useEffect, useState } from "react"
 import { useCourseInfo } from "../CourseInfoContext"
-import { useLocalStorage, useURLValue } from "../hooks"
+import { reportError, useLocalStorage, useURLValue } from "../hooks"
 import { DibItCourse, useDibIt } from "../models"
 import { getICS } from "../serialize"
 import {
@@ -26,13 +27,16 @@ import GoogleSaveButtons from "./GoogleSaveButtons"
 const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
   const courseInfo = useCourseInfo()
   const [search, setSearch] = useState("")
-  const [compactView, setCompactView] = useLocalStorage<boolean>({
+  const [compactView, setCompactView] = useLocalStorage({
+    schema: booleanSchema,
     key: "Sidebar Compact",
     defaultValue: false,
   })
   const [dibIt, setDibIt] = useDibIt()
-  const [generalInfo] = useURLValue<GeneralInfo>(
-    "https://arazim-project.com/data/info.json"
+  const [generalInfo] = useURLValue(
+    "https://arazim-project.com/data/info.json",
+    generalInfoSchema,
+    {},
   )
 
   let currentCourses: DibItCourse[] = []
@@ -52,7 +56,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
     dibIt.courses !== undefined &&
     dibIt.courses[dibIt.semester] !== undefined
   ) {
-    currentCourses = dibIt.courses[dibIt.semester]
+    currentCourses = dibIt.courses[dibIt.semester] ?? []
   }
   const semester = dibIt.semester
 
@@ -128,8 +132,12 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
               color="cyan"
               leftSection={<i className="fa-solid fa-upload" />}
               onClick={async () => {
-                const state = await uploadJson()
-                setDibIt(state)
+                try {
+                  const state = await uploadJson(dibItSchema)
+                  if (state !== undefined) setDibIt(state)
+                } catch (error: unknown) {
+                  reportError(error)
+                }
               }}
             >
               שחזור
@@ -141,6 +149,7 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
               color="blue"
               leftSection={<i className="fa-solid fa-calendar" />}
               onClick={async () => {
+                try {
                 const ics = await getICS(semester, currentCourses, courseInfo)
                 downloadFile(
                   "calendar.ics",
@@ -161,6 +170,9 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
                     )
                   },
                 })
+                } catch (error: unknown) {
+                  reportError(error)
+                }
               }}
             >
               ייצוא ל-Apple/Google Calendar
@@ -208,8 +220,8 @@ const Sidebar = ({ prefetching }: { prefetching: boolean }) => {
             setSearch(courseName)
             return
           }
-          const courseId = split[split.length - 1].split(")")[0]
-          if (courseInfo[courseId] !== undefined) {
+          const courseId = split[split.length - 1]?.split(")")[0]
+          if (courseId && courseInfo[courseId] !== undefined) {
             setSearch("")
             if (!dibIt.courses) {
               dibIt.courses = {}

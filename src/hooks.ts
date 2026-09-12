@@ -1,138 +1,157 @@
-import { DocumentData, DocumentReference } from "firebase/firestore"
-import { useEffect, useState } from "react"
-import { useDocumentData } from "react-firebase-hooks/firestore"
+import {
+  useEffect,
+  useRef,
+  useState,
+  type SetStateAction,
+} from "react"
+import { notifications } from "@mantine/notifications"
+import { z } from "zod"
 
-export const getLocalStorage = <T = any>(key: string, defaultValue = {}) => {
-  return JSON.parse(
-    localStorage.getItem(key) ?? JSON.stringify(defaultValue)
-  ) as T
-}
+export const errorMessage = (error: unknown): string =>
+  error instanceof z.ZodError
+    ? "מבנה הנתונים אינו תקין. המידע הקיים לא הוחלף."
+    : error instanceof Error
+      ? error.message
+      : "אירעה שגיאה. אנא נסו שוב."
 
-export const setLocalStorage = (
+export const getLocalStorage = <T>(
   key: string,
-  value = {},
-  options: { quiet?: boolean } = {}
-) => {
-  localStorage.setItem(key, JSON.stringify(value))
-  if (!options.quiet) {
-    window.dispatchEvent(
-      new StorageEvent("storage", { key, newValue: JSON.stringify(value) })
-    )
+  schema: z.ZodType<T>,
+  fallback: T,
+): T => {
+  const raw = localStorage.getItem(key)
+  if (raw === null) return fallback
+  try {
+    const input: unknown = JSON.parse(raw)
+    return schema.parse(input)
+  } catch {
+    throw new Error(`המידע השמור ב־${key} אינו תקין. המקור נשמר.`)
   }
 }
 
-interface LocalStorageOptions {
-  key: string
-  defaultValue?: any
-  serialize?: boolean
+export const setLocalStorage = <T>(
+  key: string,
+  value: T,
+  schema: z.ZodType<T>,
+  quiet = false,
+) => {
+  const serialized = JSON.stringify(schema.parse(value))
+  localStorage.setItem(key, serialized)
+  if (!quiet)
+    window.dispatchEvent(
+      new StorageEvent("storage", { key, newValue: serialized }),
+    )
 }
+
+const requests = new WeakMap<z.ZodType, Map<string, Promise<unknown>>>()
+
+export const cachedFetch = <T>(
+  url: string,
+  schema: z.ZodType<T>,
+): Promise<T> => {
+  let cache = requests.get(schema)
+  if (!cache) {
+    cache = new Map()
+    requests.set(schema, cache)
+  }
+  const existing = cache.get(url)
+  // This cache is keyed by the exact schema; only its validated output is stored.
+  if (existing) return existing as Promise<T>
+  const request = fetch(url)
+    .then(async (response) => {
+      if (!response.ok)
+        throw new Error(
+          `טעינת הנתונים נכשלה (${response.status}). אנא נסו שוב.`,
+        )
+      const input: unknown = await response.json()
+      return schema.parse(input)
+    })
+    .catch((error: unknown) => {
+      cache.delete(url)
+      throw error
+    })
+  cache.set(url, request)
+  return request
+}
+
+export const reportError = (error: unknown) =>
+  notifications.show({
+    title: "לא ניתן להשלים את הפעולה",
+    message: errorMessage(error),
+    color: "red",
+    style: { direction: "rtl" },
+  })
 
 export const useLocalStorage = <T>({
   key,
+  schema,
   defaultValue,
-  serialize,
-}: LocalStorageOptions) => {
-  if (serialize) {
-    key += " (Dib It Serialize)"
-  }
-
-  const [value, setValue] = useState<T>(
-    getLocalStorage(key, defaultValue ?? null)
+}: {
+  key: string
+  schema: z.ZodType<T>
+  defaultValue: T
+}) => {
+  const [value, setValue] = useState(() =>
+    getLocalStorage(key, schema, defaultValue),
   )
+  const current = useRef(value)
+  const [error, setError] = useState<unknown>()
 
   useEffect(() => {
-    if (!localStorage.getItem(key) && defaultValue) {
-      localStorage.setItem(key, JSON.stringify(defaultValue))
-    }
-
-    const listener = (e: StorageEvent) => {
-      if (e.key === key) {
-        if (e.newValue) {
-          setValue(JSON.parse(e.newValue))
-        } else {
-          setValue(defaultValue ?? null)
-        }
+    const refresh = () => {
+      try {
+        const next = getLocalStorage(key, schema, defaultValue)
+        current.current = next
+        setValue(next)
+        setError(undefined)
+      } catch (error: unknown) {
+        setError(error)
       }
+    }
+    refresh()
+    const listener = (event: StorageEvent) => {
+      if (event.key === key || event.key === null) refresh()
     }
 
     window.addEventListener("storage", listener)
 
     return () => window.removeEventListener("storage", listener)
-  }, [key])
-
-  const userSetValue = (newValue: any, quiet = false) => {
-    setValue(newValue)
-    if (typeof newValue === "function") {
-      newValue = newValue(value)
-    }
-    if (newValue !== undefined) {
-      setLocalStorage(key, newValue, { quiet })
+    // Defaults are only read when the storage key changes.
+  }, [key, schema])
+  if (error) throw error
+  const update = (action: SetStateAction<T>, quiet = false) => {
+    const next =
+      typeof action === "function"
+        ? (action as (previous: T) => T)(current.current)
+        : action
+    // Persist before changing React state, so failed writes cannot look successful.
+    try {
+      setLocalStorage(key, next, schema, quiet)
+      current.current = next
+      setValue(next)
+    } catch (error: unknown) {
+      setError(error)
+      throw error
     }
   }
-
-  return [value, userSetValue] as const
+  return [value, update] as const
 }
 
-export const useCachedDocumentData = (
-  docRef: DocumentReference<DocumentData>
-) => {
-  const [data, setData] = useLocalStorage<any>({
-    key: "Cached " + docRef.path,
-    defaultValue: {},
-  })
-  const [document, loading, error, snapshot] = useDocumentData(docRef)
-
-  useEffect(() => {
-    if (document) {
-      setData(document)
-    }
-  }, [document])
-
-  return [data, loading, error, snapshot]
-}
-
-const cachedUrlValues: Record<string, any> = {}
-const fetchUrlValuePromises: Record<string, Promise<any>> = {}
-
-export const cachedFetch = async <T = any>(url: string): Promise<T> => {
-  if (cachedUrlValues[url] !== undefined) {
-    return cachedUrlValues[url]
-  }
-
-  if (fetchUrlValuePromises[url] === undefined) {
-    fetchUrlValuePromises[url] = fetch(url).then((r) => r.json())
-  }
-
-  const result = await fetchUrlValuePromises[url]
-  return result
-}
-
-export const useURLValue = <T>(url: string): [Partial<T>, boolean] => {
-  const [value, setValue] = useState<Partial<T>>(cachedUrlValues[url] ?? {})
+export const useURLValue = <T>(url: string | undefined, schema: z.ZodType<T>, fallback: T): [T, boolean] => {
+  const [value, setValue] = useState<T>(fallback)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    const initialValue = cachedUrlValues[url] ?? {}
-    // Already loaded
-    if (Object.keys(initialValue).length !== 0) {
-      setValue(initialValue)
-      return
-    }
-
+    let active = true
+    setValue(fallback)
+    if (!url) return
     setLoading(true)
-
-    if (fetchUrlValuePromises[url] === undefined) {
-      fetchUrlValuePromises[url] = fetch(url).then((r) => r.json())
-    }
-
-    fetchUrlValuePromises[url]
-      .then((v) => {
-        cachedUrlValues[url] = v
-        setValue(v)
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [url])
+    void cachedFetch(url, schema)
+      .then((result) => { if (active) setValue(result) })
+      .catch((error: unknown) => { if (active) reportError(error) })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [url, schema])
 
   return [value, loading]
 }

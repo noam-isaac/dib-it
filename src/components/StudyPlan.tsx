@@ -1,4 +1,10 @@
 import {
+  allTimeCoursesSchema,
+  booleanSchema,
+  generalInfoSchema,
+  semesterPlansSchema,
+} from "../schemas"
+import {
   Autocomplete,
   Badge,
   Button,
@@ -23,50 +29,45 @@ import {
 
 const StudyPlan = () => {
   const [dibIt, setDibIt] = useDibIt()
-  const [sorted, setSorted] = useLocalStorage<boolean>({
+  const [sorted, setSorted] = useLocalStorage({
+    schema: booleanSchema,
     key: "Study Plan Sorted",
     defaultValue: false,
   })
-  const [hideTakenCourses, setHideTakenCourses] = useLocalStorage<boolean>({
+  const [hideTakenCourses, setHideTakenCourses] = useLocalStorage({
+    schema: booleanSchema,
     key: "Hide Taken Courses",
     defaultValue: false,
   })
   const courseInfo = useCourseInfo()
   const [allTimeCourseInfo, loadingAllTimeCourseInfo] =
-    useURLValue<AllTimeCourses>("https://arazim-project.com/data/courses.json")
-  const [generalInfo] = useURLValue<GeneralInfo>(
-    "https://arazim-project.com/data/info.json"
+    useURLValue("https://arazim-project.com/data/courses.json", allTimeCoursesSchema, {})
+  const [generalInfo] = useURLValue(
+    "https://arazim-project.com/data/info.json",
+    generalInfoSchema,
+    {},
   )
-  const [plans] = useURLValue<
-    Record<
-      string,
-      Record<
-        string,
-        Record<
-          string,
-          {
-            courses: Record<string, { id: string; weight: string }>
-            count: number
-          }
-        >
-      >
-    >
-  >(`https://arazim-project.com/data/plans-${dibIt.degreeStartYear}.json`)
+  const [plans] = useURLValue(
+    dibIt.degreeStartYear
+      ? `https://arazim-project.com/data/plans-${dibIt.degreeStartYear}.json`
+      : undefined,
+    semesterPlansSchema,
+    {},
+  )
 
+  if (!dibIt.semester) return null
   if (!dibIt.courses) {
     dibIt.courses = {}
   }
-  if (!dibIt.courses[dibIt.semester!]) {
-    dibIt.courses[dibIt.semester!] = []
-  }
-  const currentCourses = dibIt.courses[dibIt.semester!]
+  const currentCourses = (dibIt.courses[dibIt.semester] ??= [])
+  const selectedPlan = plans[dibIt.school ?? ""]?.[dibIt.studyPlan ?? ""] ?? {}
 
   let courseDates: number[] = []
   for (const course of currentCourses) {
     const examDates = courseInfo[course.id]?.exams
     if (examDates?.length !== undefined && examDates.length > 0) {
       for (const date of examDates) {
-        const parsedDate = parseDateString(date.date!)
+        const parsedDate = parseDateString(date.date)
         if (parsedDate) {
           courseDates.push(parsedDate.getTime())
         }
@@ -78,12 +79,14 @@ const StudyPlan = () => {
 
   const getDayDifference = (courseId: string) => {
     const date = courseInfo[courseId]?.exams
-    if (!date || date.length === 0 || date[0].date === "") {
+    if (!date || date.length === 0 || date[0]?.date === "") {
       return
     }
-    const time = parseDateString(date[0].date!)?.getTime() ?? 0
+    const time = parseDateString(date[0]?.date)?.getTime() ?? 0
+    const closest = getClosestValue(time, courseDates)
+    if (closest === undefined) return undefined
     const difference = Math.round(
-      Math.abs(getClosestValue(time, courseDates) - time) / MILLISECONDS_IN_DAY
+      Math.abs(closest - time) / MILLISECONDS_IN_DAY
     )
     return difference
   }
@@ -93,7 +96,7 @@ const StudyPlan = () => {
       return 99999999999
     }
 
-    const date = courseInfo[courseId]!.exams!
+    const date = courseInfo[courseId]?.exams ?? []
 
     if (date.length === 0) {
       return -100000000000
@@ -103,8 +106,10 @@ const StudyPlan = () => {
       return 0
     }
 
-    const time = parseDateString(date[0].date!)?.getTime() ?? 0
-    const difference = Math.abs(getClosestValue(time, courseDates) - time)
+    const time = parseDateString(date[0]?.date)?.getTime() ?? 0
+    const closest = getClosestValue(time, courseDates)
+    if (closest === undefined) return 0
+    const difference = Math.abs(closest - time)
     return -difference
   }
 
@@ -127,7 +132,7 @@ const StudyPlan = () => {
 
   const courseIdToFirstSemesterTaken: Record<string, string> = {}
   for (const semester in dibIt.courses) {
-    for (const course of dibIt.courses[semester]) {
+    for (const course of dibIt.courses[semester] ?? []) {
       courseIdToFirstSemesterTaken[course.id] = semester
     }
   }
@@ -163,7 +168,7 @@ const StudyPlan = () => {
         allowDeselect
         label="שנת התחלת התואר"
         leftSection={<i className="fa-solid fa-calendar" />}
-        value={dibIt?.degreeStartYear === "" ? null : dibIt.degreeStartYear}
+        value={dibIt.degreeStartYear || null}
         onChange={(v) => setDibIt({ ...dibIt, degreeStartYear: v ?? "" })}
         data={[
           ...new Set(
@@ -179,7 +184,7 @@ const StudyPlan = () => {
         label="פקולטה"
         leftSection={<i className="fa-solid fa-school" />}
         data={Object.keys(plans).sort()}
-        value={dibIt.school}
+        value={dibIt.school ?? null}
         onChange={(v) => {
           if (v) {
             dibIt.school = v
@@ -193,8 +198,8 @@ const StudyPlan = () => {
           size="md"
           label="תוכנית לימוד"
           leftSection={<i className="fa-solid fa-book" />}
-          data={Object.keys(plans[dibIt.school!] ?? {}).sort()}
-          value={dibIt.studyPlan}
+          data={Object.keys(plans[dibIt.school ?? ""] ?? {}).sort()}
+          value={dibIt.studyPlan ?? ""}
           onChange={(v) => {
             dibIt.studyPlan = v
             setDibIt({ ...dibIt })
@@ -218,13 +223,10 @@ const StudyPlan = () => {
         onChange={(e) => setSorted(e.currentTarget.checked)}
       />
 
-      {(plans[dibIt.school!] ?? {})[dibIt.studyPlan ?? ""] !== undefined &&
-        Object.keys((plans[dibIt.school!] ?? {})[dibIt.studyPlan!]).map(
+      {Object.keys(selectedPlan).map(
           (key) => {
             const textColor = hash.hsl(key)[2] > 0.5 ? "black" : "white"
-            const categoryCourses = (plans[dibIt.school!] ?? {})[
-              dibIt.studyPlan!
-            ][key]
+            const categoryCourses = selectedPlan[key]
 
             if (!categoryCourses?.courses) {
               return <></>
@@ -347,7 +349,7 @@ const StudyPlan = () => {
                         )}
 
                       {courseInfo[courseId] !== undefined &&
-                        courseInfo[courseId]!.exams?.filter(
+                        courseInfo[courseId]?.exams?.filter(
                           (x) => x.date !== ""
                         ).length === 0 && (
                           <Badge

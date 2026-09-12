@@ -1,3 +1,5 @@
+import { dibItSchema } from "../schemas"
+import { errorMessage } from "../hooks"
 import { Menu, Tooltip } from "@mantine/core"
 import { notifications } from "@mantine/notifications"
 import { doc, getDoc, setDoc } from "firebase/firestore"
@@ -32,10 +34,10 @@ const GoogleSaveButtons = () => {
                   color: "green",
                 })
               })
-              .catch((e) => {
+              .catch((e: unknown) => {
                 notifications.show({
                   title: "שגיאה בשמירה בגוגל",
-                  message: "אנא נסו שנית. פרטי השגיאה: " + e?.message,
+                  message: "אנא נסו שנית. פרטי השגיאה: " + errorMessage(e),
                   style: { direction: "rtl" },
                   icon: <i className="fa-solid fa-exclamation" />,
                   color: "red",
@@ -53,7 +55,10 @@ const GoogleSaveButtons = () => {
           onClick={() => {
             getDoc(doc(firestore, `/users/${currentUser.uid}`))
               .then((d) => {
-                const data = d.data()
+                if (!d.exists())
+                  throw new Error("לא נמצא גיבוי בגוגל. המידע הקיים לא הוחלף.")
+                const input: unknown = d.data()
+                const data = dibItSchema.parse(input)
 
                 if (data) {
                   setDibIt({
@@ -70,10 +75,10 @@ const GoogleSaveButtons = () => {
                   color: "green",
                 })
               })
-              .catch((e) => {
+              .catch((e: unknown) => {
                 notifications.show({
                   title: "שגיאה בעדכון מגוגל",
-                  message: "אנא נסו שנית. פרטי השגיאה: " + e?.message,
+                  message: "אנא נסו שנית. פרטי השגיאה: " + errorMessage(e),
                   style: { direction: "rtl" },
                   icon: <i className="fa-solid fa-exclamation" />,
                   color: "red",

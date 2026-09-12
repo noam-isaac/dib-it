@@ -1,13 +1,14 @@
+import { biddingSchema, type FacultyPoints } from "./schemas"
 import { cachedFetch } from "./hooks"
 import { DibItCourse } from "./models"
 
 export const getPossibleFaculties = async (
   courses: DibItCourse[],
-  facultyPoints: { faculty: string; points?: number }[],
+  facultyPoints: FacultyPoints,
   bidding?: AllTimeBiddingInfo
 ) => {
-  bidding ??= await cachedFetch<AllTimeBiddingInfo>(
-    "https://arazim-project.com/data/bidding.json"
+  bidding ??= await cachedFetch(
+    "https://arazim-project.com/data/bidding.json", biddingSchema
   )
 
   const facultyPointsMap: Record<string, number> = {}
@@ -21,9 +22,9 @@ export const getPossibleFaculties = async (
 
   for (const course of courses) {
     const faculties = new Set<string>()
-    for (const semester in bidding[course.id] ?? {}) {
-      for (const group in bidding[course.id][semester] ?? {}) {
-        for (const statistics of bidding[course.id][semester][group]) {
+    for (const semester of Object.values(bidding[course.id] ?? {})) {
+      for (const group of Object.values(semester)) {
+        for (const statistics of group) {
           if (statistics.faculty) {
             faculties.add(statistics.faculty)
           }
@@ -39,7 +40,7 @@ export const getPossibleFaculties = async (
         if (!possibleFaculties[course.id]) {
           possibleFaculties[course.id] = []
         }
-        possibleFaculties[course.id].push(faculty)
+        (possibleFaculties[course.id] ??= []).push(faculty)
       }
     }
   }
@@ -49,12 +50,12 @@ export const getPossibleFaculties = async (
 
 const autoBid = async (
   courses: DibItCourse[],
-  facultyPoints: { faculty: string; points?: number }[],
+  facultyPoints: FacultyPoints,
   possibleFaculties: Record<string, string[]>,
   bidding?: AllTimeBiddingInfo
 ) => {
-  bidding ??= await cachedFetch<AllTimeBiddingInfo>(
-    "https://arazim-project.com/data/bidding.json"
+  bidding ??= await cachedFetch(
+    "https://arazim-project.com/data/bidding.json", biddingSchema
   )
 
   const facultyPointsMap: Record<string, number> = {}
@@ -75,12 +76,13 @@ const autoBid = async (
     const facultySums: Record<string, number> = {}
     const facultyCounts: Record<string, number> = {}
 
-    for (const semester in bidding[course.id] ?? {}) {
-      for (const group in bidding[course.id][semester] ?? {}) {
-        for (const statistics of bidding[course.id][semester][group]) {
+    for (const semester of Object.values(bidding[course.id] ?? {})) {
+      for (const group of Object.values(semester)) {
+        for (const statistics of group) {
+          if (statistics.minimal === null) continue
           // Unknown faculty, add to all.
           if (!statistics.faculty || !facultyPointsMap[statistics.faculty]) {
-            for (const faculty of possibleFaculties[course.id]) {
+            for (const faculty of possibleFaculties[course.id] ?? []) {
               facultySums[faculty] =
                 (facultySums[faculty] ?? 0) + statistics.minimal
               facultyCounts[faculty] = (facultyCounts[faculty] ?? 0) + 1
@@ -95,9 +97,11 @@ const autoBid = async (
       }
     }
 
-    for (const faculty in facultySums) {
+    for (const [faculty, sum] of Object.entries(facultySums)) {
+      const count = facultyCounts[faculty]
+      if (!count) continue
       facultySums[faculty] =
-        Math.ceil(facultySums[faculty] / facultyCounts[faculty]) + 1
+        Math.ceil(sum / count) + 1
     }
 
     courseFacultyCosts[course.id] = facultySums
@@ -109,43 +113,51 @@ const autoBid = async (
     currentFacultyPoints[faculty] = 0
   }
 
-  for (const course in courseFacultyCosts) {
-    const faculties = Object.keys(courseFacultyCosts[course])
+  for (const [course, costs] of Object.entries(courseFacultyCosts)) {
+    const faculties = Object.keys(costs)
     if (faculties.length === 1) {
-      result[faculties[0]][course] = courseFacultyCosts[course][faculties[0]]
-      currentFacultyPoints[faculties[0]] +=
-        courseFacultyCosts[course][faculties[0]]
+      const faculty = faculties[0]
+      if (faculty === undefined) continue
+      const cost = costs[faculty], bids = result[faculty]
+      if (cost === undefined || bids === undefined) continue
+      bids[course] = cost
+      currentFacultyPoints[faculty] = (currentFacultyPoints[faculty] ?? 0) + cost
     }
   }
 
   // Assign remaining courses to the faculty with the most remaining points.
-  for (const course in courseFacultyCosts) {
-    const faculties = Object.keys(courseFacultyCosts[course])
+  for (const [course, costs] of Object.entries(courseFacultyCosts)) {
+    const faculties = Object.keys(costs)
     if (faculties.length > 1) {
+      const first = faculties[0]
+      if (first === undefined) continue
       let bestFaculty = ""
       let bestFacultyRemainingPoints = -1000
       for (const faculty of faculties) {
         const remainingPoints =
-          facultyPointsMap[faculty] -
-          currentFacultyPoints[faculty] -
-          courseFacultyCosts[course][faculties[0]]
+          (facultyPointsMap[faculty] ?? 0) -
+          (currentFacultyPoints[faculty] ?? 0) -
+          (costs[first] ?? 0)
         if (remainingPoints > bestFacultyRemainingPoints) {
           bestFacultyRemainingPoints = remainingPoints
           bestFaculty = faculty
         }
       }
-      result[bestFaculty][course] = courseFacultyCosts[course][bestFaculty]
-      currentFacultyPoints[bestFaculty] +=
-        courseFacultyCosts[course][bestFaculty]
+      const cost = costs[bestFaculty], bids = result[bestFaculty]
+      if (cost === undefined || bids === undefined) continue
+      bids[course] = cost
+      currentFacultyPoints[bestFaculty] = (currentFacultyPoints[bestFaculty] ?? 0) + cost
     }
   }
 
   // Balance the points to match the available points for each faculty.
-  for (const faculty in facultyPointsMap) {
+  for (const [faculty, points] of Object.entries(facultyPointsMap)) {
+    const bids = result[faculty]
+    if (!bids) continue
     let iterations = 0
-    let difference = facultyPointsMap[faculty] - currentFacultyPoints[faculty]
-    const sortedCourses = Object.keys(result[faculty]).sort(
-      (a, b) => result[faculty][b] - result[faculty][a]
+    let difference = points - (currentFacultyPoints[faculty] ?? 0)
+    const sortedCourses = Object.keys(bids).sort(
+      (a, b) => (bids[b] ?? 0) - (bids[a] ?? 0)
     )
     const sortedCoursesReverse = sortedCourses.reverse()
 
@@ -154,9 +166,9 @@ const autoBid = async (
       for (const course of sortedCourses) {
         const increase = Math.min(
           difference,
-          Math.ceil(result[faculty][course] * 0.05) + 1
+          Math.ceil((bids[course] ?? 0) * 0.05) + 1
         )
-        result[faculty][course] += increase
+        bids[course] = (bids[course] ?? 0) + increase
         difference -= increase
       }
 
@@ -168,10 +180,10 @@ const autoBid = async (
       for (const course of sortedCoursesReverse) {
         const decrease = Math.min(
           -difference,
-          Math.ceil(result[faculty][course] * 0.05) + 1,
-          result[faculty][course]
+          Math.ceil((bids[course] ?? 0) * 0.05) + 1,
+          bids[course] ?? 0
         )
-        result[faculty][course] -= decrease
+        bids[course] = (bids[course] ?? 0) - decrease
         difference += decrease
       }
 
