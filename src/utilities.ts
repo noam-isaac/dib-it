@@ -1,6 +1,7 @@
 import { toHebrewJewishDate } from "jewish-date"
 import hash from "./color-hash"
 import { DibIt, DibItCourse } from "./models"
+import { selectedGroups, type CatalogCourses } from "./catalog"
 
 export const MILLISECONDS_IN_DAY = 1000 * 60 * 60 * 24
 
@@ -145,22 +146,18 @@ export const parseTime = (value: string) => {
   return +match[1] * 60 + +match[2]
 }
 
-export const sumHours = (info: SemesterCourses, view: DibIt) => {
-  let minutes = 0
-  for (const course of view.courses?.[view.semester ?? ""] ?? []) {
-    for (const group of info[course.id]?.groups ?? []) {
-      if (!group.group || !course.groups?.includes(group.group)) continue
-      for (const lesson of group.lessons ?? []) {
-        if (!/^[א-ו]$/.test(lesson.day ?? "")) continue
-        const times = lesson.time?.split("-")
-        if (times?.length !== 2) continue
-        const start = parseTime(times[0]), end = parseTime(times[1])
-        if (start !== undefined && end !== undefined && end > start) minutes += end - start
-      }
-    }
-  }
-  return minutes / 60
-}
+export const sumHours = (info: CatalogCourses, view: DibIt) =>
+  (view.courses?.[view.semester ?? ""] ?? [])
+    .filter(course => info[course.id]?.semester === view.semester)
+    .flatMap(course => selectedGroups(course, info[course.id]))
+    .flatMap(group => group.status === "ready" ? group.data.lessons ?? [] : [])
+    .reduce((minutes, lesson) => {
+      if (!/^[א-ו]$/.test(lesson.day ?? "")) return minutes
+      const times = lesson.time?.split("-")
+      if (times?.length !== 2) return minutes
+      const start = parseTime(times[0]), end = parseTime(times[1])
+      return minutes + (start !== undefined && end !== undefined && end > start ? end - start : 0)
+    }, 0) / 60
 
 /** Scroll to a course and focus its group control after rendering. */
 export const revealCourse = (id: string) => {

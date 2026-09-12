@@ -1,3 +1,4 @@
+import { importSemesterCourses } from "../src/catalog"
 import { describe, expect, test } from "bun:test"
 import {
   collectExams,
@@ -35,14 +36,14 @@ const exams = collectExams(
 
 describe("scheduled course exams", () => {
   test("a sidebar course appears only with a currently valid selected group", () => {
-    expect(isCourseScheduled({ id: "first" }, info.first)).toBe(false)
-    expect(isCourseScheduled({ id: "first", groups: [] }, info.first)).toBe(
+    expect(isCourseScheduled({ id: "first" }, importSemesterCourses("2026a", { course: info.first }).course)).toBe(false)
+    expect(isCourseScheduled({ id: "first", groups: [] }, importSemesterCourses("2026a", { course: info.first }).course)).toBe(
       false,
     )
     expect(
-      isCourseScheduled({ id: "first", groups: ["stale"] }, info.first),
+      isCourseScheduled({ id: "first", groups: ["stale"] }, importSemesterCourses("2026a", { course: info.first }).course),
     ).toBe(false)
-    expect(isCourseScheduled({ id: "first", groups: ["01"] }, info.first)).toBe(
+    expect(isCourseScheduled({ id: "first", groups: ["01"] }, importSemesterCourses("2026a", { course: info.first }).course)).toBe(
       true,
     )
     expect(isCourseScheduled({ id: "missing", groups: ["01"] })).toBe(false)
@@ -128,7 +129,7 @@ test("calendar export excludes unselected and stale-group courses", async () => 
         { id: "second" },
         { id: "third", groups: ["missing"] },
       ],
-      info,
+      importSemesterCourses("2026a", info),
     )
     expect(result.match(/BEGIN:VEVENT/g)).toHaveLength(2)
     expect(result).toContain("20260201")

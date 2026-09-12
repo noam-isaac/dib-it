@@ -1,3 +1,4 @@
+import type { CatalogCourses } from "./catalog"
 import type { DibIt } from "./models"
 import { annualChanges, applyAnnualChanges, reconcileAnnualCourses, type AnnualChange } from "./annualCourses"
 
@@ -29,7 +30,7 @@ export const activePlanView = (workspace: PlanWorkspace): DibIt => {
   return { ...shared, ...data, activePlanId: id }
 }
 
-export const updateActivePlan = (workspace: PlanWorkspace, view: DibIt, catalogs: Record<string, SemesterCourses> = {}): PlanWorkspace => {
+export const updateActivePlan = (workspace: PlanWorkspace, view: DibIt, catalogs: Record<string, CatalogCourses> = {}): PlanWorkspace => {
   // A callback from a plan that was switched away from must not overwrite the new plan.
   if (view.activePlanId && view.activePlanId !== workspace.activePlanId) return workspace
   const { courses, school, studyPlan, savedStudyPlans, degreeStartYear, activePlanId: _, ...shared } = view
@@ -44,7 +45,7 @@ export const updateActivePlan = (workspace: PlanWorkspace, view: DibIt, catalogs
   }, catalogs)
 }
 
-export const reconcileActivePlan = (workspace: PlanWorkspace, catalogs: Record<string, SemesterCourses>): PlanWorkspace => {
+export const reconcileActivePlan = (workspace: PlanWorkspace, catalogs: Record<string, CatalogCourses>): PlanWorkspace => {
   const plan = workspace.plans.find(plan => plan.id === workspace.activePlanId)!
   const view = activePlanView(workspace)
   const { courses, pending } = applyAnnualChanges(view, plan.pendingAnnualChanges ?? [], catalogs)

@@ -80,12 +80,8 @@ export const useLocalStorage = <T>({
 const cachedUrlValues: Record<string, any> = {}
 const fetchUrlValuePromises: Record<string, Promise<any>> = {}
 
-export const cachedFetch = async <T = any>(url: string): Promise<T> => {
-  if (cachedUrlValues[url] !== undefined) {
-    return cachedUrlValues[url]
-  }
-
-  if (fetchUrlValuePromises[url] === undefined) {
+export const cachedFetch = async <T = any>(url: string, validate?: (value: unknown) => void): Promise<T> => {
+  if (cachedUrlValues[url] === undefined && fetchUrlValuePromises[url] === undefined) {
     fetchUrlValuePromises[url] = fetch(url).then((r) => {
       if (!r.ok) throw new Error(`Catalog request failed: ${r.status}`)
       return r.json()
@@ -93,16 +89,19 @@ export const cachedFetch = async <T = any>(url: string): Promise<T> => {
   }
 
   try {
-    return cachedUrlValues[url] = await fetchUrlValuePromises[url]
+    const value = cachedUrlValues[url] ?? await fetchUrlValuePromises[url]
+    validate?.(value)
+    return cachedUrlValues[url] = value
   } catch (error) {
+    delete cachedUrlValues[url]
     delete fetchUrlValuePromises[url]
     throw error
   }
 }
 
-export const useURLValue = <T>(url: string | null): [Partial<T>, boolean, { failed: boolean; retry: () => void }] => {
-  const [value, setValue] = useState<Partial<T>>((url ? cachedUrlValues[url] : undefined) ?? {})
-  const [loading, setLoading] = useState(false)
+export const useURLValue = <T>(url: string | null, validate?: (value: unknown) => void): [Partial<T>, boolean, { failed: boolean; retry: () => void }] => {
+  const [value, setValue] = useState<Partial<T>>({})
+  const [loading, setLoading] = useState(!!url)
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
 
@@ -110,15 +109,10 @@ export const useURLValue = <T>(url: string | null): [Partial<T>, boolean, { fail
     setFailed(false)
     if (!url) { setValue({}); setLoading(false); return }
     let cancelled = false
-    setValue(cachedUrlValues[url] ?? {})
-    if (cachedUrlValues[url] !== undefined) {
-      setLoading(false)
-      return
-    }
-
+    setValue({})
     setLoading(true)
 
-    cachedFetch<T>(url)
+    cachedFetch<T>(url, validate)
       .then((v) => {
         if (cancelled) return
         setValue(v)
@@ -126,7 +120,7 @@ export const useURLValue = <T>(url: string | null): [Partial<T>, boolean, { fail
       })
       .catch(() => { if (!cancelled) { setLoading(false); setFailed(true) } })
     return () => { cancelled = true }
-  }, [url, attempt])
+  }, [url, attempt, validate])
 
   return [value, loading, { failed, retry: () => setAttempt(value => value + 1) }]
 }

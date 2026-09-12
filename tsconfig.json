@@ -4,6 +4,7 @@
     "useDefineForClassFields": true,
     "lib": [
       "es2021",
+      "ES2024.Collection",
       "DOM",
       "DOM.Iterable"
     ],

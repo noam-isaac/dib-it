@@ -1,3 +1,4 @@
+import { selectedCatalogConflicts } from "../catalog"
 import {
   ActionIcon,
   Autocomplete,
@@ -28,7 +29,7 @@ import PlanSelector from "./PlanSelector"
 import ScheduleExportModal from "./ScheduleExportModal"
 import { downloadWorkspaceBackup, openScheduleRestore } from "./RestoreScheduleModal"
 
-const Sidebar = () => {
+const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
   const courseInfo = useCourseInfo()
   const [search, setSearch] = useState("")
   const [compactView, setCompactView] = useLocalStorage<boolean>({
@@ -53,6 +54,7 @@ const Sidebar = () => {
     currentCourses = dibIt.courses[dibIt.semester]
   }
   const semester = dibIt.semester ?? ""
+  const hasCatalogConflicts = selectedCatalogConflicts(currentCourses, courseInfo).length > 0
 
   return (
     <div
@@ -140,6 +142,7 @@ const Sidebar = () => {
 
             <Menu.Item
 
+              disabled={!catalogReady || hasCatalogConflicts}
               leftSection={<i className="fa-solid fa-calendar" aria-hidden="true" />}
               onClick={async () => {
                 try {
@@ -180,6 +183,7 @@ const Sidebar = () => {
             </Menu.Item>
             <Menu.Item
 
+              disabled={!catalogReady || hasCatalogConflicts}
               leftSection={<i className="fa-solid fa-file-word" aria-hidden="true" />}
               onClick={() =>
                 modals.open({
@@ -200,6 +204,7 @@ const Sidebar = () => {
               יצירת טופס רישום ב-Word
             </Menu.Item>
             <Menu.Item
+              disabled={!catalogReady || hasCatalogConflicts}
               leftSection={<i className="fa-solid fa-print" aria-hidden="true" />}
 
               onClick={() => {
@@ -237,6 +242,7 @@ const Sidebar = () => {
 
       {semesterLoad.failed && <Button variant="subtle" color="gray" size="compact-sm" onClick={semesterLoad.retry}>טעינת רשימת הסמסטרים נכשלה — ניסיון נוסף</Button>}
       <Autocomplete
+        disabled={!catalogReady}
         size="md"
         mt={10}
         mb={10}
@@ -273,8 +279,8 @@ const Sidebar = () => {
         maxDropdownHeight={300}
       />
 
-      <div id="course-list">
-      {currentCourses.map((course, index) => (
+      <div id="course-list" aria-busy={!catalogReady}>
+      {catalogReady && currentCourses.map((course, index) => (
         <CourseCard
           key={course.id}
           index={index}

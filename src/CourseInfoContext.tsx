@@ -1,10 +1,11 @@
+import type { CatalogCourses } from "./catalog"
 /** A context to store the information about all of the courses of the current semester */
 
 import { createContext, useContext } from "react"
 
-const CourseInfoContext = createContext<SemesterCourses>({})
+const CourseInfoContext = createContext<CatalogCourses>({})
 
-export const useCourseInfo = (): SemesterCourses => {
+export const useCourseInfo = (): CatalogCourses => {
   return useContext(CourseInfoContext)
 }
 

@@ -4,11 +4,64 @@ import { chromium } from "playwright"
 import { createServer } from "vite"
 
 const catalogs = JSON.parse(await readFile(new URL("../fixtures/annual-catalogs-2026.json", import.meta.url)))
+const frenchCatalogs = JSON.parse(await readFile(new URL("../fixtures/french-catalogs-2027.json", import.meta.url)))
 const server = process.env.DIBIT_TEST_URL ? undefined : await createServer({ define: { "import.meta.env.VITE_ENABLE_GOOGLE_SYNC": '\"false\"' }, cacheDir: "node_modules/.vite-test-annual-courses", server: { host: "127.0.0.1", port: 0 } })
 let browser
 try {
   await server?.listen()
   browser = await chromium.launch()
+  // Real duplicated annual group rows must agree across controls, totals and export.
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
+    const page = await browser.newPage({ viewport })
+    page.setDefaultTimeout(10000)
+    const errors = []
+    page.on("pageerror", error => errors.push(error.message))
+    page.on("console", message => { if (message.text().includes("same key")) errors.push(message.text()) })
+    const url = process.env.DIBIT_TEST_URL ?? `http://127.0.0.1:${server.httpServer.address().port}`
+    await page.route("**/*", route => new URL(route.request().url()).origin === new URL(url).origin ? route.continue() : route.abort())
+    await page.route("https://arazim-project.com/data/**", route => {
+      const filename = new URL(route.request().url()).pathname.split("/").pop()
+      const json = filename === "info.json" ? {
+        currentSemester: "2027a", semesters: Object.fromEntries(["2027a", "2027b"].map(semester => [
+          semester, { startDate: "2026-10-18", endDate: "2026-10-24" },
+        ])),
+      } : frenchCatalogs[filename.slice(8, -5)] ?? {}
+      return route.fulfill({ json })
+    })
+    await page.addInitScript(disableGroupBy => {
+      if (disableGroupBy) Object.defineProperty(Map, "groupBy", { value: undefined, writable: true, configurable: true })
+      localStorage.setItem("Dib It Fork Intro Seen", "true")
+      if (!localStorage.getItem("Dib It")) localStorage.setItem("Dib It", JSON.stringify({ semester: "2027a", tab: "schedule" }))
+    }, viewport.width === 390)
+    await page.goto(url)
+    await page.getByPlaceholder("חיפוש קורסים להוספה").fill("צרפתית למתחילים")
+    await page.getByRole("option", { name: "צרפתית למתחילים (21721600)", exact: true }).click()
+    const card = page.locator("#course-21721600")
+    assert.equal(await card.getByRole("checkbox").count(), 2)
+    await card.getByRole("checkbox", { name: /^קבוצה 01/ }).check()
+    await page.getByText("שעות: 4", { exact: true }).waitFor()
+    assert.equal(await page.evaluate(() => typeof Map.groupBy), "function", "the polyfill supplies groupBy when absent")
+    await card.getByRole("checkbox", { name: /^קבוצה 02/ }).check()
+    await page.getByText("שעות: 8", { exact: true }).waitFor()
+    await card.getByRole("checkbox", { name: /^קבוצה 02/ }).uncheck()
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem("Dib It")).plans[0].courses["2027b"]?.[0]?.groups?.join() === "01")
+    await page.locator("#semester-selector").click()
+    await page.getByRole("option").nth(1).click()
+    await page.getByText("שעות: 4", { exact: true }).waitFor()
+    await page.reload()
+    await page.getByText("שעות: 4", { exact: true }).waitFor()
+    assert.equal(await card.getByRole("checkbox").count(), 2)
+    assert.equal(await page.locator("#schedule-container").getByText("צרפתית למתחילים (שיעור ותרגיל)", { exact: true }).count(), 2)
+    await page.getByRole("button", { name: "פעולות", exact: true }).click()
+    const download = page.waitForEvent("download")
+    await page.getByRole("menuitem", { name: "ייצוא ל-Apple/Google Calendar", exact: true }).click()
+    const chunks = []
+    for await (const chunk of await (await download).createReadStream()) chunks.push(chunk)
+    assert.equal(Buffer.concat(chunks).toString().match(/BEGIN:VEVENT/g)?.length, 2)
+    assert.deepEqual(errors, [])
+    await page.close()
+    console.log(`PASS French ${viewport.width}px: unique groups, four hours, annual switch, reload, calendar download`)
+  }
   for (const semester of ["2026a", "2026b"]) {
     const other = semester === "2026a" ? "2026b" : "2026a"
     const context = await browser.newContext({ viewport: semester.endsWith("a")

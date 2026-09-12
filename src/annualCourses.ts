@@ -1,3 +1,4 @@
+import type { CatalogCourses } from "./catalog"
 import type { DibIt, DibItCourse } from "./models"
 import { lautmanCourses } from "./lautmanCourses"
 import { annualYear } from "./annualRegistry"
@@ -14,24 +15,26 @@ export interface AnnualChange {
 }
 
 const otherSemester = (semester: string) => semester.slice(0, 4) + (semester.endsWith("a") ? "b" : "a")
-const localCourses = (view: DibIt): SemesterCourses =>
-  Object.assign({}, lautmanCourses, ...Object.values(view.customCourses ?? {}))
+// Course IDs already index each source; checking one course must not import every course.
+const localCourse = (view: DibIt, id: string): SemesterCourseInfo | undefined =>
+  Object.values(view.customCourses ?? {}).reduce((course, source) => source[id] ?? course, lautmanCourses[id])
 
 /** Only the official annual-only listing, or an explicit local annual lesson, establishes annual status. */
 export const annualGroupIds = (view: DibIt, semester: string, id: string): string[] => {
-  const local = localCourses(view)
-  if (local[id]) return local[id].groups?.filter(group => group.lessons?.some(lesson => lesson.type === "שנתי"))
-    .flatMap(group => group.group ? [group.group] : []) ?? []
+  const local = localCourse(view, id)
+  // A timing/lecturer conflict cannot revoke an explicitly annual local selection.
+  if (local) return [...new Set((local.groups ?? []).filter(group =>
+    group.group && group.lessons?.some(lesson => lesson.type === "שנתי")).map(group => group.group!))]
   return annualYear(semester.slice(0, 4))?.groups[id] ?? []
 }
 
 /** Availability is separate from annual status: incomplete lesson data cannot revoke an edit. */
-const availableAnnualGroups = (view: DibIt, semester: string, id: string, catalogs: Record<string, SemesterCourses>) => {
-  const local = localCourses(view)[id]
-  const source = local ?? catalogs[semester]?.[id]
-  const target = local ?? catalogs[otherSemester(semester)]?.[id]
+const availableAnnualGroups = (view: DibIt, semester: string, id: string, catalogs: Record<string, CatalogCourses>) => {
+  const local = localCourse(view, id)
+  const source = catalogs[semester]?.[id]
+  const target = catalogs[otherSemester(semester)]?.[id]
   return new Set(annualGroupIds(view, semester, id).filter(group =>
-    source?.groups?.some(item => item.group === group) && target?.groups?.some(item => item.group === group)))
+    local || (source?.groups.has(group) && target?.groups.has(group))))
 }
 
 export const annualChanges = (previous: DibIt["courses"], view: DibIt): AnnualChange[] => {
@@ -43,7 +46,7 @@ export const annualChanges = (previous: DibIt["courses"], view: DibIt): AnnualCh
     const before = old.find(course => course.id === id)
     const after = current.find(course => course.id === id)
     const annual = annualGroupIds(view, semester, id)
-    const awaitingClassification = !localCourses(view)[id] && !annualYear(semester.slice(0, 4))
+    const awaitingClassification = !localCourse(view, id) && !annualYear(semester.slice(0, 4))
     if (!annual.length && !awaitingClassification) return []
     const other = view.courses?.[otherSemester(semester)]?.find(course => course.id === id)
     const candidates = awaitingClassification ? [...new Set([...(before?.groups ?? []), ...(after?.groups ?? []), ...(other?.groups ?? [])])] : annual
@@ -55,13 +58,13 @@ export const annualChanges = (previous: DibIt["courses"], view: DibIt): AnnualCh
   })
 }
 
-export const applyAnnualChanges = (view: DibIt, changes: AnnualChange[], catalogs: Record<string, SemesterCourses>) => {
+export const applyAnnualChanges = (view: DibIt, changes: AnnualChange[], catalogs: Record<string, CatalogCourses>) => {
   let courses = view.courses ?? {}
   const pending: AnnualChange[] = []
   const blocked = new Set<string>()
   for (const change of changes) {
     const annual = new Set(annualGroupIds(view, change.semester, change.id))
-    const classified = !!localCourses(view)[change.id] || !!annualYear(change.semester.slice(0, 4))
+    const classified = !!localCourse(view, change.id) || !!annualYear(change.semester.slice(0, 4))
     if (classified && !annual.size) continue
     const changed = new Set((change.changedGroups ?? [...annual]).filter(group => !classified || annual.has(group)))
     // A corrected classification can retire every group in an older edit.
@@ -96,7 +99,7 @@ export const applyAnnualChanges = (view: DibIt, changes: AnnualChange[], catalog
 }
 
 /** Fill missing courses only. Existing differing selections are never unioned on load. */
-export const reconcileAnnualCourses = (view: DibIt, catalogs: Record<string, SemesterCourses>, pending: AnnualChange[] = []): DibIt["courses"] => {
+export const reconcileAnnualCourses = (view: DibIt, catalogs: Record<string, CatalogCourses>, pending: AnnualChange[] = []): DibIt["courses"] => {
   let courses = view.courses
   if (!courses || !view.semester || !/^\d{4}[ab]$/.test(view.semester)) return courses
   for (const semester of [view.semester, otherSemester(view.semester)]) {

@@ -1,3 +1,4 @@
+import { importSemesterCourses } from "../src/catalog"
 import { describe, expect, test } from "bun:test"
 import JSZip from "jszip"
 import { createCalendar } from "../src/serialize"
@@ -50,7 +51,7 @@ describe("Google and Apple Calendar", () => {
         { moed: "ב", date: "2/9/2026", hour: "09:00", type: "בחינה סופית" },
       ],
     } }
-    const calendar = createCalendar("2026b", selected, catalog, {
+    const calendar = createCalendar("2026b", selected, importSemesterCourses("2026b", catalog), {
       startDate: "2026-03-15", endDate: "2026-07-03",
     }).replace(/\r\n[ \t]/g, "")
     expect(collectExams(selected, catalog)).toHaveLength(5)
@@ -62,7 +63,7 @@ describe("Google and Apple Calendar", () => {
   })
   test("Jerusalem wall time survives DST, includes minutes and inclusive semester boundaries", () => {
     // Semester starts Wednesday; first Sunday is March 22, not three days later.
-    const result = createCalendar("2026b", courses, info, {
+    const result = createCalendar("2026b", courses, importSemesterCourses("2026b", info), {
       startDate: "2026-03-18",
       endDate: "2026-03-29",
     })
@@ -75,7 +76,7 @@ describe("Google and Apple Calendar", () => {
     expect(result).not.toContain("20260405")
   })
   test("missing dates reject promptly; malformed lessons are skipped", () => {
-    expect(() => createCalendar("2026b", courses, info)).toThrow(
+    expect(() => createCalendar("2026b", courses, importSemesterCourses("2026b", info))).toThrow(
       "תאריכי הסמסטר",
     )
     const invalid = {
@@ -93,7 +94,7 @@ describe("Google and Apple Calendar", () => {
       },
     }
     expect(() =>
-      createCalendar("2026b", courses, invalid, {
+      createCalendar("2026b", courses, importSemesterCourses("2026b", invalid), {
         startDate: "2026-03-18",
         endDate: "2026-03-29",
       }),
@@ -103,12 +104,12 @@ describe("Google and Apple Calendar", () => {
     const result = createCalendar(
       "2026b",
       [...courses, ...courses],
-      {
+      importSemesterCourses("2026b", {
         "01234567": {
           groups: [{ group: "01" }],
           exams: [{ date: "27/03/2026", moed: "א" }],
         },
-      },
+      }),
       { startDate: "2026-03-18", endDate: "2026-03-29" },
     )
     expect(result.match(/BEGIN:VEVENT/g)).toHaveLength(1)
@@ -120,9 +121,9 @@ describe("registration Word export", () => {
   test("local Lautman entries never become registration rows or block a Word download", async () => {
     const local = Object.keys(lautmanCourses).map(id => ({ id, groups: ["01"] }))
     const catalog = { ...info, ...lautmanCourses }
-    const rows = getRegistrationRows([...courses, ...local], catalog)
-    expect(rows).toEqual(getRegistrationRows(courses, info))
-    expect(getRegistrationRows(local, catalog)).toEqual([])
+    const rows = getRegistrationRows([...courses, ...local], importSemesterCourses("2027a", catalog))
+    expect(rows).toEqual(getRegistrationRows(courses, importSemesterCourses("2027a", info)))
+    expect(getRegistrationRows(local, importSemesterCourses("2027a", catalog))).toEqual([])
     const download = await createRegistrationDownload(completedDetails("2027a"), rows, catalog, await template())
     expect(download.filename).toEndWith(".doc")
     expect(readSlot(new Uint8Array(await download.blob.arrayBuffer()), "rows.2.name")).toBe("")
@@ -131,7 +132,7 @@ describe("registration Word export", () => {
     expect(
       getRegistrationRows(
         [...courses, ...courses, { id: "missing", groups: ["01"] }],
-        info,
+        importSemesterCourses("2027a", info),
       ),
     ).toEqual([
       { courseId: "01234567", group: "01", name: "מבוא ל-AI & לוגיקה", lessonType: "שיעור" },
@@ -157,7 +158,7 @@ describe("registration Word export", () => {
     const before = new Uint8Array(original.slice(0))
     const file = await fillRegistrationTemplate(original, {
       ...completedDetails("2027a"), studentName: 'בדיקה <שם> & "טקסט"', studentId: "012345678",
-    }, getRegistrationRows(courses, info))
+    }, getRegistrationRows(courses, importSemesterCourses("2027a", info)))
     expect(file.type).toBe("application/msword")
     const result = new Uint8Array(await file.arrayBuffer())
     expect(Array.from(result.slice(0, 8))).toEqual([208,207,17,224,161,177,26,225])
@@ -197,7 +198,7 @@ describe("registration Word export", () => {
     expect(single.filename.endsWith(".doc")).toBe(true)
   })
   test("refuses corrupt templates and only the identity fields the student can fix", async () => {
-    const data = await template(), details = completedDetails("2027a"), rows = getRegistrationRows(courses, info)
+    const data = await template(), details = completedDetails("2027a"), rows = getRegistrationRows(courses, importSemesterCourses("2027a", info))
     const corrupt = data.slice(0); new Uint8Array(corrupt)[100] ^= 1
     await expect(fillRegistrationTemplate(corrupt, details, rows)).rejects.toThrow("תבנית")
     await expect(fillRegistrationTemplate(data, {...details,studentName:"a\u0007b"}, rows)).rejects.toThrow("בקרה")
@@ -209,7 +210,7 @@ describe("registration Word export", () => {
     const data = await template()
     // Reproduces issue #14: a preset four-digit box demanded digits the dialog never asks for.
     const details = {...completedDetails("2027a"), department: "", framework: "9", degree: "\u0007תואר"}
-    const rows = getRegistrationRows(courses, info)
+    const rows = getRegistrationRows(courses, importSemesterCourses("2027a", info))
     const bytes = new Uint8Array(await (await fillRegistrationTemplate(data, details, rows)).arrayBuffer())
     expect(Array.from({length:4}, (_,i) => readSlot(bytes, `department.${i}`)).join("")).toBe("")
     expect(Array.from({length:3}, (_,i) => readSlot(bytes, `rows.0.framework.${i}`)).join("")).toBe("")
@@ -217,7 +218,7 @@ describe("registration Word export", () => {
     expect(readSlot(bytes, "rows.0.name")).toBe("מבוא ל-AI & לוגיקה - (שיעור)")
   })
   test("groups the boxes cannot hold are reported and skipped instead of failing the export", async () => {
-    const rows = getRegistrationRows(courses, info)
+    const rows = getRegistrationRows(courses, importSemesterCourses("2027a", info))
     const unusable = [{courseId:"L1",group:"01",name:"סמינר לאוטמן",lessonType:"שנתי"},{...rows[0],group:"001"}]
     expect(unusable.some(registrationRowFitsForm)).toBe(false)
     const download = await createRegistrationDownload(
@@ -302,7 +303,7 @@ test("all six supplied forms retain their courses, lesson types, departments and
     catalog[row.courseId]!.groups!.push({ group: row.group, lessons: [{type}] })
     selected.push({id: row.courseId, groups: [row.group]})
   }
-  const rows = getRegistrationRows(selected, catalog)
+  const rows = getRegistrationRows(selected, importSemesterCourses("2027a", catalog))
   expect(rows.map(registrationCourseName)).toEqual(expected.map(row => row.name))
   const departments = getRegistrationDepartments(rows, catalog)
   expect(departments["0627"].name).toBe("בלשנות")
@@ -326,7 +327,7 @@ test("all six supplied forms retain their courses, lesson types, departments and
 })
 
 test("missing identity is rejected; missing catalog text stays editable in Word", async () => {
-  const rows = getRegistrationRows(courses, info), data = await template()
+  const rows = getRegistrationRows(courses, importSemesterCourses("2027a", info)), data = await template()
   await expect(fillRegistrationTemplate(data, {...completedDetails("2027a"), studentName: " "}, rows)).rejects.toThrow("שם תלמיד")
   await expect(fillRegistrationTemplate(data, {...completedDetails("2027a"), studentId: ""}, rows)).rejects.toThrow("9")
   const download = await createRegistrationDownload(completedDetails("2027a"), [

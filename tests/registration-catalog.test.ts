@@ -1,3 +1,4 @@
+import { importSemesterCourses } from "../src/catalog"
 import { expect, test } from "bun:test"
 import { getRegistrationRows, registrationCourseName } from "../src/registration"
 import catalog from "./fixtures/registration-catalog-2025b.json"
@@ -10,7 +11,7 @@ test("five supplied forms match the actual catalog, including lesson types", () 
     if (department === "cs") continue
     const rows = getRegistrationRows(expected.map(row => ({
       id: row.courseId, groups: [row.group],
-    })), catalog)
+    })), importSemesterCourses("2027a", catalog))
     expect(rows.map(row => ({
       courseId: row.courseId, group: row.group, name: registrationCourseName(row),
     }))).toEqual(expected.map(({ courseId, group, name }) => ({ courseId, group, name })))
@@ -18,7 +19,7 @@ test("five supplied forms match the actual catalog, including lesson types", () 
 })
 
 test("the catalog takes precedence over the inconsistent computer-science example", () => {
-  const rows = getRegistrationRows([{ id: "03682158", groups: ["09", "17"] }], catalog)
+  const rows = getRegistrationRows([{ id: "03682158", groups: ["09", "17"] }], importSemesterCourses("2027a", catalog))
   expect(rows).toHaveLength(1)
   expect(rows[0].group).toBe("09")
   expect(registrationCourseName(rows[0])).toBe("מבני נתונים - (שיעור)")

@@ -166,7 +166,7 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
           )}
         </div>
       )}
-      {courseInfo[course.id]?.groups?.map((group) => (
+      {[...courseInfo[course.id]?.groups.values() ?? []].map((group) => (
         <div
           key={group.group}
           style={{ display: "flex", alignItems: "center" }}
@@ -175,21 +175,18 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
             aria-label={`קבוצה ${group.group}${annualGroups.includes(group.group!) ? " — שנתית, מסונכרנת בין סמסטר א׳ וב׳" : ""}`}
             styles={{ input: { cursor: "pointer" } }}
             ml={10}
-            checked={course.groups?.includes(group.group!) ?? false}
+            checked={course.groups?.includes(group.group) ?? false}
             onChange={() => {
-              if (!course.groups) {
-                course.groups = []
-              }
-              const index = course.groups.indexOf(group.group!)
-              if (index !== -1) {
-                course.groups.splice(index, 1)
-              } else {
-                course.groups.push(group.group!)
-              }
-              setDibIt({ ...dibIt })
+              const groups = course.groups?.includes(group.group)
+                ? course.groups.filter(id => id !== group.group)
+                : [...course.groups ?? [], group.group]
+              setDibIt({ ...dibIt, courses: { ...dibIt.courses,
+                [semester]: dibIt.courses![semester].map(item => item.id === course.id ? { ...item, groups } : item),
+              } })
             }}
           />
-          {group.group} ({group.lessons?.[0]?.type ?? ""}): {group.lecturer}
+          {group.status === "ready" ? <span>{group.group} ({group.data.lessons?.[0]?.type ?? ""}): {group.data.lecturer}</span>
+            : <span role="status">{group.group}: נתונים סותרים במקור — לא ניתן להציג שיעורים</span>}
           {annualGroups.includes(group.group!) && (
             <Tooltip label="קבוצה שנתית — הבחירה מסונכרנת בין סמסטר א׳ וב׳ באותה מערכת שעות">
               <Badge size="sm" ms={6}>שנתי</Badge>
@@ -197,6 +194,7 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
           )}
         </div>
       ))}
+      {!!courseInfo[course.id]?.unidentifiedGroups.length && <p role="status">במקור מופיעות קבוצות ללא מספר; לא ניתן לבחור אותן.</p>}
       {compactView || (
         <>
           <div dir="ltr">
