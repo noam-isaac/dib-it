@@ -1,3 +1,4 @@
+import { storedWorkspaceSchema, type DibIt } from "./schemas"
 import { importSemesterCourses, type CatalogCourses } from "./catalog"
 import { getLocalStorage, setLocalStorage, useLocalStorage } from "./hooks"
 import { activePlanView, normalizePlans, updateActivePlan, reconcileActivePlan, PlanWorkspace } from "./plans"
@@ -16,18 +17,18 @@ export const cacheSemesterCourses = (semester: string, catalog: SemesterCourses)
   const workspace = getWorkspace()
   if (workspace.semester?.slice(0, 4) !== semester.slice(0, 4)) return imported
   const updated = reconcileActivePlan(workspace, semesterCatalogs)
-  if (JSON.stringify(updated) !== JSON.stringify(workspace)) setLocalStorage("Dib It", updated)
+  if (JSON.stringify(updated) !== JSON.stringify(workspace)) setLocalStorage("Dib It", updated, storedWorkspaceSchema)
   return imported
 }
 
-export const getWorkspace = () => normalizePlans(getLocalStorage<DibIt | PlanWorkspace>("Dib It"))
+export const getWorkspace = () => normalizePlans(getLocalStorage("Dib It", storedWorkspaceSchema, {}))
 export const setWorkspace = (workspace: DibIt | PlanWorkspace) =>
-  setLocalStorage("Dib It", reconcileActivePlan(normalizePlans(workspace), semesterCatalogs))
+  setLocalStorage("Dib It", reconcileActivePlan(normalizePlans(workspace), semesterCatalogs), storedWorkspaceSchema)
 export const getDibIt = () => activePlanView(getWorkspace())
 export const setDibIt = (dibIt: DibIt) =>
-  setLocalStorage("Dib It", updateActivePlan(getWorkspace(), dibIt, semesterCatalogs))
+  setLocalStorage("Dib It", updateActivePlan(getWorkspace(), dibIt, semesterCatalogs), storedWorkspaceSchema)
 export const useWorkspace = () => {
-  const [stored] = useLocalStorage<DibIt | PlanWorkspace>({ key: "Dib It", defaultValue: {}, essential: true })
+  const [stored] = useLocalStorage({ key: "Dib It", schema: storedWorkspaceSchema, defaultValue: {}, essential: true })
   return normalizePlans(stored)
 }
 export const useDibIt = () => {
@@ -35,45 +36,4 @@ export const useDibIt = () => {
   return [activePlanView(workspace), setDibIt] as const
 }
 
-/** The active plan and shared user settings consumed by the app. */
-export interface DibIt {
-  activePlanId?: string
-  /** A mapping from a semester like '2024a' to a mapping from course IDs like '03661111' to course information stored on Dib It. */
-  courses?: Record<string, DibItCourse[]>
-
-  /** The current tab the user's viewing */
-  tab?: string
-  /** The current semester the user's viewing */
-  semester?: string
-  /** The user's currently opened practice courses */
-  openedPracticeCourses?: string[]
-
-  /** The exams the user has already practiced */
-  practicedExams?: {
-    [courseId: string]: string[]
-  }
-
-  /** The school of the user, like 'הפקולטה למדעים מדויקים ע"ש ריימונד ובברלי סאקלר' */
-  school?: string
-  /** The study plan of the user, like 'תוכנית דו-חוגית במתמטיקה ובמדעי המחשב' */
-  studyPlan?: string
-  /** Academic programs saved for quick switching within this schedule. */
-  savedStudyPlans?: { school: string; studyPlan: string }[]
-  /** The degree start year of the user, like "2024" */
-  degreeStartYear?: string
-  /** The user's theme */
-  theme?: string
-  /** The user's custom course sources */
-  customCourses?: Record<string, SemesterCourses>
-}
-
-export interface DibItCourse {
-  /** The course ID like '03661111' */
-  id: string
-  /** The groups the user has selected for this course */
-  groups?: string[]
-  /** The color override the user has selected for this course */
-  color?: string
-  /** The study plan category override the user has selected for this course */
-  studyPlanCategory?: string
-}
+export type { DibIt, DibItCourse } from "./schemas"

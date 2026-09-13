@@ -1,3 +1,5 @@
+import { z } from "zod"
+import { booleanSchema } from "../schemas"
 import { Alert, Button, Group, Modal, Stack, Text } from "@mantine/core"
 import { doc, onSnapshot, runTransaction } from "firebase/firestore"
 import { useEffect, useRef, useState } from "react"
@@ -11,7 +13,7 @@ import { downloadBlob } from "../utilities"
 
 const EnabledGoogleScheduleSync = () => {
   const [user] = useAuthState(auth!)
-  const [automatic] = useLocalStorage<boolean>({ key: "Automatic Google Sync", defaultValue: false })
+  const [automatic] = useLocalStorage({ key: "Automatic Google Sync", schema: booleanSchema, defaultValue: false })
   const [status, setStatus] = useState<SyncStatus>("connecting")
   const [remote, setRemote] = useState<PlanWorkspace | null>(null)
   const [opened, setOpened] = useState(false)
@@ -32,7 +34,8 @@ const EnabledGoogleScheduleSync = () => {
       read: getWorkspace,
       apply: setWorkspace,
       base: () => {
-        const saved = JSON.parse(localStorage.getItem("Dib It Sync") ?? "null")
+        const saved = z.object({ uid: z.string(), base: z.string().nullable().optional() }).nullable().parse(
+          JSON.parse(localStorage.getItem("Dib It Sync") ?? "null") as unknown)
         if (!saved) localStorage.setItem("Dib It Sync", JSON.stringify({ uid }))
         // Switching accounts requires a choice before uploading the previous account's schedules.
         return saved && saved.uid !== uid ? "different-account" : saved?.base

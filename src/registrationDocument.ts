@@ -45,7 +45,7 @@ const cleanText = (value: string) => {
     if (code <= 0x1f || code === 0x7f) cleaned += " "
     else if (code >= 0xd800 && code <= 0xdbff) {
       const next = value.charCodeAt(i + 1)
-      if (next >= 0xdc00 && next <= 0xdfff) cleaned += value[i] + value[++i]
+      if (next >= 0xdc00 && next <= 0xdfff) cleaned += value.charAt(i) + value.charAt(++i)
     } else if (!(code >= 0xdc00 && code <= 0xdfff)) cleaned += value[i]
   }
   return cleaned.replace(/\s+/g, " ").trim()
@@ -96,10 +96,10 @@ const slotValue = (key: string, details: RegistrationDetails, rows: Registration
   if (parts[0] === "rows") {
     const row = rows[Number(parts[1])]
     if (!row) return ""
-    values = { ...row, name: registrationCourseName(row), year: values.year, semesterCode: details.semesterCode, framework: details.framework }
+    values = { ...row, name: registrationCourseName(row), year: values.year ?? "", semesterCode: details.semesterCode, framework: details.framework }
     parts.splice(0, 2)
   }
-  const field = parts[0]
+  const field = parts[0] ?? ""
   const value = values[field] ?? ""
   // Leave a boxed field blank rather than scattering characters the boxes cannot hold.
   if (isRegistrationBoxField(field))
@@ -139,9 +139,9 @@ export const fillRegistrationTemplate = async (
     }
     value = value.padEnd(slot.length, invisiblePadding)
     for (let i = 0; i < slot.length; i++) {
-      const low = slot.offsets[2 * i], high = slot.offsets[2 * i + 1]
+      const low = slot.offsets[2 * i]!, high = slot.offsets[2 * i + 1]!
       const expected = i === 0 ? slot.marker : 0x200b
-      if ((output[low] | (output[high] << 8)) !== expected)
+      if ((output[low]! | (output[high]! << 8)) !== expected)
         error("משבצות הטופס אינן תקינות. רעננו את העמוד ונסו שוב.")
       const code = value.charCodeAt(i)
       output[low] = code & 0xff
@@ -169,7 +169,7 @@ export const createRegistrationDownload = async (
     const formDetails = {
       ...details,
       registeringDepartment: prefix,
-      registeringDepartmentName: department.name,
+      registeringDepartmentName: department?.name ?? "",
     }
     const departmentRows = usable.filter(row => row.courseId.startsWith(prefix))
     for (let i = 0; i < departmentRows.length; i += REGISTRATION_ROWS_PER_FORM) {
@@ -187,7 +187,7 @@ export const createRegistrationDownload = async (
   if (forms.length === 1)
     return {
       filename: `${stem}.doc`,
-      blob: await fillRegistrationTemplate(template, forms[0].details, forms[0].rows, collected),
+      blob: await fillRegistrationTemplate(template, forms[0]!.details, forms[0]!.rows, collected),
       notes: registrationNoteMessages(collected),
     }
   const zip = new JSZip()

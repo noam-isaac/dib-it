@@ -1,3 +1,4 @@
+import { generalInfoSchema } from "./schemas"
 import { assertCatalogSelection, selectedGroups, type CatalogCourses } from "./catalog"
 import * as ics from "ics"
 import dayjs from "dayjs"
@@ -46,7 +47,7 @@ export const createCalendar = (
     add({
       uid: `${semester}-${encodeURIComponent(exam.id)}@dibit`,
       title: `${courseInfo[exam.course.id]?.name ?? exam.course.id} (מועד ${exam.moed})${exam.type ? ` · ${exam.type}` : ""}`,
-      description: exam.hour ? `שעת הבחינה: ${exam.hour}` : undefined,
+      ...(exam.hour ? { description: `שעת הבחינה: ${exam.hour}` } : {}),
       start: [exam.date.getFullYear(), exam.date.getMonth() + 1, exam.date.getDate()],
       duration: { days: 1 },
     })
@@ -101,8 +102,7 @@ export const getICS = async (
   courses: DibItCourse[],
   courseInfo: CatalogCourses,
 ): Promise<string> => {
-  const generalInfo = await cachedFetch<GeneralInfo>(
-    "https://arazim-project.com/data/info.json",
+  const generalInfo = await cachedFetch("https://arazim-project.com/data/info.json", generalInfoSchema,
   )
   return createCalendar(
     semester,

@@ -65,7 +65,7 @@ export const getRegistrationDepartments = (rows: RegistrationRow[], info: Readon
     if (name) names.get(code)!.add(name)
   }
   return Object.fromEntries([...names].map(([code, values]) =>
-    [code, { code, name: values.size === 1 ? [...values][0] : "" }],
+    [code, { code, name: values.size === 1 ? [...values][0]! : "" }],
   ))
 }
 

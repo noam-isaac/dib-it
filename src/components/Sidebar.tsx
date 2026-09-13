@@ -1,3 +1,4 @@
+import { booleanSchema, generalInfoSchema } from "../schemas"
 import { selectedCatalogConflicts } from "../catalog"
 import {
   ActionIcon,
@@ -52,15 +53,16 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
     return () => { cancelAnimationFrame(frame); cancel() }
   }, [catalogReady, courseOptions])
   const [search, setSearch] = useState("")
-  const [compactView, setCompactView] = useLocalStorage<boolean>({
+  const [compactView, setCompactView] = useLocalStorage({
+    schema: booleanSchema,
     key: "Sidebar Compact",
     defaultValue: false,
   })
   const workspace = useWorkspace()
   const dibIt = activePlanView(workspace)
   const activePlan = workspace.plans.find(plan => plan.id === workspace.activePlanId)!
-  const [generalInfo, loadingSemesters, semesterLoad] = useURLValue<GeneralInfo>(
-    "https://arazim-project.com/data/info.json"
+  const [generalInfo, loadingSemesters, semesterLoad] = useURLValue(
+    "https://arazim-project.com/data/info.json", generalInfoSchema
   )
 
   let currentCourses: DibItCourse[] = []
@@ -71,7 +73,7 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
     dibIt.courses !== undefined &&
     dibIt.courses[dibIt.semester] !== undefined
   ) {
-    currentCourses = dibIt.courses[dibIt.semester]
+    currentCourses = dibIt.courses[dibIt.semester] ?? []
   }
   const semester = dibIt.semester ?? ""
   const hasCatalogConflicts = selectedCatalogConflicts(currentCourses, courseInfo).length > 0
@@ -276,8 +278,8 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
             setSearch(courseName)
             return
           }
-          const courseId = split[split.length - 1].split(")")[0]
-          if (courseInfo[courseId] !== undefined) {
+          const courseId = split[split.length - 1]?.split(")")[0]
+          if (courseId && courseInfo[courseId] !== undefined) {
             setSearch("")
             if (currentCourses.some(course => course.id === courseId)) return
             if (!dibIt.courses) {

@@ -1,3 +1,4 @@
+import { semesterCoursesSchema, booleanSchema } from "../schemas"
 import { Button, Select, Switch } from "@mantine/core"
 import { useLocalStorage } from "../hooks"
 import { useState } from "react"
@@ -16,8 +17,8 @@ const Settings = ({ hiddenTabs, onHiddenTabsChange }: {
   const [refreshing, setRefreshing] = useState(false)
   const [refreshFailed, setRefreshFailed] = useState(false)
   const classification = annualYear(dibIt.semester?.slice(0, 4) ?? "")
-  const [compactView, setCompactView] = useLocalStorage<boolean>({
-    key: "Compact View",
+  const [compactView, setCompactView] = useLocalStorage({
+    key: "Compact View", schema: booleanSchema,
     defaultValue: false,
   })
 
@@ -60,7 +61,7 @@ const Settings = ({ hiddenTabs, onHiddenTabsChange }: {
         ]}
         value={dibIt.theme ?? "apple"}
         onChange={(v) => {
-          dibIt.theme = v ?? "apple"
+          dibIt.theme = v === "google" ? "google" : "apple"
           setDibIt({ ...dibIt })
         }}
       />
@@ -68,7 +69,7 @@ const Settings = ({ hiddenTabs, onHiddenTabsChange }: {
         onDrop={async (files) => {
           try {
             const customCourses = Object.fromEntries(await Promise.all(files.map(async file =>
-              [file.name, JSON.parse(await file.text())],
+              [file.name, semesterCoursesSchema.parse(JSON.parse(await file.text()) as unknown)] as const,
             )))
             if (!isScheduleBackup({ customCourses })) throw new Error("קובץ הקורסים אינו תקין.")
             const latest = getDibIt()
@@ -96,8 +97,9 @@ const Settings = ({ hiddenTabs, onHiddenTabsChange }: {
           ml={5}
           rightSection={<i className="fa-solid fa-trash" />}
           onClick={() => {
-            delete dibIt.customCourses![filename]
-            setDibIt({ ...dibIt })
+            const customCourses = { ...dibIt.customCourses }
+            delete customCourses[filename]
+            setDibIt({ ...dibIt, customCourses })
           }}
         >
           {filename}

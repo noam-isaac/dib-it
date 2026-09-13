@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test"
+import { semesterCoursesSchema } from "../src/schemas"
 import { cachedFetch } from "../src/hooks"
 import { isCourseCatalog } from "../src/scheduleBackup"
 
@@ -16,10 +17,10 @@ test("rejected HTTP-200 catalogs are refetched; accepted catalogs are shared and
   }) as typeof fetch
   try {
     const url = "https://test.invalid/validated-catalog"
-    await expect(cachedFetch(url, validate)).rejects.toThrow("Invalid catalog")
-    expect(await Promise.all([cachedFetch(url, validate), cachedFetch(url, validate)])).toEqual([catalog, catalog])
+    await expect(cachedFetch(url, semesterCoursesSchema, validate)).rejects.toThrow()
+    expect(await Promise.all([cachedFetch(url, semesterCoursesSchema, validate), cachedFetch(url, semesterCoursesSchema, validate)])).toEqual([catalog, catalog])
     expect(requests).toBe(2)
-    expect(await cachedFetch(url, validate)).toEqual(catalog)
+    expect(await cachedFetch(url, semesterCoursesSchema, validate)).toEqual(catalog)
     expect(requests).toBe(2)
   } finally {
     globalThis.fetch = original

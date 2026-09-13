@@ -5,7 +5,7 @@ const CACHE_KEY = "Annual Course Registry"
 const SOURCE = "https://www.ims.tau.ac.il/Tal/KR/Search_P.aspx"
 type AnnualYear = { source: string; filter: string; verifiedAt: string; groups: Record<string, string[]> }
 type AnnualFeed = { version: 1; years: Record<string, AnnualYear> }
-const record = (value: unknown): value is Record<string, any> =>
+const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value)
 
 export const isAnnualFeed = (value: unknown): value is AnnualFeed =>
@@ -30,7 +30,7 @@ export const acceptAnnualFeed = (value: unknown) => {
 }
 try {
   const cached = localStorage.getItem(CACHE_KEY)
-  if (cached) acceptAnnualFeed(JSON.parse(cached))
+  if (cached) acceptAnnualFeed(JSON.parse(cached) as unknown)
 } catch { /* Missing, corrupt, or unavailable cache: retain the bundled fallback. */ }
 
 export const annualYear = (year: string) => years[year]

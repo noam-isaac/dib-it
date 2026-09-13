@@ -1,3 +1,4 @@
+import { booleanSchema } from "../schemas"
 import { selectedGroups, selectedCatalogConflicts } from "../catalog"
 import { useColorScheme } from "@mantine/hooks"
 import {
@@ -6,7 +7,7 @@ import {
   ScheduleTheme,
   ScheduleView,
   createTheme,
-} from "react-schedule-view/src"
+} from "react-schedule-view/dist/index"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useLocalStorage } from "../hooks"
 import { useDibIt } from "../models"
@@ -46,7 +47,8 @@ const themes: Record<
 
 const Schedule = () => {
   const courseInfo = useCourseInfo()
-  const [compactView] = useLocalStorage<boolean>({
+  const [compactView] = useLocalStorage({
+    schema: booleanSchema,
     key: "Compact View",
     defaultValue: false,
   })
@@ -71,7 +73,7 @@ const Schedule = () => {
         color: getColor(course),
       }]
     }) : []))
-  const data: DaySchedule[] = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי"].map((name, day) => ({
+  const data: DaySchedule<CalendarEvent & { id: string }>[] = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי"].map((name, day) => ({
     name, events: events.filter(event => event.day === "אבגדהו"[day]),
   }))
   const conflicts = selectedCatalogConflicts(currentCourses, courseInfo)
@@ -97,18 +99,17 @@ const Schedule = () => {
           המערכת וסך השעות חלקיים: נתוני קבוצות {conflicts.join(", ")} סותרים במקור.
           הבחירות נשמרו, אך לא ניתן להציג את השיעורים או לייצא עד לתיקון הנתונים או ביטול הבחירה בקבוצות אלה.
         </p>}
-        <ScheduleView
+        <ScheduleView<CalendarEvent & { id: string }>
           darkMode={colorScheme === "dark"}
           theme={
             compactView
-              ? themes[dibIt.theme ?? "apple"][0]
-              : themes[dibIt.theme ?? "apple"][1]
+              ? (themes[dibIt.theme ?? "apple"] ?? [compactScheduleTheme, wideScheduleTheme])[0]
+              : (themes[dibIt.theme ?? "apple"] ?? [compactScheduleTheme, wideScheduleTheme])[1]
           }
           daySchedules={data}
           viewStartTime={8}
           viewEndTime={20}
           handleEventClick={(event) => {
-            // @ts-ignore
             const id: string = event.id
 
             const card = document.getElementById(`course-${id}`)

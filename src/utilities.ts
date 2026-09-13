@@ -16,12 +16,14 @@ export const SEMESTERS_TO_HEBREW: Record<string, string> = {
 }
 
 export const getClosestValue = (value: number, sortedList: number[]) => {
+  const first = sortedList[0], last = sortedList[sortedList.length - 1]
+  if (first === undefined || last === undefined) return undefined
   // Binary search the last x that is smaller than value
-  if (value <= sortedList[0]) {
-    return sortedList[0]
+  if (value <= first) {
+    return first
   }
-  if (value >= sortedList[sortedList.length - 1]) {
-    return sortedList[sortedList.length - 1]
+  if (value >= last) {
+    return last
   }
 
   let low = 0,
@@ -29,6 +31,7 @@ export const getClosestValue = (value: number, sortedList: number[]) => {
   while (high > low + 1) {
     const middle = Math.floor((low + high) / 2)
     const middleValue = sortedList[middle]
+    if (middleValue === undefined) return undefined
     if (value >= middleValue) {
       low = middle
     } else {
@@ -36,11 +39,13 @@ export const getClosestValue = (value: number, sortedList: number[]) => {
     }
   }
 
-  if (Math.abs(sortedList[low] - value) < Math.abs(sortedList[high] - value)) {
-    return sortedList[low]
+  const lower = sortedList[low], upper = sortedList[high]
+  if (lower === undefined || upper === undefined) return undefined
+  if (Math.abs(lower - value) < Math.abs(upper - value)) {
+    return lower
   }
 
-  return sortedList[high]
+  return upper
 }
 
 export const getColor = (course: DibItCourse): string => {
@@ -100,7 +105,7 @@ export const createScheduleImage = async () => {
   }
 }
 
-export const uploadJson = (): Promise<any> => {
+export const uploadJson = (): Promise<unknown> => {
   return new Promise((resolve, reject) => {
     const element = document.getElementById("upload") as HTMLInputElement
     element.value = ""
@@ -128,7 +133,7 @@ export const formatSemester = (semester: string) =>
   semester.substring(0, 4) + (semester[4] === "a" ? "א'" : "ב'")
 
 export const formatSemesterInHebrew = (semester: string) => {
-  const hebrewSemester = SEMESTERS_TO_HEBREW[semester[4]]
+  const hebrewSemester = SEMESTERS_TO_HEBREW[semester[4] ?? ""]
   const year = parseInt(semester.slice(0, 4), 10)
   const jewishYear = toHebrewJewishDate({
     year: year + 3760,
@@ -140,10 +145,10 @@ export const formatSemesterInHebrew = (semester: string) => {
 
 export const FIRST_SEMESTER = "2023a"
 
-export const parseTime = (value: string) => {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim())
-  if (!match || +match[1] > 23 || +match[2] > 59) return undefined
-  return +match[1] * 60 + +match[2]
+export const parseTime = (value: string | undefined) => {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value?.trim() ?? "")
+  if (!match || Number(match[1]) > 23 || Number(match[2]) > 59) return undefined
+  return Number(match[1]) * 60 + Number(match[2])
 }
 
 export const sumHours = (info: CatalogCourses, view: DibIt) =>
@@ -174,22 +179,22 @@ export const getPastAndPresentCourses = (dibIt: DibIt, until?: string) => {
   for (const s of Object.keys(dibIt.courses ?? {}).sort()) {
     if (until && s > until) break
     if (s === until) {
-      for (const course of dibIt.courses![s]) {
+      for (const course of (dibIt.courses?.[s] ?? [])) {
         pastAndPresentCourses.add(course.id)
       }
       break
     }
 
-    for (const course of dibIt.courses![s]) {
+    for (const course of (dibIt.courses?.[s] ?? [])) {
       pastCourses.add(course.id)
       pastAndPresentCourses.add(course.id)
     }
   }
-  return [pastCourses, pastAndPresentCourses]
+  return [pastCourses, pastAndPresentCourses] as const
 }
 
 export const checkPrerequisites = (
-  prerequisites: SemesterCoursesPrerequisiteCourses | undefined,
+  prerequisites: SemesterCoursesPrerequisiteCourses | null | undefined,
   pastCourses: Set<string>,
   pastAndPresentCourses: Set<string>,
   format?: (courseId: string) => string,
@@ -215,6 +220,7 @@ export const checkPrerequisites = (
         false
       )
     }
+    return undefined
   }
 
   if (prerequisites.parallel) {

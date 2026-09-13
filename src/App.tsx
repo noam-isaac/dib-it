@@ -1,3 +1,4 @@
+import { generalInfoSchema, semesterCoursesSchema, stringArraySchema } from "./schemas"
 import { Autocomplete, Button, Loader, MantineProvider, Select } from "@mantine/core"
 import { useColorScheme } from "@mantine/hooks"
 import { ModalsProvider } from "@mantine/modals"
@@ -27,8 +28,8 @@ const startDateString = `date=${encodeURIComponent(new Date().toDateString())}`
 const App = () => {
   const colorScheme = useColorScheme()
   const [dibIt, setDibIt] = useDibIt()
-  const [hiddenTabs, setHiddenTabs] = useLocalStorage<string[]>({
-    key: "Hidden Tabs",
+  const [hiddenTabs, setHiddenTabs] = useLocalStorage({
+    key: "Hidden Tabs", schema: stringArraySchema,
     defaultValue: [],
   })
   const [catalog, setCatalog] = useState<{ semester: string; courses: CatalogCourses } | null>(null)
@@ -53,19 +54,17 @@ const App = () => {
     const semester = dibIt.semester
     const load = async () => {
       if (!semester) {
-        const info = await cachedFetch<GeneralInfo>("https://arazim-project.com/data/info.json")
+        const info = await cachedFetch("https://arazim-project.com/data/info.json", generalInfoSchema)
         if (!info.currentSemester) throw new Error("Missing current semester")
         if (!cancelled) setDibIt({ ...getDibIt(), semester: info.currentSemester })
         return
       }
-      const result = await cachedFetch<SemesterCourses>(
-        `https://arazim-project.com/data/courses-${semester}.json?${startDateString}`, assertCourseCatalog,
+      const result = await cachedFetch(`https://arazim-project.com/data/courses-${semester}.json?${startDateString}`, semesterCoursesSchema, assertCourseCatalog,
       )
       if (cancelled) return
       setCatalog({ semester, courses: cacheSemesterCourses(semester, { ...result, ...lautmanCourses }) })
       const otherSemester = semester.slice(0, 4) + (semester.endsWith("a") ? "b" : "a")
-      void cachedFetch<SemesterCourses>(
-        `https://arazim-project.com/data/courses-${otherSemester}.json?${startDateString}`, assertCourseCatalog,
+      void cachedFetch(`https://arazim-project.com/data/courses-${otherSemester}.json?${startDateString}`, semesterCoursesSchema, assertCourseCatalog,
       ).then(other => cacheSemesterCourses(otherSemester, other)).catch(() => {})
     }
     void load().catch(() => { if (!cancelled) setLoadError(true) })
@@ -77,7 +76,7 @@ const App = () => {
   }, [])
 
   const shownTabs = visibleTabs(hiddenTabs)
-  const tab = shownTabs.find(({ id }) => id === dibIt.tab)?.id ?? shownTabs[0].id
+  const tab = shownTabs.find(({ id }) => id === dibIt.tab)?.id ?? shownTabs[0]!.id
 
   useEffect(() => {
     if (dibIt.tab && dibIt.tab !== tab) setDibIt({ ...dibIt, tab })

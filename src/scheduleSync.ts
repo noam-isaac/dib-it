@@ -1,3 +1,4 @@
+import { workspaceSchema } from "./schemas"
 import { normalizePlans, type PlanWorkspace } from "./plans"
 import { isScheduleBackup } from "./scheduleBackup"
 
@@ -9,7 +10,7 @@ export const cloudScheduleData = (workspace: PlanWorkspace, uid: string): PlanWo
   const invalid = () => { throw new CloudScheduleError("מבנה הנתונים אינו מתאים לגיבוי בגוגל. הנתונים נשמרו במכשיר ואפשר להוריד גיבוי לקובץ.") }
   const tooLarge = () => { throw new CloudScheduleError("הנתונים חורגים ממגבלת הגיבוי בגוגל (1 MiB). הנתונים נשמרו במכשיר ואפשר להוריד גיבוי לקובץ. הקטינו קטלוגים אישיים או מערכות שמורות לפני ניסיון נוסף.") }
   let data: PlanWorkspace
-  try { data = JSON.parse(JSON.stringify(workspace)) }
+  try { data = workspaceSchema.parse(JSON.parse(JSON.stringify(workspace)) as unknown) }
   catch { return invalid() }
   const size = (value: unknown, depth = 0): number => {
     if (value === null || typeof value === "boolean") return 1
@@ -19,7 +20,7 @@ export const cloudScheduleData = (workspace: PlanWorkspace, uid: string): PlanWo
       return bytes(value)
     }
     if (depth > 20) return invalid()
-    if (Array.isArray(value)) return value.reduce((total, item) => {
+    if (Array.isArray(value)) return (value as unknown[]).reduce<number>((total, item) => {
       if (Array.isArray(item)) invalid()
       return total + size(item, depth + 1)
     }, 0)
@@ -44,8 +45,8 @@ export const readCloudSchedule = (data: unknown): PlanWorkspace | null => {
 export const scheduleKey = (workspace: PlanWorkspace | null): string | null => {
   if (!workspace) return null
   const { tab: _tab, semester: _semester, activePlanId: _active, ...data } = workspace
-  return JSON.stringify(data, (_key, value) => value && typeof value === "object" && !Array.isArray(value)
-    ? Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]])) : value)
+  return JSON.stringify(data, (_key, value: unknown) => value && typeof value === "object" && !Array.isArray(value)
+    ? Object.fromEntries(Object.keys(value).sort().map(key => [key, (value as Record<string, unknown>)[key]])) : value)
 }
 
 export type SyncDecision = "equal" | "upload" | "download" | "conflict"
@@ -60,7 +61,7 @@ export const syncDecision = (local: PlanWorkspace, remote: PlanWorkspace | null,
   }
   if (!remote) return "upload"
   const empty = normalizePlans({})
-  empty.plans[0].courses = local.plans[0].courses && {}
+  empty.plans[0]!.courses = local.plans[0]?.courses && {}
   if (localKey === scheduleKey(empty)) return "download"
   return "conflict"
 }

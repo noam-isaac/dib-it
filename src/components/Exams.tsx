@@ -43,9 +43,9 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
   for (const exam of examDates) {
     (dateToExams[exam.key] ??= []).push(exam)
   }
-  const firstExam = examDates.length > 0 ? examDates[0].date : undefined
+  const firstExam = examDates[0]?.date
   const lastExam =
-    examDates.length > 0 ? examDates[examDates.length - 1].date : undefined
+    examDates[examDates.length - 1]?.date
 
   if (!firstExam) {
     return <Text c="dimmed" my="md">אין מבחנים להצגה. בחרו קבוצות לימוד בקורסים שבמערכת.</Text>
@@ -95,8 +95,10 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
                   {index === 0
                     ? stringifyDate(date)
                     : Math.round(
-                        (date.getTime() - examDates[index - 1].date.getTime()) /
-                          MILLISECONDS_IN_DAY
+                        (date.getTime() -
+                          (examDates[index - 1]?.date.getTime() ??
+                            date.getTime())) /
+                          MILLISECONDS_IN_DAY,
                       )}
                 </div>
               </Tooltip>
@@ -124,7 +126,7 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
         maxLevel="month"
         defaultDate={firstExam}
         minDate={firstExam}
-        maxDate={lastExam}
+        maxDate={lastExam ?? firstExam}
         monthLabelFormat={(m) =>
           `${MONTHS[dayjs(m).month()]} ${dayjs(m).year()}`
         }
@@ -132,7 +134,8 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
         renderDay={(d) => {
           const day = dayjs(d).date()
           const exams = dateToExams[d]
-          if (exams !== undefined) {
+          const first = exams?.[0]
+          if (exams && first) {
             if (exams.length > 1) {
               return (
                 <Tooltip
@@ -158,13 +161,13 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
             } else {
               return (
                 <Tooltip
-                  label={`${courseInfo[exams[0].course.id]?.name} (מועד ${
-                    exams[0].moed
+                  label={`${courseInfo[first.course.id]?.name} (מועד ${
+                    first.moed
                   })`}
                 >
                   <div
                     style={{
-                      backgroundColor: getColor(exams[0].course),
+                      backgroundColor: getColor(first.course),
                       color: "white",
                       width: 30,
                       height: 30,

@@ -1,3 +1,4 @@
+import { allTimeCoursesSchema, gradesSchema } from "../schemas"
 import { ActionIcon, Alert, Loader, Badge, Button, Checkbox, ColorInput, Tooltip } from "@mantine/core"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useURLValue } from "../hooks"
@@ -19,17 +20,19 @@ export interface CourseCardProps {
 }
 
 const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
-  const [allTimeCourseInfo, loadingCourses, courseLoad] = useURLValue<AllTimeCourses>(
-    "https://arazim-project.com/data/courses.json"
+  const [allTimeCourseInfo, loadingCourses, courseLoad] = useURLValue(
+    "https://arazim-project.com/data/courses.json", allTimeCoursesSchema
   )
-  const [gradeInfo, loadingGrades, gradeLoad] = useURLValue<any>(
-    "https://arazim-project.com/data/grades.json"
+  const [gradeInfo, loadingGrades, gradeLoad] = useURLValue(
+    "https://arazim-project.com/data/grades.json", gradesSchema
   )
   const [dibIt, setDibIt] = useDibIt()
-  const course = dibIt.courses![semester][index]
-  const annualGroups = annualGroupIds(dibIt, semester, course.id)
+  const courses = dibIt.courses?.[semester] ?? []
+  const course = courses[index]
 
   const courseInfo = useCourseInfo()
+  if (!course) return null
+  const annualGroups = annualGroupIds(dibIt, semester, course.id)
   if (courseLoad.failed || gradeLoad.failed) return <Alert color="red" role="alert">
     לא ניתן לטעון את פרטי הקורס {course.id}.
     <Button variant="subtle" color="gray" onClick={() => { courseLoad.retry(); gradeLoad.retry() }}>ניסיון נוסף</Button>
@@ -42,10 +45,10 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
 
   let sum = 0
   let count = 0
-  for (const semester in gradeInfo[course.id] ?? {}) {
-    for (const group in gradeInfo[course.id][semester]) {
-      for (const grades of gradeInfo[course.id][semester][group]) {
-        if (grades.mean !== undefined && grades.mean !== 0) {
+  for (const semester of Object.values(gradeInfo[course.id] ?? {})) {
+    for (const group of Object.values(semester)) {
+      for (const grades of group) {
+        if (grades.mean != null && grades.mean !== 0) {
           sum += grades.mean
           count++
         }
@@ -105,15 +108,16 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
               className="fa-solid fa-chevron-up"
               style={{ cursor: "pointer" }}
               onClick={() => {
-                const previous = dibIt.courses![semester][index - 1]
-                const current = dibIt.courses![semester][index]
-                dibIt.courses![semester][index] = previous
-                dibIt.courses![semester][index - 1] = current
+                const previous = courses[index - 1]
+                const current = courses[index]
+                if (!previous || !current) return
+                courses[index] = previous
+                courses[index - 1] = current
                 setDibIt({ ...dibIt })
               }}
             />
           )}
-          {index !== dibIt.courses![semester]?.length - 1 && (
+          {index !== courses.length - 1 && (
             <ActionIcon
               variant="transparent" color={textColor} aria-label="הזזת הקורס למטה"
               className="fa-solid fa-chevron-down"
@@ -121,10 +125,11 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
                 cursor: "pointer",
               }}
               onClick={() => {
-                const next = dibIt.courses![semester][index + 1]
-                const current = dibIt.courses![semester][index]
-                dibIt.courses![semester][index] = next
-                dibIt.courses![semester][index + 1] = current
+                const next = courses[index + 1]
+                const current = courses[index]
+                if (!next || !current) return
+                courses[index] = next
+                courses[index + 1] = current
                 setDibIt({ ...dibIt })
               }}
             />
@@ -136,7 +141,7 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
             className="fa-solid fa-trash"
             style={{ cursor: "pointer" }}
             onClick={() => {
-              dibIt.courses![semester].splice(index, 1)
+              courses.splice(index, 1)
               setDibIt({ ...dibIt })
             }}
           />
@@ -187,7 +192,7 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
                 ? course.groups.filter(id => id !== group.group)
                 : [...course.groups ?? [], group.group]
               setDibIt({ ...dibIt, courses: { ...dibIt.courses,
-                [semester]: dibIt.courses![semester].map(item => item.id === course.id ? { ...item, groups } : item),
+                [semester]: courses.map(item => item.id === course.id ? { ...item, groups } : item),
               } })
             }}
           />
@@ -284,7 +289,7 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
             <input
               type="hidden"
               name="sem"
-              value={SEMESTERS_TO_NUMBER[semester[4]]}
+              value={SEMESTERS_TO_NUMBER[semester.charAt(4)] ?? ""}
             />
             <input type="hidden" name="txtKurs" value={course.id} />
           </form>

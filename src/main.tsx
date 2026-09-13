@@ -1,3 +1,4 @@
+import { z } from "zod"
 import { Button, MantineProvider } from "@mantine/core"
 import { useColorScheme } from "@mantine/hooks"
 import React from "react"
@@ -38,7 +39,7 @@ const handleDeprecation = () => {
 
   if (localStorage.getItem("Dib It")) return
 
-  const data: Record<string, any> = {}
+  const data: Record<string, unknown> = {}
 
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i)!
@@ -49,7 +50,7 @@ const handleDeprecation = () => {
       k.includes("Dib It Serialize") ||
       k === "Semester"
     ) {
-      data[k] = getLocalStorage(k)
+      data[k] = getLocalStorage(k, z.unknown(), undefined)
     }
   }
 
@@ -57,7 +58,7 @@ const handleDeprecation = () => {
     const result: DibIt = {}
     let semester = ""
     if (data["Semester"]) {
-      semester = result.semester = data["Semester"]
+      semester = result.semester = z.string().parse(data["Semester"])
       delete data["Semester"]
     }
     if (data["Courses"]) {
@@ -73,26 +74,26 @@ const handleDeprecation = () => {
       delete data["Colors"]
     }
     if (data["School (Dib It Serialize)"]) {
-      result.school = data["School (Dib It Serialize)"]
+      result.school = z.string().parse(data["School (Dib It Serialize)"])
     }
     if (data["Study Plan (Dib It Serialize)"]) {
-      result.studyPlan = data["Study Plan (Dib It Serialize)"]
+      result.studyPlan = z.string().parse(data["Study Plan (Dib It Serialize)"])
     }
 
     const keys = Object.keys(data).sort()
     for (const key of keys) {
       if (key.startsWith("Courses")) {
-        const semester = key.split(" ")[1]
-        const courses = data[key]
+        const semester = key.split(" ")[1] ?? ""
+        const courses = z.array(z.string()).parse(data[key])
         const groupsKey = `Groups ${semester}`
-        let groups: any = {}
+        let groups: Record<string, string[]> = {}
         if (data[groupsKey]) {
-          groups = data[groupsKey]
+          groups = z.record(z.string(), z.array(z.string())).parse(data[groupsKey])
         }
         const colorsKey = `Colors ${semester}`
-        let colors: any = {}
+        let colors: Record<string, string> = {}
         if (data[colorsKey]) {
-          colors = data[colorsKey]
+          colors = z.record(z.string(), z.string()).parse(data[colorsKey])
         }
 
         if (!result.courses) {
@@ -105,7 +106,7 @@ const handleDeprecation = () => {
 
         for (const course of courses) {
           const courseDict: DibItCourse = { id: course }
-          result.courses[semester].push(courseDict)
+          result.courses[semester]!.push(courseDict)
           if (groups[course]) {
             courseDict.groups = groups[course]
           }
@@ -130,7 +131,12 @@ const handleDeprecation = () => {
   }
 }
 
-handleDeprecation()
+let migrationError: unknown
+try { handleDeprecation() } catch (error) { migrationError = error }
+const InitializedApp = () => {
+  if (migrationError) throw migrationError
+  return <App />
+}
 
 const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
   const colorScheme = useColorScheme()
@@ -212,7 +218,7 @@ const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <App />
+      <InitializedApp />
     </ErrorBoundary>
   </React.StrictMode>
 )

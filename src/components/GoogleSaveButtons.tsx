@@ -1,3 +1,4 @@
+import { booleanSchema } from "../schemas"
 import { Group, Menu, Text, Tooltip } from "@mantine/core"
 import { notifications } from "@mantine/notifications"
 import { doc, getDoc, setDoc } from "firebase/firestore"
@@ -12,7 +13,7 @@ import { openScheduleRestore } from "./RestoreScheduleModal"
 const EnabledGoogleSaveButtons = () => {
   const [currentUser] = useAuthState(auth!)
   const [busy, setBusy] = useState(false)
-  const [automatic, setAutomatic] = useLocalStorage<boolean>({ key: "Automatic Google Sync", defaultValue: false })
+  const [automatic, setAutomatic] = useLocalStorage({ key: "Automatic Google Sync", schema: booleanSchema, defaultValue: false })
   if (!currentUser) return null
 
   const restore = async () => {
