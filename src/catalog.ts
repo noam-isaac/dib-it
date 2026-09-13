@@ -4,7 +4,7 @@ import { isCourseCatalog } from "./scheduleBackup"
 
 export type CourseDetails = Omit<SemesterCourseInfo, "groups">
 type GroupRecord = Readonly<Omit<SemesterCourseGroupInfo, "lessons">> & {
-  readonly lessons?: readonly Readonly<SemesterCourseGroupLessonInfo>[]
+  readonly lessons?: readonly Readonly<SemesterCourseGroupLessonInfo>[] | undefined
 }
 export type CatalogGroup = { readonly group: string } & (
   | { readonly status: "ready"; readonly data: GroupRecord }
@@ -44,8 +44,8 @@ export const importSemesterCourses = (semester: string, source: unknown): Catalo
     ...course,
     semester,
     groups: new Map([...Map.groupBy((course.groups ?? []).filter(row => !!row.group), row => row.group!).entries()]
-      .map(([group, records]): [string, CatalogGroup] => [group, records.every(row => sameGroup(records[0], row))
-        ? { group, status: "ready", data: records[0] }
+      .map(([group, records]): [string, CatalogGroup] => [group, records.every(row => sameGroup(records[0]!, row))
+        ? { group, status: "ready", data: records[0]! }
         : { group, status: "conflict", records }])),
     unidentifiedGroups: (course.groups ?? []).filter(row => !row.group),
   }]))

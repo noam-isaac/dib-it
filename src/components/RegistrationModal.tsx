@@ -61,7 +61,7 @@ const RegistrationModal = ({
             ].join(" "),
             style: { direction: "rtl" },
             color: notes.length ? "yellow" : "green",
-            autoClose: notes.length ? false : undefined,
+            ...(notes.length ? { autoClose: false as const } : {}),
           })
         } catch (error) {
           notifications.show({

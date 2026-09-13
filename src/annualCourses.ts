@@ -5,13 +5,14 @@ import { annualYear } from "./annualRegistry"
 
 /** Durable intent while the matching semester catalog is unavailable. null means remove. */
 export interface AnnualChange {
+  [key: string]: unknown
   semester: string
   id: string
   groups: string[] | null
   /** Only these annual groups were edited. Absent in older backups that stored whole selections. */
-  changedGroups?: string[]
+  changedGroups?: string[] | undefined
   /** The edit predates this year's classification; filter its delta once data arrives. */
-  awaitingClassification?: true
+  awaitingClassification?: true | undefined
 }
 
 const otherSemester = (semester: string) => semester.slice(0, 4) + (semester.endsWith("a") ? "b" : "a")

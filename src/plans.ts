@@ -1,17 +1,11 @@
 import type { CatalogCourses } from "./catalog"
 import type { DibIt } from "./models"
-import { annualChanges, applyAnnualChanges, reconcileAnnualCourses, type AnnualChange } from "./annualCourses"
+import { annualChanges, applyAnnualChanges, reconcileAnnualCourses } from "./annualCourses"
 
-type PlanData = Pick<DibIt, "courses" | "school" | "studyPlan" | "savedStudyPlans" | "degreeStartYear">
-export interface SchedulePlan extends PlanData {
-  id: string
-  name: string
-  pendingAnnualChanges?: AnnualChange[]
-}
-export interface PlanWorkspace extends Omit<DibIt, keyof PlanData | "activePlanId"> {
-  plans: SchedulePlan[]
-  activePlanId: string
-}
+import { z } from "zod"
+import { schedulePlanSchema, workspaceSchema } from "./schemas"
+export type SchedulePlan = Pick<z.infer<typeof schedulePlanSchema>, keyof typeof schedulePlanSchema.shape>
+export type PlanWorkspace = Pick<z.infer<typeof workspaceSchema>, keyof typeof workspaceSchema.shape>
 
 /** Legacy schedules become the first plan without losing any semesters. */
 export const normalizePlans = (data: DibIt | PlanWorkspace): PlanWorkspace => {
@@ -78,7 +72,7 @@ export const renamePlan = (workspace: PlanWorkspace, id: string, name: string): 
 export const deletePlan = (workspace: PlanWorkspace, id: string): PlanWorkspace => {
   if (workspace.plans.length <= 1) return workspace
   const plans = workspace.plans.filter(plan => plan.id !== id)
-  return { ...workspace, plans, activePlanId: workspace.activePlanId === id ? plans[0].id : workspace.activePlanId }
+  return { ...workspace, plans, activePlanId: workspace.activePlanId === id ? plans[0]!.id : workspace.activePlanId }
 }
 
 export const saveStudyPlan = (view: DibIt): DibIt => {

@@ -5,7 +5,7 @@ import type { DibItCourse } from "./models"
 export const parseDateString = (value?: string): Date | undefined => {
   const match = value?.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
   if (!match) return
-  const [, day, month, year] = match.map(Number)
+  const day = Number(match[1]), month = Number(match[2]), year = Number(match[3])
   const date = new Date(year, month - 1, day)
   if (
     date.getFullYear() !== year ||
@@ -83,5 +83,5 @@ export const filterExamDates = (
 ) => {
   if (!start && !end) return exams
   const [from, to] = [start || end, end || start].sort()
-  return exams.filter((exam) => exam.key >= from && exam.key <= to)
+  return exams.filter((exam) => exam.key >= from! && exam.key <= to!)
 }

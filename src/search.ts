@@ -36,7 +36,11 @@ export const searchItems = <T extends { label: string }>(items: T[], search: str
   const numbers = search.match(/\d+/g) ?? []
   const textQuery = search.replace(/\d+/g, " ").trim()
   if (!textQuery) return items.filter(item => numbers.every(number => item.label.includes(number))).slice(0, limit)
-  return prepareSearch(items).search(textQuery).map(result => items[result.id])
+  return prepareSearch(items).search(textQuery).flatMap(result => {
+    const id: unknown = result.id
+    const item = typeof id === "number" ? items[id] : undefined
+    return item ? [item] : []
+  })
     .filter(item => numbers.every(number => item.label.includes(number))).slice(0, limit)
 }
 

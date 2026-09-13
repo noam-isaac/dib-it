@@ -1,4 +1,8 @@
 import {
+  biddingSchema,
+  facultyPointsSchema,
+} from "../schemas"
+import {
   ActionIcon,
   Alert,
   Text,
@@ -13,9 +17,10 @@ import { cachedFetch, useLocalStorage } from "../hooks"
 import { DibItCourse } from "../models"
 
 const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
-  const [facultyPoints, setFacultyPoints] = useLocalStorage<
-    { faculty: string; points?: number }[]
-  >({ key: "Auto Bid Faculty Points", defaultValue: [] })
+  const [facultyPoints, setFacultyPoints] = useLocalStorage({
+    schema: facultyPointsSchema,
+    key: "Auto Bid Faculty Points", defaultValue: [],
+  })
   const [loading, setLoading] = useState(false)
   const [possibleFaculties, setPossibleFaculties] = useState<Record<string, string[]>>({})
   const [error, setError] = useState("")
@@ -52,7 +57,9 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
             disabled={loading}
             value={faculty}
             onChange={(e) => {
-              facultyPoints[index].faculty = e.currentTarget.value
+              const point = facultyPoints[index]
+              if (!point) return
+              point.faculty = e.currentTarget.value
               setFacultyPoints([...facultyPoints])
             }}
           />
@@ -63,10 +70,12 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
             aria-label="נקודות בבידינג"
             disabled={loading}
             allowDecimal={false}
-            value={points}
+            value={points ?? ""}
             min={0}
             onChange={(v) => {
-              facultyPoints[index].points =
+              const point = facultyPoints[index]
+              if (!point) return
+              point.points =
                 typeof v === "number" ? v : undefined
               setFacultyPoints([...facultyPoints])
             }}
@@ -111,14 +120,14 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
                 label={faculty}
                 display="inline-block"
                 key={facultyIndex}
-                checked={possibleFaculties[courseId].includes(faculty)}
+                checked={possibleFaculties[courseId]?.includes(faculty) ?? false}
                 onChange={(e) => {
                   if (e.currentTarget.checked) {
-                    possibleFaculties[courseId].push(faculty)
+                    ;(possibleFaculties[courseId] ??= []).push(faculty)
                   } else {
-                    possibleFaculties[courseId] = possibleFaculties[
-                      courseId
-                    ].filter((x) => x !== faculty)
+                    possibleFaculties[courseId] = (
+                      possibleFaculties[courseId] ?? []
+                    ).filter((x) => x !== faculty)
                   }
                   setPossibleFaculties({ ...possibleFaculties })
                   setResults({})
@@ -142,8 +151,8 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
           setError("")
           setResults({})
           try {
-            const allTimeBiddingInfo = await cachedFetch<AllTimeBiddingInfo>(
-              "https://arazim-project.com/data/bidding.json"
+            const allTimeBiddingInfo = await cachedFetch(
+              "https://arazim-project.com/data/bidding.json", biddingSchema
             )
             let newPossibleFaculties
             if (Object.keys(possibleFaculties).length === 0) {
@@ -181,8 +190,8 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
         .map((faculty, facultyIndex) => (
           <div key={facultyIndex} style={{ marginTop: 10, whiteSpace: "pre" }}>
             <h3>מסלול: {faculty}</h3>
-            {Object.keys(results[faculty])
-              .map((course) => `${course}: ${results[faculty][course]} נקודות`)
+            {Object.keys(results[faculty] ?? {})
+              .map((course) => `${course}: ${results[faculty]?.[course]} נקודות`)
               .join("\n")}
           </div>
         ))}

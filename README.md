@@ -165,3 +165,7 @@ bunx vercel alias set <ready-preview-url> preview.dib-it.noam-isaac.com
 Keep Vercel preview protection enabled. Share a temporary Vercel access link when needed. Preview currently uses the same Firebase project as production: signed-in schedule edits affect that account's cloud data. Use synthetic accounts with the emulator for automated tests.
 
 See the Google compatibility section above for optional Firebase configuration.
+
+TypeScript standards: `bun run typecheck` checks the application and Vite configuration with strict optional-property and indexed-access checks. `bun run lint` rejects explicit `any` in TypeScript files and unsafe `any` usage in application code. Both run as part of `bun run build`; `bun run check` also runs the existing unit and browser suites.
+
+Use Zod schemas in `src/schemas.ts` when reading stored data or fetching JSON. Workspace validation retains saved plans, pending annual changes, and custom metadata. Invalid workspace data stays available for recovery; malformed display preferences use their existing defaults.
