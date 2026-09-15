@@ -264,3 +264,21 @@ The notes below record earlier checks against https://arazim-project.com/dib-it/
 - All 32 unit tests and the production TypeScript/Vite build pass. Four separate Firestore emulator integration tests pass.
 - The build still reports the existing large main-bundle warning. The DOC export module and its 151 kB template load only when requested.
 - At that revision, lint could not run because ESLint 9 lacked an `eslint.config.*`. The fork review fixes above restore the command.
+
+## Exports across deployments (2026-09-15)
+
+Word and image exporters use eager imports. Vite embeds the original Word template
+with its `?inline` asset handling, so an already-loaded page can export without
+requesting JavaScript or the template from a newer deployment. Form fields remain
+in React memory; there is no update manager, forced reload, or draft storage.
+HTML is served with `Cache-Control: no-cache`.
+
+`bun run test:deployments` builds two production versions, opens and fills a form
+on A, then replaces the served files with B and verifies A's entry now returns 404.
+Desktop DOC and mobile multi-department ZIP, PNG, and clipboard exports must still
+work with the entered name intact, no navigation, no late JS/template requests,
+and no storage changes. The existing export tests verify the document contents.
+
+This protects pages that load this implementation, not tabs running an older
+release. It does not eliminate a deployment race during the initial HTML-to-JS
+load or remove the app's live catalog and sync network dependencies.

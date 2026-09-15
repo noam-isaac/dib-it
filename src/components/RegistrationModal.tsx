@@ -10,6 +10,7 @@ import {
 } from "@mantine/core"
 import { notifications } from "@mantine/notifications"
 import { useState } from "react"
+import { createRegistrationDownload } from "../registrationDocument"
 import type { DibItCourse } from "../models"
 import { getRegistrationDepartments, getRegistrationRows, registrationDefaults, registrationRowFitsForm } from "../registration"
 import { downloadBlob, formatSemesterInHebrew } from "../utilities"
@@ -47,8 +48,6 @@ const RegistrationModal = ({
         event.preventDefault()
         setBusy(true)
         try {
-          const { createRegistrationDownload } =
-            await import("../registrationDocument")
           const { filename, blob, notes } = await createRegistrationDownload(details, rows, info)
           downloadBlob(filename, blob)
           notifications.show({

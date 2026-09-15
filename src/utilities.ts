@@ -1,3 +1,4 @@
+import { toBlob } from "html-to-image"
 import { toHebrewJewishDate } from "jewish-date"
 import hash from "./color-hash"
 import { DibIt, DibItCourse } from "./models"
@@ -92,7 +93,6 @@ export const createScheduleImage = async () => {
     const tiles = [...copy.querySelectorAll<HTMLElement>(':scope > div > div[style*="display: grid"] > div')]
     const ratio = Math.max(1, ...tiles.map(tile => tile.scrollHeight / Math.max(1, tile.clientHeight)))
     copy.style.setProperty("--schedule-hour-height", `${Math.ceil(100 * ratio) + 8}px`)
-    const { toBlob } = await import("html-to-image")
     const blob = await toBlob(copy, {
       pixelRatio: 2,
       backgroundColor: matchMedia("(prefers-color-scheme: dark)").matches ? "#222" : "#fff",

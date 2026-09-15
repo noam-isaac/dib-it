@@ -12,7 +12,7 @@ import {
 } from "./registration"
 
 export const REGISTRATION_ROWS_PER_FORM = 14
-const templateUrl = new URL("./assets/registration-template.doc", import.meta.url).href
+const templateUrl = new URL("./assets/registration-template.doc?inline", import.meta.url).href
 const invisiblePadding = "\u200b"
 const error = (message: string): never => { throw new Error(message) }
 
