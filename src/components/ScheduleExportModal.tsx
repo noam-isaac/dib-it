@@ -1,13 +1,11 @@
 import { Button, Stack, Text } from "@mantine/core"
 import { useState } from "react"
 import { createScheduleImage, downloadBlob } from "../utilities"
-import { completeAssetLoad, isUpdateLoadError, useUpdateResume } from "../appUpdates"
 
-export default function ScheduleExportModal({ semester, planId }: { semester: string; planId: string }) {
+export default function ScheduleExportModal({ semester }: { semester: string }) {
   const [working, setWorking] = useState(false)
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
-  useUpdateResume({ kind: "image", planId, semester }, working)
   const exportImage = async (copy: boolean) => {
     setWorking(true)
     setError("")
@@ -27,14 +25,12 @@ export default function ScheduleExportModal({ semester, planId }: { semester: st
         downloadBlob(`dibit-${semester}.png`, await createScheduleImage())
         setMessage("התמונה נשמרה.")
       }
-      completeAssetLoad()
     } catch (error) {
-      if (isUpdateLoadError(error)) return
       setError(error instanceof Error && error.name !== "NotAllowedError" ? error.message
         : "לא ניתן להעתיק ללוח. אפשר לנסות שוב או לבחור בשמירה כתמונה.")
     } finally { setWorking(false) }
   }
-  return <Stack dir="rtl" className="dont-print" data-update-resumable>
+  return <Stack dir="rtl" className="dont-print">
     <Button variant="default" disabled={working} onClick={() => window.print()}>הדפסה / PDF</Button>
     <Button variant="default" disabled={working} onClick={() => exportImage(true)}>העתקת תמונה</Button>
     <Button variant="default" disabled={working} onClick={() => exportImage(false)}>שמירת תמונה (PNG)</Button>

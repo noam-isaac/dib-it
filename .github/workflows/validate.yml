@@ -41,5 +41,5 @@ jobs:
         run: bun run test:browser
       - name: Annual scraper self-test
         run: python3 scripts/refresh-annual-courses.py --self-test
-      - name: Open-tab recovery across production builds
-        run: bun run test:updates
+      - name: Exports across production deployments
+        run: bun run test:deployments

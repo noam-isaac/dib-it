@@ -20,8 +20,6 @@ export interface RegistrationDetails {
   framework: string
 }
 
-export class RegistrationTemplateLoadError extends Error {}
-
 export const registrationDefaults = (
   semester: string,
 ): RegistrationDetails => ({

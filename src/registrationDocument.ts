@@ -7,13 +7,12 @@ import {
   isRegistrationBoxField,
   registrationCourseName,
   registrationRowFitsForm,
-  RegistrationTemplateLoadError,
   type RegistrationDetails,
   type RegistrationRow,
 } from "./registration"
 
 export const REGISTRATION_ROWS_PER_FORM = 14
-const templateUrl = new URL("./assets/registration-template.doc", import.meta.url).href
+const templateUrl = new URL("./assets/registration-template.doc?inline", import.meta.url).href
 const invisiblePadding = "\u200b"
 const error = (message: string): never => { throw new Error(message) }
 
@@ -180,11 +179,9 @@ export const createRegistrationDownload = async (
     }
   }
   if (!template) {
-    try {
-      const response = await fetch(templateUrl)
-      if (!response.ok) throw new Error("Template unavailable")
-      template = await response.arrayBuffer()
-    } catch { throw new RegistrationTemplateLoadError("לא ניתן לטעון את הטופס המקורי. נסו שוב.") }
+    const response = await fetch(templateUrl)
+    if (!response.ok) error("לא ניתן לטעון את הטופס המקורי. נסו שוב.")
+    template = await response.arrayBuffer()
   }
   const stem = `dibit-registration-${details.academicYear}-${details.semesterCode}`
   if (forms.length === 1)

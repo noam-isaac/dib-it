@@ -1,5 +1,4 @@
 import { generalInfoSchema, semesterCoursesSchema, stringArraySchema } from "./schemas"
-import { startAppUpdates } from "./appUpdates"
 import { Autocomplete, Button, Loader, MantineProvider, Select } from "@mantine/core"
 import { useColorScheme } from "@mantine/hooks"
 import { ModalsProvider } from "@mantine/modals"
@@ -27,7 +26,6 @@ import { assertCourseCatalog, importSemesterCourses, selectedCatalogConflicts, t
 const startDateString = `date=${encodeURIComponent(new Date().toDateString())}`
 
 const App = () => {
-  useEffect(startAppUpdates, [])
   const colorScheme = useColorScheme()
   const [dibIt, setDibIt] = useDibIt()
   const [hiddenTabs, setHiddenTabs] = useLocalStorage({

@@ -31,7 +31,6 @@ import RegistrationModal from "./RegistrationModal"
 import PlanSelector from "./PlanSelector"
 import ScheduleExportModal from "./ScheduleExportModal"
 import { downloadWorkspaceBackup, openScheduleRestore } from "./RestoreScheduleModal"
-import { clearUpdateResume, readUpdateResume, type UpdateResume } from "../appUpdates"
 
 const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
   const courseInfo = useCourseInfo()
@@ -79,28 +78,6 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
   const semester = dibIt.semester ?? ""
   const hasCatalogConflicts = selectedCatalogConflicts(currentCourses, courseInfo).length > 0
   const selectedIds = new Set(currentCourses.map(course => course.id))
-
-  const openRegistration = (resume?: UpdateResume) => modals.open({
-    modalId: "registration", title: "טופס רישום לקורסים", size: "lg", centered: true,
-    onClose: clearUpdateResume,
-    children: <RegistrationModal planId={activePlan.id} planName={activePlan.name}
-      semester={semester} courses={currentCourses} info={courseInfo} {...(resume ? { resume } : {})} />,
-  })
-  const openImageExport = () => modals.open({
-    modalId: "image-export", title: "איך לייצא את מערכת השעות?", centered: true,
-    onClose: clearUpdateResume,
-    children: <ScheduleExportModal planId={activePlan.id} semester={semester} />,
-  })
-  useEffect(() => {
-    if (!catalogReady || hasCatalogConflicts) return
-    const resume = readUpdateResume()
-    if (!resume) return
-    if (resume.planId === activePlan.id && resume.semester === semester) {
-      if (resume.kind === "registration") openRegistration(resume)
-      else openImageExport()
-    }
-    clearUpdateResume()
-  }, [catalogReady, hasCatalogConflicts, activePlan.id, semester])
 
   return (
     <div
@@ -233,7 +210,21 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
 
               disabled={!catalogReady || hasCatalogConflicts}
               leftSection={<i className="fa-solid fa-file-word" aria-hidden="true" />}
-              onClick={() => openRegistration()}
+              onClick={() =>
+                modals.open({
+                  title: "טופס רישום לקורסים",
+                  size: "lg",
+                  centered: true,
+                  children: (
+                    <RegistrationModal
+                      planName={activePlan.name}
+                      semester={semester}
+                      courses={currentCourses}
+                      info={courseInfo}
+                    />
+                  ),
+                })
+              }
             >
               יצירת טופס רישום ב-Word
             </Menu.Item>
@@ -243,7 +234,8 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
 
               onClick={() => {
                 if (dibIt.tab && dibIt.tab !== "schedule") return window.print()
-                openImageExport()
+                modals.open({ title: "איך לייצא את מערכת השעות?", centered: true,
+                  children: <ScheduleExportModal semester={semester} /> })
               }}
             >
               {(!dibIt.tab || dibIt.tab === "schedule") ? "ייצוא ל־PDF או לתמונה" : "הדפסה/שמירה כ-PDF"}

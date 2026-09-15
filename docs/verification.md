@@ -264,25 +264,21 @@ The notes below record earlier checks against https://arazim-project.com/dib-it/
 - All 32 unit tests and the production TypeScript/Vite build pass. Four separate Firestore emulator integration tests pass.
 - The build still reports the existing large main-bundle warning. The DOC export module and its 151 kB template load only when requested.
 - At that revision, lint could not run because ESLint 9 lacked an `eslint.config.*`. The fork review fixes above restore the command.
-## Open-tab deployment recovery (2026-09-15)
 
-The production build emits a fresh `version.json` identifier. Returning to a visible tab
-checks it without using a cached response. Idle pages reload; open dialogs and unfinished
-input receive one update notice. The app also listens for Vite's documented
-`vite:preloadError`; Word-template fetch failures enter the same recovery flow.
+## Exports across deployments (2026-09-15)
 
-Before an accepted update, registration details or the image-export chooser are saved in
-`sessionStorage`, scoped to the active plan and semester. The dialog is restored after its
-catalog is ready and the temporary recovery record is removed. Other dialogs must be
-finished first; an in-flight export or failed storage write prevents the reload. Schedule
-writes already persist synchronously. Reload attempts are bounded to one per target build
-in that tab, and offline or malformed version responses never trigger a reload.
+Word and image exporters use eager imports. Vite embeds the original Word template
+with its `?inline` asset handling, so an already-loaded page can export without
+requesting JavaScript or the template from a newer deployment. Form fields remain
+in React memory; there is no update manager, forced reload, or draft storage.
+HTML is served with `Cache-Control: no-cache`.
 
-`bun run test:updates` builds two production versions and switches the served directory
-while the old page remains open. It verifies idle updates, mobile registration prompts,
-restored details and DOC bytes, PNG/copy recovery, missing templates, bounded retries,
-in-flight exports, offline/malformed responses, blocked storage, other dialogs and search.
-This check runs in CI and in `bun run check` alongside the existing browser regressions.
+`bun run test:deployments` builds two production versions, opens and fills a form
+on A, then replaces the served files with B and verifies A's entry now returns 404.
+Desktop DOC and mobile multi-department ZIP, PNG, and clipboard exports must still
+work with the entered name intact, no navigation, no late JS/template requests,
+and no storage changes. The existing export tests verify the document contents.
 
-Preview/release verification must include an old page across a deployment, as well as a
-fresh visit. Tabs predating this handler need one initial manual reload to acquire it.
+This protects pages that load this implementation, not tabs running an older
+release. It does not eliminate a deployment race during the initial HTML-to-JS
+load or remove the app's live catalog and sync network dependencies.
