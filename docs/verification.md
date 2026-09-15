@@ -264,3 +264,25 @@ The notes below record earlier checks against https://arazim-project.com/dib-it/
 - All 32 unit tests and the production TypeScript/Vite build pass. Four separate Firestore emulator integration tests pass.
 - The build still reports the existing large main-bundle warning. The DOC export module and its 151 kB template load only when requested.
 - At that revision, lint could not run because ESLint 9 lacked an `eslint.config.*`. The fork review fixes above restore the command.
+## Open-tab deployment recovery (2026-09-15)
+
+The production build emits a fresh `version.json` identifier. Returning to a visible tab
+checks it without using a cached response. Idle pages reload; open dialogs and unfinished
+input receive one update notice. The app also listens for Vite's documented
+`vite:preloadError`; Word-template fetch failures enter the same recovery flow.
+
+Before an accepted update, registration details or the image-export chooser are saved in
+`sessionStorage`, scoped to the active plan and semester. The dialog is restored after its
+catalog is ready and the temporary recovery record is removed. Other dialogs must be
+finished first; an in-flight export or failed storage write prevents the reload. Schedule
+writes already persist synchronously. Reload attempts are bounded to one per target build
+in that tab, and offline or malformed version responses never trigger a reload.
+
+`bun run test:updates` builds two production versions and switches the served directory
+while the old page remains open. It verifies idle updates, mobile registration prompts,
+restored details and DOC bytes, PNG/copy recovery, missing templates, bounded retries,
+in-flight exports, offline/malformed responses, blocked storage, other dialogs and search.
+This check runs in CI and in `bun run check` alongside the existing browser regressions.
+
+Preview/release verification must include an old page across a deployment, as well as a
+fresh visit. Tabs predating this handler need one initial manual reload to acquire it.

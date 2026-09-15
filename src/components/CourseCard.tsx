@@ -210,6 +210,7 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
         <>
           <div dir="ltr">
             <ColorInput
+              data-update-persisted
               mt="xs"
               size="md"
               value={courseColor}

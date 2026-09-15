@@ -11,23 +11,31 @@ import {
 import { notifications } from "@mantine/notifications"
 import { useState } from "react"
 import type { DibItCourse } from "../models"
-import { getRegistrationDepartments, getRegistrationRows, registrationDefaults, registrationRowFitsForm } from "../registration"
+import { getRegistrationDepartments, getRegistrationRows, registrationDefaults, registrationRowFitsForm, RegistrationTemplateLoadError } from "../registration"
+import { clearUpdateResume, completeAssetLoad, isUpdateLoadError, recoverAssetLoad, useUpdateResume, type UpdateResume } from "../appUpdates"
 import { downloadBlob, formatSemesterInHebrew } from "../utilities"
 import { lautmanCourses } from "../lautmanCourses"
 
 const RegistrationModal = ({
+  planId,
+  resume,
   planName,
   semester,
   courses,
   info,
 }: {
+  planId: string
+  resume?: UpdateResume
   planName: string
   semester: string
   courses: DibItCourse[]
   info: CatalogCourses
 }) => {
-  const [details, setDetails] = useState(() => registrationDefaults(semester))
+  const [details, setDetails] = useState(() => ({ ...registrationDefaults(semester),
+    studentName: resume?.studentName ?? "", studentId: resume?.studentId ?? "",
+  }))
   const [busy, setBusy] = useState(false)
+  useUpdateResume({ kind: "registration", planId, semester, studentName: details.studentName, studentId: details.studentId }, busy)
   const rows = getRegistrationRows(courses, info)
   const localCourses = courses.filter(course => Object.prototype.hasOwnProperty.call(lautmanCourses, course.id))
   // Groups the original form has no boxes for are shown as such instead of failing the download.
@@ -42,6 +50,7 @@ const RegistrationModal = ({
   })
   return (
     <form
+      data-update-resumable
       dir="rtl"
       onSubmit={async (event) => {
         event.preventDefault()
@@ -51,6 +60,8 @@ const RegistrationModal = ({
             await import("../registrationDocument")
           const { filename, blob, notes } = await createRegistrationDownload(details, rows, info)
           downloadBlob(filename, blob)
+          clearUpdateResume()
+          completeAssetLoad()
           notifications.show({
             title: "הטופס מוכן",
             message: [
@@ -64,6 +75,8 @@ const RegistrationModal = ({
             ...(notes.length ? { autoClose: false as const } : {}),
           })
         } catch (error) {
+          if (isUpdateLoadError(error)) return
+          if (import.meta.env.PROD && error instanceof RegistrationTemplateLoadError) { recoverAssetLoad(); return }
           notifications.show({
             title: "יצירת הטופס נכשלה",
             message: error instanceof Error ? error.message : "נסו שוב.",
@@ -106,7 +119,7 @@ const RegistrationModal = ({
           />
         </Group>
         <Text size="xs" c="dimmed">
-          הפרטים האישיים אינם נשמרים באתר.
+          הפרטים אינם נשלחים לשרת. לצורך עדכון האתר הם נשמרים זמנית בלשונית ונמחקים לאחר שחזור הטופס.
         </Text>
         {formRows.length > 0 && (
           <>
