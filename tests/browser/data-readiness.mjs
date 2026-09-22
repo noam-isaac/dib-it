@@ -24,7 +24,7 @@ try {
   ])
   page.on("pageerror", error => errors.push(error.message))
   await page.route("**/*", route => new URL(route.request().url()).origin === url ? route.continue() : route.abort())
-  await page.route("https://arazim-project.com/data/**", route => {
+  await page.route("**/data/**", route => {
     const file = new URL(route.request().url()).pathname.split("/").pop()
     if (pending.has(file)) { pending.get(file).resolve(route); return }
     return route.fulfill({ json: file === "info.json" ? { currentSemester: "2026a", semesters: { "2024a": {}, "2025a": {}, "2026a": {} } } : catalog })

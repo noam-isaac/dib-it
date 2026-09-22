@@ -25,7 +25,7 @@ try {
   page.on("pageerror", error => errors.push(error.message))
   await page.route("**/*", async route => {
     const url = new URL(route.request().url())
-    if (url.hostname === "127.0.0.1") return route.continue()
+    if (url.hostname === "127.0.0.1" && !url.pathname.startsWith("/data/")) return route.continue()
     const filename = url.pathname.split("/").pop()
     if (filename === "courses-2026a.json") await catalogGate
     if (filename === "courses.json" || filename === "grades.json") metadataRequests.push(filename)

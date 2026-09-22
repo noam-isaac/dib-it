@@ -54,17 +54,17 @@ const App = () => {
     const semester = dibIt.semester
     const load = async () => {
       if (!semester) {
-        const info = await cachedFetch("https://arazim-project.com/data/info.json", generalInfoSchema)
+        const info = await cachedFetch("/data/info.json", generalInfoSchema)
         if (!info.currentSemester) throw new Error("Missing current semester")
         if (!cancelled) setDibIt({ ...getDibIt(), semester: info.currentSemester })
         return
       }
-      const result = await cachedFetch(`https://arazim-project.com/data/courses-${semester}.json?${startDateString}`, semesterCoursesSchema, assertCourseCatalog,
+      const result = await cachedFetch(`/data/courses-${semester}.json?${startDateString}`, semesterCoursesSchema, assertCourseCatalog,
       )
       if (cancelled) return
       setCatalog({ semester, courses: cacheSemesterCourses(semester, { ...result, ...lautmanCourses }) })
       const otherSemester = semester.slice(0, 4) + (semester.endsWith("a") ? "b" : "a")
-      void cachedFetch(`https://arazim-project.com/data/courses-${otherSemester}.json?${startDateString}`, semesterCoursesSchema, assertCourseCatalog,
+      void cachedFetch(`/data/courses-${otherSemester}.json?${startDateString}`, semesterCoursesSchema, assertCourseCatalog,
       ).then(other => cacheSemesterCourses(otherSemester, other)).catch(() => {})
     }
     void load().catch(() => { if (!cancelled) setLoadError(true) })

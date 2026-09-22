@@ -20,7 +20,7 @@ from pathlib import Path
 
 BASE = "https://www.ims.tau.ac.il/Tal/KR/"
 ROOT = Path(__file__).resolve().parents[1]
-CATALOG_INFO = "https://arazim-project.com/data/info.json"
+CATALOG_INFO = "https://dib-it.noam-isaac.com/data/info.json"
 
 
 def offered_years(info, first_semester):

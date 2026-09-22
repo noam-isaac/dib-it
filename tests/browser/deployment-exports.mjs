@@ -67,7 +67,7 @@ try {
     const errors = []
     page.on("pageerror", error => errors.push(error.message))
     await page.route("**/*", route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort())
-    await page.route("https://arazim-project.com/data/**", route => {
+    await page.route("**/data/**", route => {
       const file = new URL(route.request().url()).pathname.split("/").pop()
       return route.fulfill({ json: file === "info.json" ? { currentSemester: "2026a", semesters: {
         "2026a": { startDate: "2025-10-26", endDate: "2026-01-25" } } } : file === "courses-2026a.json" ? catalog : {} })

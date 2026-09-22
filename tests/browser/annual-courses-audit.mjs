@@ -23,7 +23,7 @@ try {
     let recovered = false
     const loaded = new Promise(resolve => { completed = resolve })
     await page.route("**/*", route => new URL(route.request().url()).origin === new URL(process.env.DIBIT_TEST_URL ?? `http://127.0.0.1:${server.httpServer.address().port}`).origin ? route.continue() : route.abort())
-    await page.route("https://arazim-project.com/data/**", async route => {
+    await page.route("**/data/**", async route => {
       const filename = new URL(route.request().url()).pathname.split("/").pop()
       if (filename === "courses-2026b.json") {
         if (scenario.startsWith("delayed") || scenario.endsWith("while pending")) await delayed

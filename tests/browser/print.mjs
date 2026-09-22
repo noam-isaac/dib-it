@@ -38,7 +38,7 @@ try {
     page.on("pageerror", error => errors.push(error.message))
     await page.route("**/*", route => {
       const url = new URL(route.request().url())
-      if (url.hostname === "127.0.0.1") return route.continue()
+      if (url.hostname === "127.0.0.1" && !url.pathname.startsWith("/data/")) return route.continue()
       return route.fulfill({ json: url.pathname.endsWith("info.json")
         ? { currentSemester: "2026a", semesters: { "2026a": {} } }
         : url.pathname.includes("courses-") ? catalog : {} })

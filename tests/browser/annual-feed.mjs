@@ -17,7 +17,7 @@ try {
   let pendingFeed, failFeed = false
   await page.route("**/*", route => {
     const url = new URL(route.request().url())
-    if (url.hostname === "127.0.0.1") return route.continue()
+    if (url.hostname === "127.0.0.1" && !url.pathname.startsWith("/data/")) return route.continue()
     if (url.hostname === "raw.githubusercontent.com") {
       if (failFeed) return route.fulfill({ json: { version: 999, years: {} } })
       pendingFeed = route

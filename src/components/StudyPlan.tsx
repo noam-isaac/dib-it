@@ -43,11 +43,11 @@ const StudyPlan = () => {
   const savedIndex = savedStudyPlans.findIndex(plan =>
     plan.school === dibIt.school && plan.studyPlan === dibIt.studyPlan)
   const [allTimeCourseInfo, loadingAllTimeCourseInfo, courseLoad] =
-    useURLValue("https://arazim-project.com/data/courses.json", allTimeCoursesSchema)
+    useURLValue("/data/courses.json", allTimeCoursesSchema)
   const [generalInfo, loadingSemesters, semesterLoad] = useURLValue(
-    "https://arazim-project.com/data/info.json", generalInfoSchema
+    "/data/info.json", generalInfoSchema
   )
-  const [plans, loadingPlans, planLoad] = useURLValue(dibIt.degreeStartYear ? `https://arazim-project.com/data/plans-${dibIt.degreeStartYear}.json` : null, semesterPlansSchema)
+  const [plans, loadingPlans, planLoad] = useURLValue(dibIt.degreeStartYear ? `/data/plans-${dibIt.degreeStartYear}.json` : null, semesterPlansSchema)
   const dataReady = !loadingAllTimeCourseInfo && !loadingSemesters && !loadingPlans && !courseLoad.failed && !semesterLoad.failed && !planLoad.failed
   const planOptions = Object.entries(plans).flatMap(([school, programs]) =>
     Object.keys(programs ?? {}).sort().map(studyPlan => ({

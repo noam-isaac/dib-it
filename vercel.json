@@ -4,6 +4,9 @@
   "installCommand": "bun install --frozen-lockfile",
   "buildCommand": "bun run build",
   "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/data/:path*", "destination": "https://tau-tools.vercel.app/data/:path*" }
+  ],
   "headers": [
     { "source": "/", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
     { "source": "/index.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }

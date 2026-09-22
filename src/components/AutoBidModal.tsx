@@ -152,7 +152,7 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
           setResults({})
           try {
             const allTimeBiddingInfo = await cachedFetch(
-              "https://arazim-project.com/data/bidding.json", biddingSchema
+              "/data/bidding.json", biddingSchema
             )
             let newPossibleFaculties
             if (Object.keys(possibleFaculties).length === 0) {

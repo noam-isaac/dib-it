@@ -32,7 +32,7 @@ const PracticeInfo = ({
   semester: string
   gradeInfo: Partial<Grades>
 }) => {
-  const [source, loadingSemesterInfo, semesterLoad] = useURLValue(`https://arazim-project.com/data/courses-${semester}.json`, semesterCoursesSchema, assertCourseCatalog,
+  const [source, loadingSemesterInfo, semesterLoad] = useURLValue(`/data/courses-${semester}.json`, semesterCoursesSchema, assertCourseCatalog,
   )
 
   const semesterInfo = useMemo(() => importSemesterCourses(semester, source), [semester, source])
@@ -113,10 +113,10 @@ const PracticeInfo = ({
 const Practice = () => {
   const courseInfo = useCourseInfo()
   const [allTimeCourseInfo, loadingCourses, courseLoad] = useURLValue(
-    "https://arazim-project.com/data/courses.json", allTimeCoursesSchema
+    "/data/courses.json", allTimeCoursesSchema
   )
   const [gradeInfo, loadingGrades, gradeLoad] = useURLValue(
-    "https://arazim-project.com/data/grades.json", gradesSchema
+    "/data/grades.json", gradesSchema
   )
 
   const [dibIt, setDibIt] = useDibIt()

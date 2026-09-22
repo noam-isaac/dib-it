@@ -21,10 +21,10 @@ export interface CourseCardProps {
 
 const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
   const [allTimeCourseInfo, loadingCourses, courseLoad] = useURLValue(
-    "https://arazim-project.com/data/courses.json", allTimeCoursesSchema
+    "/data/courses.json", allTimeCoursesSchema
   )
   const [gradeInfo, loadingGrades, gradeLoad] = useURLValue(
-    "https://arazim-project.com/data/grades.json", gradesSchema
+    "/data/grades.json", gradesSchema
   )
   const [dibIt, setDibIt] = useDibIt()
   const courses = dibIt.courses?.[semester] ?? []

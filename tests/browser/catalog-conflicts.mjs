@@ -24,7 +24,7 @@ try {
     page.on("pageerror", error => errors.push(error.message))
     let corrected = false
     await page.route("**/*", route => new URL(route.request().url()).origin === url ? route.continue() : route.abort())
-    await page.route("https://arazim-project.com/data/**", route => {
+    await page.route("**/data/**", route => {
       const filename = new URL(route.request().url()).pathname.split("/").pop()
       const json = filename === "info.json" ? { currentSemester: semester, semesters: { [semester]: {} } }
         : filename === `courses-${semester}.json` ? { ...source,

@@ -25,8 +25,8 @@ try {
     page.on("request", request => requests.push(request.url()))
     await page.route("**/*", route => {
       const url = new URL(route.request().url())
-      if (url.hostname === "127.0.0.1") return route.continue()
-      if (url.hostname !== "arazim-project.com") return route.abort()
+      if (url.hostname === "127.0.0.1" && !url.pathname.startsWith("/data/")) return route.continue()
+      if (!url.pathname.startsWith("/data/")) return route.abort()
       const filename = url.pathname.split("/").pop()
       if (failed && filename === failedResource) return route.fulfill({ status: 503, body: "Unavailable" })
       if (failedPlan && filename === "plans-2026.json") return route.fulfill({ status: 503, body: "Unavailable" })

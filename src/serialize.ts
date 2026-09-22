@@ -102,7 +102,7 @@ export const getICS = async (
   courses: DibItCourse[],
   courseInfo: CatalogCourses,
 ): Promise<string> => {
-  const generalInfo = await cachedFetch("https://arazim-project.com/data/info.json", generalInfoSchema,
+  const generalInfo = await cachedFetch("/data/info.json", generalInfoSchema,
   )
   return createCalendar(
     semester,

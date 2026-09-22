@@ -62,7 +62,7 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
   const dibIt = activePlanView(workspace)
   const activePlan = workspace.plans.find(plan => plan.id === workspace.activePlanId)!
   const [generalInfo, loadingSemesters, semesterLoad] = useURLValue(
-    "https://arazim-project.com/data/info.json", generalInfoSchema
+    "/data/info.json", generalInfoSchema
   )
 
   let currentCourses: DibItCourse[] = []

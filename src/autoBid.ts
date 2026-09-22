@@ -8,7 +8,7 @@ export const getPossibleFaculties = async (
   bidding?: AllTimeBiddingInfo
 ) => {
   bidding ??= await cachedFetch(
-    "https://arazim-project.com/data/bidding.json", biddingSchema
+    "/data/bidding.json", biddingSchema
   )
 
   const facultyPointsMap: Record<string, number> = {}
@@ -52,7 +52,7 @@ const autoBid = async (
   bidding?: AllTimeBiddingInfo
 ) => {
   bidding ??= await cachedFetch(
-    "https://arazim-project.com/data/bidding.json", biddingSchema
+    "/data/bidding.json", biddingSchema
   )
 
   const facultyPointsMap: Record<string, number> = {}

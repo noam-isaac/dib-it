@@ -19,7 +19,7 @@ try {
     page.on("console", message => { if (message.text().includes("same key")) errors.push(message.text()) })
     const url = process.env.DIBIT_TEST_URL ?? `http://127.0.0.1:${server.httpServer.address().port}`
     await page.route("**/*", route => new URL(route.request().url()).origin === new URL(url).origin ? route.continue() : route.abort())
-    await page.route("https://arazim-project.com/data/**", route => {
+    await page.route("**/data/**", route => {
       const filename = new URL(route.request().url()).pathname.split("/").pop()
       const json = filename === "info.json" ? {
         currentSemester: "2027a", semesters: Object.fromEntries(["2027a", "2027b"].map(semester => [
@@ -75,7 +75,7 @@ try {
     let release
     const delayed = new Promise(resolve => { release = resolve })
     await page.route("**/*", route => new URL(route.request().url()).origin === new URL(process.env.DIBIT_TEST_URL ?? `http://127.0.0.1:${server.httpServer.address().port}`).origin ? route.continue() : route.abort())
-    await page.route("https://arazim-project.com/data/**", async route => {
+    await page.route("**/data/**", async route => {
       const filename = new URL(route.request().url()).pathname.split("/").pop()
       if (filename === `courses-${other}.json`) await delayed
       const json = filename === "info.json" ? {
