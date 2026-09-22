@@ -1,3 +1,4 @@
+import { dataUrls } from "../dataUrls"
 import { allTimeCoursesSchema, booleanSchema, generalInfoSchema, semesterPlansSchema } from "../schemas"
 import { isCourseScheduled } from "../exams"
 import {
@@ -43,11 +44,11 @@ const StudyPlan = () => {
   const savedIndex = savedStudyPlans.findIndex(plan =>
     plan.school === dibIt.school && plan.studyPlan === dibIt.studyPlan)
   const [allTimeCourseInfo, loadingAllTimeCourseInfo, courseLoad] =
-    useURLValue("/data/courses.json", allTimeCoursesSchema)
+    useURLValue(dataUrls.courses, allTimeCoursesSchema)
   const [generalInfo, loadingSemesters, semesterLoad] = useURLValue(
-    "/data/info.json", generalInfoSchema
+    dataUrls.info, generalInfoSchema
   )
-  const [plans, loadingPlans, planLoad] = useURLValue(dibIt.degreeStartYear ? `/data/plans-${dibIt.degreeStartYear}.json` : null, semesterPlansSchema)
+  const [plans, loadingPlans, planLoad] = useURLValue(dibIt.degreeStartYear ? dataUrls.plans(dibIt.degreeStartYear) : null, semesterPlansSchema)
   const dataReady = !loadingAllTimeCourseInfo && !loadingSemesters && !loadingPlans && !courseLoad.failed && !semesterLoad.failed && !planLoad.failed
   const planOptions = Object.entries(plans).flatMap(([school, programs]) =>
     Object.keys(programs ?? {}).sort().map(studyPlan => ({

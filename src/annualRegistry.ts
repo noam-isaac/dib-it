@@ -1,6 +1,7 @@
+import { dataUrls } from "./dataUrls"
 import bundled from "./annualGroups.json"
 
-export const ANNUAL_FEED_URL = "https://raw.githubusercontent.com/noam-isaac/dib-it/annual-data/annual-groups.json"
+export const ANNUAL_FEED_URL = dataUrls.annual
 const CACHE_KEY = "Annual Course Registry"
 const SOURCE = "https://www.ims.tau.ac.il/Tal/KR/Search_P.aspx"
 type AnnualYear = { source: string; filter: string; verifiedAt: string; groups: Record<string, string[]> }

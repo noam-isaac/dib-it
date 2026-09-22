@@ -1,3 +1,4 @@
+import { dataUrls } from "./dataUrls"
 import { generalInfoSchema } from "./schemas"
 import { assertCatalogSelection, selectedGroups, type CatalogCourses } from "./catalog"
 import * as ics from "ics"
@@ -102,7 +103,7 @@ export const getICS = async (
   courses: DibItCourse[],
   courseInfo: CatalogCourses,
 ): Promise<string> => {
-  const generalInfo = await cachedFetch("/data/info.json", generalInfoSchema,
+  const generalInfo = await cachedFetch(dataUrls.info, generalInfoSchema,
   )
   return createCalendar(
     semester,

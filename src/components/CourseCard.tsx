@@ -1,3 +1,4 @@
+import { dataUrls } from "../dataUrls"
 import { allTimeCoursesSchema, gradesSchema } from "../schemas"
 import { ActionIcon, Alert, Loader, Badge, Button, Checkbox, ColorInput, Tooltip } from "@mantine/core"
 import { useCourseInfo } from "../CourseInfoContext"
@@ -21,10 +22,10 @@ export interface CourseCardProps {
 
 const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
   const [allTimeCourseInfo, loadingCourses, courseLoad] = useURLValue(
-    "/data/courses.json", allTimeCoursesSchema
+    dataUrls.courses, allTimeCoursesSchema
   )
   const [gradeInfo, loadingGrades, gradeLoad] = useURLValue(
-    "/data/grades.json", gradesSchema
+    dataUrls.grades, gradesSchema
   )
   const [dibIt, setDibIt] = useDibIt()
   const courses = dibIt.courses?.[semester] ?? []

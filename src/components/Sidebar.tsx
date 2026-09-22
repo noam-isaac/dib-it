@@ -1,3 +1,4 @@
+import { dataUrls } from "../dataUrls"
 import { booleanSchema, generalInfoSchema } from "../schemas"
 import { selectedCatalogConflicts } from "../catalog"
 import {
@@ -62,7 +63,7 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
   const dibIt = activePlanView(workspace)
   const activePlan = workspace.plans.find(plan => plan.id === workspace.activePlanId)!
   const [generalInfo, loadingSemesters, semesterLoad] = useURLValue(
-    "/data/info.json", generalInfoSchema
+    dataUrls.info, generalInfoSchema
   )
 
   let currentCourses: DibItCourse[] = []

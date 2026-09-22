@@ -1,3 +1,4 @@
+import { dataUrls } from "../dataUrls"
 import {
   biddingSchema,
   facultyPointsSchema,
@@ -152,7 +153,7 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
           setResults({})
           try {
             const allTimeBiddingInfo = await cachedFetch(
-              "/data/bidding.json", biddingSchema
+              dataUrls.bidding, biddingSchema
             )
             let newPossibleFaculties
             if (Object.keys(possibleFaculties).length === 0) {

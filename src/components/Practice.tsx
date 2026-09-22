@@ -1,3 +1,4 @@
+import { dataUrls } from "../dataUrls"
 import { useMemo } from "react"
 import { assertCourseCatalog, importSemesterCourses } from "../catalog"
 import {
@@ -32,7 +33,7 @@ const PracticeInfo = ({
   semester: string
   gradeInfo: Partial<Grades>
 }) => {
-  const [source, loadingSemesterInfo, semesterLoad] = useURLValue(`/data/courses-${semester}.json`, semesterCoursesSchema, assertCourseCatalog,
+  const [source, loadingSemesterInfo, semesterLoad] = useURLValue(dataUrls.semesterCourses(semester), semesterCoursesSchema, assertCourseCatalog,
   )
 
   const semesterInfo = useMemo(() => importSemesterCourses(semester, source), [semester, source])
@@ -113,10 +114,10 @@ const PracticeInfo = ({
 const Practice = () => {
   const courseInfo = useCourseInfo()
   const [allTimeCourseInfo, loadingCourses, courseLoad] = useURLValue(
-    "/data/courses.json", allTimeCoursesSchema
+    dataUrls.courses, allTimeCoursesSchema
   )
   const [gradeInfo, loadingGrades, gradeLoad] = useURLValue(
-    "/data/grades.json", gradesSchema
+    dataUrls.grades, gradesSchema
   )
 
   const [dibIt, setDibIt] = useDibIt()
