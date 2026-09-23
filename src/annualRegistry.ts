@@ -1,5 +1,4 @@
 import { dataUrls } from "./dataUrls"
-import bundled from "./annualGroups.json"
 
 export const ANNUAL_FEED_URL = dataUrls.annual
 const CACHE_KEY = "Annual Course Registry"
@@ -19,7 +18,7 @@ export const isAnnualFeed = (value: unknown): value is AnnualFeed =>
       /^\d{8}$/.test(id) && Array.isArray(groups) && groups.length > 0 &&
       groups.every(group => typeof group === "string" && /^\d{2}$/.test(group))))
 
-let years: Record<string, AnnualYear> = { ...bundled }
+let years: Record<string, AnnualYear> = {}
 /** Preserve missing years and reject rollback; a refreshed year replaces its old classification. */
 export const acceptAnnualFeed = (value: unknown) => {
   if (!isAnnualFeed(value)) throw new Error("Invalid annual-course feed")
@@ -32,7 +31,7 @@ export const acceptAnnualFeed = (value: unknown) => {
 try {
   const cached = localStorage.getItem(CACHE_KEY)
   if (cached) acceptAnnualFeed(JSON.parse(cached) as unknown)
-} catch { /* Missing, corrupt, or unavailable cache: retain the bundled fallback. */ }
+} catch { /* Without validated cached data, classification stays unknown until the feed arrives. */ }
 
 export const annualYear = (year: string) => years[year]
 export const refreshAnnualFeed = async () => {

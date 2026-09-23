@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { chromium, firefox, webkit } from "playwright"
 import { createServer } from "vite"
@@ -33,6 +34,7 @@ try {
       localStorage.setItem("Dib It Fork Intro Seen", "true")
       localStorage.setItem("Dib It", JSON.stringify({ semester, courses: selections, tab }))
     }, { semester, selections, tab })
+    await prepareAnnualFeed(page)
     await page.goto(url)
     return page
   }

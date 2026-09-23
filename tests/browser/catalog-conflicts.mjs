@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import { chromium, firefox, webkit } from "playwright"
@@ -38,6 +39,7 @@ try {
         courses: { [semester]: [{ id, groups: [group] }, { id: "21721600", groups: ["01"] }] },
       }))
     }, { semester, id, group })
+    await prepareAnnualFeed(page)
     await page.goto(url)
     await page.getByText("שעות: 4 (חלקי)", { exact: true }).waitFor()
     await page.locator("#schedule-container").getByRole("alert").waitFor()

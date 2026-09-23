@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import { chromium, firefox, webkit } from "playwright"
@@ -40,6 +41,7 @@ try {
       localStorage.setItem("Dib It Fork Intro Seen", "true")
       if (!localStorage.getItem("Dib It")) localStorage.setItem("Dib It", JSON.stringify({ semester, tab: "schedule" }))
     }, semester)
+    await prepareAnnualFeed(page)
     await page.goto(url)
     await page.getByPlaceholder("חיפוש קורסים להוספה").fill("צרפתית למתחילים")
     await page.getByRole("option", { name: "צרפתית למתחילים (21721600)", exact: true }).click()

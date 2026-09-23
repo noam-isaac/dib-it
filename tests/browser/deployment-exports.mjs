@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -82,6 +83,7 @@ try {
         window.copiedImageSize = blob.size
       } } })
     }, width === 390)
+    await prepareAnnualFeed(page)
     await page.goto(origin)
     await page.locator("#course-01234567").waitFor()
     await choose(page, "יצירת טופס רישום ב-Word")

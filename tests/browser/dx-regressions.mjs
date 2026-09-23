@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { chromium } from "playwright"
 import { createServer } from "vite"
@@ -43,6 +44,7 @@ try {
         courses: { "2026a": [{ id: "12345678", groups: ["01"] }] },
       }))
     })
+    await prepareAnnualFeed(page)
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
     await page.getByRole("alert").filter({ hasText: "לא ניתן לטעון" }).waitFor()
     // Backup remains reachable even if the current catalog failed.

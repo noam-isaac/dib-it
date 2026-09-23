@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { chromium } from "playwright"
 import { createServer } from "vite"
@@ -43,6 +44,7 @@ try {
     localStorage.setItem("Dib It Fork Intro Seen", "true")
     localStorage.setItem("Dib It", JSON.stringify(state))
   }, initial)
+  await prepareAnnualFeed(page)
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
 
   await page.getByRole("button", { name: "פעולות", exact: true }).click()

@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import { chromium } from "playwright"
@@ -33,6 +34,7 @@ try {
       localStorage.setItem("Dib It Fork Intro Seen", "true")
       if (!localStorage.getItem("Dib It")) localStorage.setItem("Dib It", JSON.stringify({ semester: "2027a", tab: "schedule" }))
     }, viewport.width === 390)
+    await prepareAnnualFeed(page)
     await page.goto(url)
     await page.getByPlaceholder("חיפוש קורסים להוספה").fill("צרפתית למתחילים")
     await page.getByRole("option", { name: "צרפתית למתחילים (21721600)", exact: true }).click()
@@ -87,6 +89,7 @@ try {
       localStorage.setItem("Dib It Fork Intro Seen", "true")
       localStorage.setItem("Dib It", JSON.stringify({ semester, tab: "schedule", courses: {} }))
     }, semester)
+    await prepareAnnualFeed(page)
     await page.goto(process.env.DIBIT_TEST_URL ?? `http://127.0.0.1:${server.httpServer.address().port}`)
     await page.getByPlaceholder("חיפוש קורסים להוספה").fill("פרויקט שטח שנתי")
     await page.getByRole("option", { name: "פרויקט שטח שנתי (10313103)", exact: true }).click()

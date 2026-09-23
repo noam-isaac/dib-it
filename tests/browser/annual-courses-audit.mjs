@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import { chromium } from "playwright"
@@ -46,6 +47,7 @@ try {
       if (!localStorage.getItem("Dib It")) localStorage.setItem("Dib It", JSON.stringify(initial))
     }, initial)
     try {
+      await prepareAnnualFeed(page)
       await page.goto(process.env.DIBIT_TEST_URL ?? `http://127.0.0.1:${server.httpServer.address().port}`)
       await page.locator("#course-10313103").getByRole("checkbox").waitFor()
       if (scenario === "delayed deselection") {

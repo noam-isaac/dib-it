@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { chromium } from "playwright"
 import { createServer } from "vite"
@@ -75,6 +76,7 @@ try {
     return route.abort()
   })
   await page.addInitScript(state => localStorage.setItem("Dib It", JSON.stringify(state)), initial)
+  await prepareAnnualFeed(page)
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
   await page.getByRole("button", { name: "למערכת השעות", exact: true }).click()
   const menu = async () => page.getByRole("button", { name: "פעולות", exact: true }).click()

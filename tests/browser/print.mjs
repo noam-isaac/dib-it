@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { mkdir, readFile } from "node:fs/promises"
 import { chromium, firefox, webkit } from "playwright"
@@ -51,6 +52,7 @@ try {
       window.printEvents = 0
       addEventListener("beforeprint", () => window.printEvents++)
     }, { theme, compact: width === 390, ids: Object.keys(catalog) })
+    await prepareAnnualFeed(page)
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
     await page.locator("#schedule-container").getByText(`${catalog["22222222"].name} (שיעור)`, { exact: true }).waitFor()
     const assertTimeOnRight = async () => {

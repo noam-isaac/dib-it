@@ -7,6 +7,5 @@ export const dataUrls = {
   bidding: `${DATA_BASE_URL}bidding.json`,
   semesterCourses: (semester: string) => `${DATA_BASE_URL}courses-${semester}.json`,
   plans: (year: string) => `${DATA_BASE_URL}plans-${year}.json`,
-  // Legacy annual feed; generation still needs migrating to TAU Tools.
-  annual: "https://raw.githubusercontent.com/noam-isaac/dib-it/annual-data/annual-groups.json",
+  annual: `${DATA_BASE_URL}annual-groups.json`,
 }

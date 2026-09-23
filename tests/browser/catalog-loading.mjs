@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { chromium, firefox, webkit } from "playwright"
 import { createServer } from "vite"
@@ -61,6 +62,7 @@ try {
       await page.locator("#semester-selector").click()
       await page.getByRole("option").nth(semesters.indexOf(semester)).click()
     }
+    await prepareAnnualFeed(page)
     await page.goto(url)
     await checkPending()
     await release("2027a")

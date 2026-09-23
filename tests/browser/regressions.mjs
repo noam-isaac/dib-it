@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { chromium } from "playwright"
 import { createServer } from "vite"
@@ -61,6 +62,7 @@ try {
     await page.addInitScript(state => {
       if (!localStorage.getItem("Dib It")) localStorage.setItem("Dib It", JSON.stringify(state))
     }, initial)
+    await prepareAnnualFeed(page)
     await page.goto(url)
     const intro = page.getByRole("dialog", { name: "מה נוסף ביחס ל־Dib It המקורי?", exact: true })
     await intro.waitFor()

@@ -38,3 +38,7 @@ Generated datasets are ignored by Git and deployed as Vercel build artifacts.
 GitHub Actions retains each artifact for one day. The TAU Tools workflow is paused
 for review of the storage migration; the existing published snapshot stays live.
 See the TAU Tools PR and `CHANGES.md` for the cleanup and activation requirements.
+
+Annual groups and exam snapshots also come from `/data/annual-groups.json`.
+The corresponding scraper and its offline self-tests live in TAU Tools'
+`tau_tools.annual` module, run by the same weekly publication workflow.
