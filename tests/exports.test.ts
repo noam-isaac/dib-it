@@ -54,7 +54,7 @@ describe("Google and Apple Calendar", () => {
     const calendar = createCalendar("2026b", selected, importSemesterCourses("2026b", catalog), {
       startDate: "2026-03-15", endDate: "2026-07-03",
     }).replace(/\r\n[ \t]/g, "")
-    expect(collectExams(selected, catalog)).toHaveLength(5)
+    expect(collectExams(selected, importSemesterCourses("2026b", catalog))).toHaveLength(5)
     expect(calendar.match(/BEGIN:VEVENT/g)).toHaveLength(5)
     expect(new Set(calendar.match(/^UID:.*$/gm)).size).toBe(5)
     expect(calendar).toContain("בחינת ביניים")

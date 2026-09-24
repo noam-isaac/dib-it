@@ -18,6 +18,7 @@ import { useLocalStorage, useURLValue } from "../hooks"
 import { DibItCourse, setDibIt, useWorkspace } from "../models"
 import { activePlanView } from "../plans"
 import { prepareSearch, searchItems } from "../search"
+import { examDataWarnings } from "../exams"
 import { getICS } from "../serialize"
 import {
   downloadFile,
@@ -178,13 +179,14 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
                     "data:text/calendar;charset=utf-8," +
                       encodeURIComponent(ics)
                   )
+                  const warnings = examDataWarnings(currentCourses, courseInfo)
                   notifications.show({
-                    title: "הייצוא הושלם בהצלחה",
+                    title: warnings.length ? "הייצוא הושלם עם נתוני בחינות חלקיים או לא עדכניים" : "הייצוא הושלם בהצלחה",
                     message:
-                      "כעת עליכם לבצע ייבוא לקובץ ה-ICS שהורד. לחצו כאן כדי לפתוח את חלון הייבוא של Google Calendar.",
+                      [...warnings, "כעת עליכם לבצע ייבוא לקובץ ה-ICS שהורד. לחצו כאן כדי לפתוח את חלון הייבוא של Google Calendar."].join(" "),
                     style: { direction: "rtl" },
                     icon: <i className="fa-solid fa-check" aria-hidden="true" />,
-                    color: "green",
+                    color: warnings.length ? "yellow" : "green",
                     styles: { body: { cursor: "pointer" } },
                     onClick: () => {
                       window.open(

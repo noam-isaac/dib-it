@@ -65,7 +65,7 @@ try {
     const calendarDownload = page.waitForEvent("download")
     await page.getByRole("menuitem", { name: "ייצוא ל-Apple/Google Calendar", exact: true }).click()
     const calendar = await readFile(await (await calendarDownload).path(), "utf8")
-    assert.equal(calendar.match(/BEGIN:VEVENT/g)?.length, 2)
+    assert.equal(calendar.match(new RegExp(`UID:${other}-21721600-01-`, "g"))?.length, 2, "two lessons, independently of annual exams")
     assert.ok(calendar.includes(`UID:${other}-21721600-01-`))
     await page.getByRole("button", { name: "פעולות", exact: true }).click()
     await page.getByRole("menuitem", { name: "יצירת טופס רישום ב-Word", exact: true }).click()

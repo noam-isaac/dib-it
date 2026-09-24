@@ -61,7 +61,7 @@ try {
     await page.getByRole("menuitem", { name: "ייצוא ל-Apple/Google Calendar", exact: true }).click()
     const chunks = []
     for await (const chunk of await (await download).createReadStream()) chunks.push(chunk)
-    assert.equal(Buffer.concat(chunks).toString().match(/BEGIN:VEVENT/g)?.length, 2)
+    assert.equal(Buffer.concat(chunks).toString().match(/UID:2027b-21721600-01-/g)?.length, 2, "two lessons, independently of annual exams")
     assert.deepEqual(errors, [])
     await page.close()
     console.log(`PASS French ${viewport.width}px: unique groups, four hours, annual switch, reload, calendar download`)

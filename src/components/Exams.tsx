@@ -3,7 +3,8 @@ import { Calendar } from "@mantine/dates"
 import React, { useState } from "react"
 import dayjs from "dayjs"
 import ExamSearch from "./ExamSearch"
-import { collectExams, isCourseScheduled, type CourseExam } from "../exams"
+import ExamDataNotice from "./ExamDataNotice"
+import { collectExams, type CourseExam } from "../exams"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useDibIt } from "../models"
 import { MILLISECONDS_IN_DAY, getColor } from "../utilities"
@@ -36,7 +37,7 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
   const currentCourses = (dibIt.courses ?? {})[dibIt.semester ?? ""] ?? []
 
   const examDates = collectExams(
-    currentCourses.filter(course => isCourseScheduled(course, courseInfo[course.id])),
+    currentCourses,
     courseInfo,
   )
   const dateToExams: Record<string, CourseExam[]> = {}
@@ -48,10 +49,12 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
     examDates[examDates.length - 1]?.date
 
   if (!firstExam) {
-    return <Text c="dimmed" my="md">אין מבחנים להצגה. בחרו קבוצות לימוד בקורסים שבמערכת.</Text>
+    return <><ExamDataNotice courses={currentCourses} /><Text c="dimmed" my="md">אין מבחנים להצגה. בחרו קבוצות לימוד בקורסים שבמערכת.</Text></>
   }
 
   return (
+    <>
+    <ExamDataNotice courses={currentCourses} />
     <div
       className="adaptive-flex"
       style={{
@@ -120,6 +123,7 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
         </div>
       </div>
       <Calendar
+        key={firstExam.getTime()}
         firstDayOfWeek={0}
         weekendDays={[]}
         getDayProps={(day) => ({ onClick: () => onDateClick(day), "aria-label": `חיפוש מבחנים בתאריך ${day}` })}
@@ -187,6 +191,7 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
         }}
       />
     </div>
+    </>
   )
 }
 

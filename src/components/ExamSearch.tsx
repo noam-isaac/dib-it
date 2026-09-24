@@ -9,6 +9,7 @@ import {
   Text,
   TextInput,
 } from "@mantine/core"
+import ExamDataNotice from "./ExamDataNotice"
 import { useMemo, useState } from "react"
 import { useCourseInfo } from "../CourseInfoContext"
 import { collectExams, filterExamDates, isCourseScheduled } from "../exams"
@@ -34,6 +35,7 @@ const ExamSearch = ({ initialDate }: { initialDate: string }) => {
       collectExams(
         Object.keys(info).map((id) => ({ id })),
         info,
+        "catalog",
       ),
     [info],
   )
@@ -143,6 +145,7 @@ const ExamSearch = ({ initialDate }: { initialDate: string }) => {
         {new Set(results.map((exam) => exam.course.id)).size} קורסים ·{" "}
         {results.length} מבחנים
       </Text>
+      <ExamDataNotice courses={[...matchingCourses].filter(id => !faculty || info[id]?.faculty === faculty).map(id => ({ id }))} scope="catalog" />
       {results.length === 0 && <Text>לא נמצאו מבחנים בתאריכים שנבחרו.</Text>}
       <div>
         {results

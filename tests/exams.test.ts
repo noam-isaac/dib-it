@@ -31,7 +31,8 @@ const info = {
 }
 const exams = collectExams(
   [{ id: "first" }, { id: "second" }, { id: "third" }],
-  info,
+  importSemesterCourses("2026a", info),
+  "catalog",
 )
 
 describe("scheduled course exams", () => {
@@ -57,7 +58,7 @@ describe("scheduled course exams", () => {
     ])
   })
   test("duplicate source entries do not produce duplicate exams", () => {
-    expect(collectExams([{ id: "first" }, { id: "first" }], info)).toHaveLength(
+    expect(collectExams([{ id: "first" }, { id: "first" }], importSemesterCourses("2026a", info), "catalog")).toHaveLength(
       2,
     )
   })
@@ -94,7 +95,7 @@ describe("calendar date filtering", () => {
     expect(filterExamDates(exams, "", "2026-02-02")).toHaveLength(1)
   })
   test("dates are local calendar dates across DST and year boundaries", () => {
-    const boundary = collectExams([{ id: "a" }], {
+    const boundary = collectExams([{ id: "a" }], importSemesterCourses("2026a", {
       a: {
         exams: [
           { date: "31/12/2025" },
@@ -102,7 +103,7 @@ describe("calendar date filtering", () => {
           { date: "27/03/2026" },
         ],
       },
-    })
+    }), "catalog")
     expect(filterExamDates(boundary, "2025-12-31", "2026-01-01")).toHaveLength(
       2,
     )

@@ -25,7 +25,13 @@ unknown. User changes remain pending (including removals) until classification
 arrives; no course is inferred annual from matching semester offerings. Settings
 shows the verification date and provides retry. The pending marker travels with
 JSON and Google backups. Scraper failures retain previous verification timestamps;
-confirmed empty exam results replace old dates.
+confirmed empty exam results replace old dates. The app warns after seven days,
+matching the planned weekly cadence. `catalogData.ts` shares loaded catalogs and
+notifies consumers when annual data changes; `useCatalog.ts` serves current and
+historical views. `catalog.ts` resolves source precedence once, and `exams.ts`
+filters those results by selected groups or all groups for discovery. ICS uses
+the same selection logic. These modules prevent different screens and exports
+from independently combining the same feeds.
 
 The old daily Dib It writer is disabled. The historical data branch is retained
 only so the currently deployed, older app can still read its last snapshot until

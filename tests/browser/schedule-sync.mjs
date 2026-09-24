@@ -70,7 +70,7 @@ try {
   await page.route("**/*", route => {
     const url = new URL(route.request().url())
     if (url.hostname === "127.0.0.1" && !url.pathname.startsWith("/data/")) return route.continue()
-    if (url.pathname.startsWith("/data/")) return route.fulfill({ json: url.pathname.endsWith("info.json")
+    if (url.hostname === "127.0.0.1" && url.pathname.startsWith("/data/")) return route.fulfill({ json: url.pathname.endsWith("info.json")
       ? { currentSemester: "2026a", semesters: { "2026a": { startDate: "2025-10-26", endDate: "2026-01-25" } } }
       : url.pathname.includes("courses-") ? { "12345678": { name: "קורס בדיקה", faculty: "פקולטה/חוג", groups: [{ group: "01", lessons: [] }], exams: [] } } : {} })
     return route.abort()

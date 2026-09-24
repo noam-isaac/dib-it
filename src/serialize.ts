@@ -1,13 +1,11 @@
-import { dataUrls } from "./dataUrls"
-import { generalInfoSchema } from "./schemas"
 import { assertCatalogSelection, selectedGroups, type CatalogCourses } from "./catalog"
 import * as ics from "ics"
 import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
 import timezone from "dayjs/plugin/timezone"
 import { DibItCourse } from "./models"
-import { cachedFetch } from "./hooks"
-import { collectExams, isCourseScheduled } from "./exams"
+import { loadGeneralInfo } from "./catalogData"
+import { collectExams, isCourseScheduled, examDataWarnings } from "./exams"
 import { parseTime } from "./utilities"
 
 dayjs.extend(utc)
@@ -44,11 +42,11 @@ export const createCalendar = (
       seen.add(event.uid)
     }
   }
-  for (const exam of collectExams(courses.filter(c => isCourseScheduled(c, courseInfo[c.id])), courseInfo)) {
+  for (const exam of collectExams(courses, courseInfo)) {
     add({
       uid: `${semester}-${encodeURIComponent(exam.id)}@dibit`,
       title: `${courseInfo[exam.course.id]?.name ?? exam.course.id} (מועד ${exam.moed})${exam.type ? ` · ${exam.type}` : ""}`,
-      ...(exam.hour ? { description: `שעת הבחינה: ${exam.hour}` } : {}),
+      description: [exam.hour ? `שעת הבחינה: ${exam.hour}` : "", ...examDataWarnings([exam.course], courseInfo)].filter(Boolean).join("\n"),
       start: [exam.date.getFullYear(), exam.date.getMonth() + 1, exam.date.getDate()],
       duration: { days: 1 },
     })
@@ -103,8 +101,7 @@ export const getICS = async (
   courses: DibItCourse[],
   courseInfo: CatalogCourses,
 ): Promise<string> => {
-  const generalInfo = await cachedFetch(dataUrls.info, generalInfoSchema,
-  )
+  const generalInfo = await loadGeneralInfo()
   return createCalendar(
     semester,
     courses,
