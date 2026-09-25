@@ -50,7 +50,7 @@ test("missing and failed annual data never become verified empty data or replace
   const { exams: _exams, ...unknown } = annual
   expect(collectExams(selected, catalog(unknown))).toEqual([])
   expect(courseExamSources(selected[0], catalog(unknown)[id])[0].status).toBe("unknown")
-  expect(examDataWarnings(selected, catalog(unknown))).toHaveLength(1)
+  expect(examDataWarnings([...selected, { id: "L1", groups: ["01"] }, { id: "L2", groups: ["01"] }], catalog(unknown))).toHaveLength(1)
   const stale = catalog({ ...annual, examFailures: { [id]: "2026-09-19T09:00:00Z" } })
   expect(collectExams(selected, stale)[0].key).toBe("2090-06-27")
   expect(courseExamSources(selected[0], stale[id])[0]).toMatchObject({ status: "stale", verifiedAt })

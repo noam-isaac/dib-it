@@ -1,6 +1,6 @@
 import { Button, Group, Text, Tooltip } from "@mantine/core"
 import { Calendar } from "@mantine/dates"
-import React, { useState } from "react"
+import { useState } from "react"
 import dayjs from "dayjs"
 import ExamSearch from "./ExamSearch"
 import ExamDataNotice from "./ExamDataNotice"
@@ -80,15 +80,14 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
           </p>
         ))}
         <h3 style={{ marginTop: 10, marginBottom: 10 }}>הפרשי ימים</h3>
-        <div dir="ltr">
-          {examDates.map(({ course, date, moed }, index) => (
-            <React.Fragment key={index}>
+        <div dir="ltr" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {examDates.map(({ id, course, date }, index) => (
+            <div key={id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {index > 0 && <span>→</span>}
               <Tooltip label={courseInfo[course.id]?.name}>
                 <div
-                  key={index}
                   style={{
                     backgroundColor: getColor(course),
-                    display: "inline-block",
                     padding: 5,
                     paddingRight: 10,
                     paddingLeft: 10,
@@ -105,20 +104,7 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
                       )}
                 </div>
               </Tooltip>
-
-              {index !== examDates.length - 1 && (
-                <span
-                  style={{
-                    marginRight:
-                      moed !== examDates[index + 1]?.moed ? 10 : undefined,
-                    marginLeft:
-                      moed !== examDates[index + 1]?.moed ? 10 : undefined,
-                  }}
-                >
-                  →
-                </span>
-              )}
-            </React.Fragment>
+            </div>
           ))}
         </div>
       </div>
