@@ -20,9 +20,10 @@ git -C vendor/tau-tools fetch upstream
 ```
 
 The fork's static dataset deployment is https://tau-tools.vercel.app, with files
-under `/data/`. The configured weekly GitHub workflow (Sunday, 03:23 UTC) refreshes the
-newest academic year's schedules and exams directly from TAU and supplementary
-feeds from Arazim. Publication occurs only after the complete refresh and build
+under `/data/`. The configured weekly GitHub workflow (Saturday, 22:23 UTC) refreshes the
+newest academic year's schedules, exams, prerequisites and plans from TAU, with other
+supplementary feeds from Arazim. Scraping stops by 04:00 UTC (06:00/07:00 Israel),
+including delayed or manually requested refreshes. Publication occurs only after the complete refresh and build
 succeed. See the fork's README, workflow history, and `snapshot.json` for the
 last successful refresh and source provenance.
 
