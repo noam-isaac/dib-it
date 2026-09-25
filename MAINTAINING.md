@@ -29,7 +29,7 @@ confirmed empty exam results replace old dates. Warnings indicate missing data o
 failed refreshes, not the age of retained data. `catalogData.ts` shares loaded catalogs and
 notifies consumers when annual data changes; `useCatalog.ts` serves current and
 historical views. `catalog.ts` resolves source precedence once, and `exams.ts`
-filters those results by selected groups or all groups for discovery. ICS uses
+filters those results by selected groups or all groups for discovery. Annual mid-year exams and their retakes belong to A; annual finals and take-home exams belong to B. ICS uses
 the same selection logic. These modules prevent different screens and exports
 from independently combining the same feeds.
 

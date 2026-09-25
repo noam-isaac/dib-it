@@ -80,7 +80,7 @@ export const resolveCatalog = (
         source: "tau" as const,
         status: snapshot?.groups[group] === undefined ? "unknown" as const : stale ? "stale" as const : "ready" as const,
         verifiedAt: snapshot?.verifiedAt,
-        exams: snapshot?.groups[group] ?? [],
+        exams: (snapshot?.groups[group] ?? []).filter(exam => (exam.type?.includes("ביניים") ?? false) === semester.endsWith("a")),
       }])) }]
   }))
   const local = importSemesterCourses(semester, { ...lautmanCourses,

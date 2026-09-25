@@ -46,8 +46,8 @@ try {
       localStorage.setItem("Dib It Fork Intro Seen", "true")
       if (!localStorage.getItem("Dib It")) {
         localStorage.setItem("Annual Course Registry", JSON.stringify({ version: 1, years: { "2027": { ...annual, exams: { "21721600": { verifiedAt: "2099-01-01T00:00:00Z", groups: { "01": [], "02": [] } } } } } }))
-        localStorage.setItem("Dib It", JSON.stringify({ semester: "2027a", tab: "exams", degreeStartYear: "2027", school: "בדיקה", studyPlan: "בדיקה", courses: {
-          "2027a": [{ id: "21721600", groups: ["01", "02"] }],
+        localStorage.setItem("Dib It", JSON.stringify({ semester: "2027b", tab: "exams", degreeStartYear: "2027", school: "בדיקה", studyPlan: "בדיקה", courses: {
+          "2027b": [{ id: "21721600", groups: ["01", "02"] }],
         } }))
       }
     }, annual)
@@ -83,6 +83,10 @@ try {
     await page.getByText("אין מבחנים להצגה.", { exact: false }).waitFor()
     await card.getByRole("checkbox", { name: /^קבוצה 01/ }).check()
     await examRows.first().waitFor()
+    await page.locator("#semester-selector").click()
+    await page.getByRole("option").nth(0).click()
+    await page.getByText("אין מבחנים להצגה.", { exact: false }).waitFor()
+    assert.equal(await examRows.count(), 0, "annual finals do not leak into semester A")
     await page.locator("#semester-selector").click()
     await page.getByRole("option").nth(1).click()
     await examRows.first().waitFor()

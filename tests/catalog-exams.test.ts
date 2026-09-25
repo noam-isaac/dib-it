@@ -15,22 +15,23 @@ const annual: AnnualYear = {
 }
 const raw = { [id]: { name: "צרפתית למתחילים", groups: ["01", "02", "03"].map(group => ({ group })), exams: [{ ...first, date: "26/06/2090" }] } }
 const selected = [{ id, groups: ["01"] }]
-const catalog = (data = annual, semester = "2090a") => resolveCatalog(semester, importSemesterCourses(semester, raw), data)
+const catalog = (data = annual, semester = "2090b") => resolveCatalog(semester, importSemesterCourses(semester, raw), data)
 
-test("one immutable catalog serves discovery, selected groups, both semesters and ICS", () => {
+test("annual mid-year exams and retakes belong to A; finals belong to B across discovery and ICS", () => {
+  const midyear = [{ ...first, date: "21/01/2090", type: "בחינת ביניים" }, { ...second, date: "21/03/2090", type: "בחינת ביניים" }]
+  const data = { ...annual, exams: { [id]: { verifiedAt, groups: { "01": [...midyear, first], "02": [second] } } } }
   for (const semester of ["2090a", "2090b"]) {
-    const info = catalog(annual, semester)
-    const snapshot = info[id]
-    expect(collectExams(selected, info).map(exam => exam.key)).toEqual(["2090-06-27"])
-    expect(collectExams([{ id, groups: ["02"] }], info).map(exam => exam.key)).toEqual(["2090-07-22"])
+    const info = catalog(data, semester)
+    const expected = semester.endsWith("a") ? ["2090-01-21", "2090-03-21"] : ["2090-06-27"]
+    expect(collectExams(selected, info).map(exam => exam.key)).toEqual(expected)
+    expect(collectExams([{ id, groups: ["02"] }], info).map(exam => exam.key)).toEqual(semester.endsWith("a") ? [] : ["2090-07-22"])
     expect(collectExams([{ id }], info)).toEqual([])
-    expect(collectExams([{ id }], info, "catalog").map(exam => exam.key)).toEqual(["2090-06-26", "2090-06-27", "2090-07-22"])
-    expect(info[id]).toBe(snapshot)
+    expect(collectExams([{ id }], info, "catalog").map(exam => exam.key)).toEqual([...expected, "2090-06-26", ...(semester.endsWith("b") ? ["2090-07-22"] : [])].sort())
     expect(raw[id].exams[0].date).toBe("26/06/2090")
     const ics = createCalendar(semester, selected, info, { startDate: "2089-10-01", endDate: "2089-10-31" })
-    expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(1)
-    expect(ics).toContain("20900627")
-    expect(ics).not.toContain("20900626")
+    expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(expected.length)
+    expected.forEach(key => expect(ics).toContain(key.replaceAll("-", "")))
+    expect(ics).not.toContain(semester.endsWith("a") ? "20900627" : "20900121")
   }
 })
 
