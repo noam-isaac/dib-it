@@ -34,8 +34,8 @@ Weekly dataset publications therefore do not require a Dib It commit or
 deployment. Switching the app's data host takes effect after releasing the
 app change.
 
-Generated datasets are ignored by Git and deployed as Vercel build artifacts.
-GitHub Actions retains each artifact for one day. The TAU Tools workflow is paused
+Generated datasets are ignored by Git and deployed directly from the local build
+to Vercel, without a separate GitHub Actions artifact. The Tools workflow is paused
 for review of the storage migration; the existing published snapshot stays live.
 See the TAU Tools PR and `CHANGES.md` for the cleanup and activation requirements.
 
