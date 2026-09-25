@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import { chromium } from "playwright"
@@ -23,7 +24,7 @@ try {
     let recovered = false
     const loaded = new Promise(resolve => { completed = resolve })
     await page.route("**/*", route => new URL(route.request().url()).origin === new URL(process.env.DIBIT_TEST_URL ?? `http://127.0.0.1:${server.httpServer.address().port}`).origin ? route.continue() : route.abort())
-    await page.route("https://arazim-project.com/data/**", async route => {
+    await page.route("**/data/**", async route => {
       const filename = new URL(route.request().url()).pathname.split("/").pop()
       if (filename === "courses-2026b.json") {
         if (scenario.startsWith("delayed") || scenario.endsWith("while pending")) await delayed
@@ -46,6 +47,7 @@ try {
       if (!localStorage.getItem("Dib It")) localStorage.setItem("Dib It", JSON.stringify(initial))
     }, initial)
     try {
+      await prepareAnnualFeed(page)
       await page.goto(process.env.DIBIT_TEST_URL ?? `http://127.0.0.1:${server.httpServer.address().port}`)
       await page.locator("#course-10313103").getByRole("checkbox").waitFor()
       if (scenario === "delayed deselection") {

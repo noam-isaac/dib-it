@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { chromium } from "playwright"
 import { createServer } from "vite"
@@ -50,7 +51,7 @@ try {
     const errors = []
     page.on("pageerror", error => errors.push(error.message))
     await page.route("**/*", route => new URL(route.request().url()).origin === new URL(process.env.DIBIT_TEST_URL ?? `http://127.0.0.1:${server.httpServer.address().port}`).origin ? route.continue() : route.abort())
-    await page.route("https://arazim-project.com/data/**", route => {
+    await page.route("**/data/**", route => {
       const filename = new URL(route.request().url()).pathname.split("/").pop()
       const json = filename === "info.json" ? {
         currentSemester: "2026a",
@@ -61,6 +62,7 @@ try {
     await page.addInitScript(state => {
       if (!localStorage.getItem("Dib It")) localStorage.setItem("Dib It", JSON.stringify(state))
     }, initial)
+    await prepareAnnualFeed(page)
     await page.goto(url)
     const intro = page.getByRole("dialog", { name: "מה נוסף ביחס ל־Dib It המקורי?", exact: true })
     await intro.waitFor()

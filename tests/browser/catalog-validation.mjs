@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { chromium, firefox, webkit } from "playwright"
 import { createServer } from "vite"
@@ -22,7 +23,7 @@ try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
     page.setDefaultTimeout(5000)
     await page.route("**/*", route => new URL(route.request().url()).origin === url ? route.continue() : route.abort())
-    await page.route("https://arazim-project.com/data/**", route => {
+    await page.route("**/data/**", route => {
       const filename = new URL(route.request().url()).pathname.split("/").pop()
       return route.fulfill({ json: respond(filename) ?? (filename === "info.json"
         ? { currentSemester: semester, semesters: { [semester]: {} } }
@@ -33,6 +34,7 @@ try {
       localStorage.setItem("Dib It Fork Intro Seen", "true")
       localStorage.setItem("Dib It", JSON.stringify({ semester, courses: selections, tab }))
     }, { semester, selections, tab })
+    await prepareAnnualFeed(page)
     await page.goto(url)
     return page
   }

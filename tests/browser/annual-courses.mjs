@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import { chromium } from "playwright"
@@ -19,7 +20,7 @@ try {
     page.on("console", message => { if (message.text().includes("same key")) errors.push(message.text()) })
     const url = process.env.DIBIT_TEST_URL ?? `http://127.0.0.1:${server.httpServer.address().port}`
     await page.route("**/*", route => new URL(route.request().url()).origin === new URL(url).origin ? route.continue() : route.abort())
-    await page.route("https://arazim-project.com/data/**", route => {
+    await page.route("**/data/**", route => {
       const filename = new URL(route.request().url()).pathname.split("/").pop()
       const json = filename === "info.json" ? {
         currentSemester: "2027a", semesters: Object.fromEntries(["2027a", "2027b"].map(semester => [
@@ -33,6 +34,7 @@ try {
       localStorage.setItem("Dib It Fork Intro Seen", "true")
       if (!localStorage.getItem("Dib It")) localStorage.setItem("Dib It", JSON.stringify({ semester: "2027a", tab: "schedule" }))
     }, viewport.width === 390)
+    await prepareAnnualFeed(page)
     await page.goto(url)
     await page.getByPlaceholder("חיפוש קורסים להוספה").fill("צרפתית למתחילים")
     await page.getByRole("option", { name: "צרפתית למתחילים (21721600)", exact: true }).click()
@@ -59,7 +61,7 @@ try {
     await page.getByRole("menuitem", { name: "ייצוא ל-Apple/Google Calendar", exact: true }).click()
     const chunks = []
     for await (const chunk of await (await download).createReadStream()) chunks.push(chunk)
-    assert.equal(Buffer.concat(chunks).toString().match(/BEGIN:VEVENT/g)?.length, 2)
+    assert.equal(Buffer.concat(chunks).toString().match(/UID:2027b-21721600-01-/g)?.length, 2, "two lessons, independently of annual exams")
     assert.deepEqual(errors, [])
     await page.close()
     console.log(`PASS French ${viewport.width}px: unique groups, four hours, annual switch, reload, calendar download`)
@@ -75,7 +77,7 @@ try {
     let release
     const delayed = new Promise(resolve => { release = resolve })
     await page.route("**/*", route => new URL(route.request().url()).origin === new URL(process.env.DIBIT_TEST_URL ?? `http://127.0.0.1:${server.httpServer.address().port}`).origin ? route.continue() : route.abort())
-    await page.route("https://arazim-project.com/data/**", async route => {
+    await page.route("**/data/**", async route => {
       const filename = new URL(route.request().url()).pathname.split("/").pop()
       if (filename === `courses-${other}.json`) await delayed
       const json = filename === "info.json" ? {
@@ -87,6 +89,7 @@ try {
       localStorage.setItem("Dib It Fork Intro Seen", "true")
       localStorage.setItem("Dib It", JSON.stringify({ semester, tab: "schedule", courses: {} }))
     }, semester)
+    await prepareAnnualFeed(page)
     await page.goto(process.env.DIBIT_TEST_URL ?? `http://127.0.0.1:${server.httpServer.address().port}`)
     await page.getByPlaceholder("חיפוש קורסים להוספה").fill("פרויקט שטח שנתי")
     await page.getByRole("option", { name: "פרויקט שטח שנתי (10313103)", exact: true }).click()

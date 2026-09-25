@@ -1,37 +1,60 @@
-import bundled from "./annualGroups.json"
+import { dataUrls } from "./dataUrls"
+import { z } from "zod"
+import { courseSchema } from "./schemas"
 
-export const ANNUAL_FEED_URL = "https://raw.githubusercontent.com/noam-isaac/dib-it/annual-data/annual-groups.json"
+export const ANNUAL_FEED_URL = dataUrls.annual
 const CACHE_KEY = "Annual Course Registry"
-const SOURCE = "https://www.ims.tau.ac.il/Tal/KR/Search_P.aspx"
-type AnnualYear = { source: string; filter: string; verifiedAt: string; groups: Record<string, string[]> }
-type AnnualFeed = { version: 1; years: Record<string, AnnualYear> }
-const record = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === "object" && !Array.isArray(value)
+const courseId = z.string().regex(/^\d{8}$/)
+const groupId = z.string().regex(/^\d{2}$/)
+const verificationDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value =>
+  Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value)
+const examSnapshotSchema = z.object({
+  verifiedAt: z.iso.datetime(),
+  groups: z.record(groupId, courseSchema.shape.exams.unwrap()),
+})
+const annualYearSchema = z.object({
+  source: z.literal("https://www.ims.tau.ac.il/Tal/KR/Search_P.aspx"),
+  filter: z.literal("ckSem=0"),
+  verifiedAt: verificationDate,
+  groups: z.record(courseId, z.array(groupId).min(1)).refine(value => Object.keys(value).length > 0),
+  exams: z.record(courseId, examSnapshotSchema).optional(),
+  examFailures: z.record(courseId, z.iso.datetime()).optional(),
+  classificationFailedAt: z.iso.datetime().optional(),
+})
+const annualFeedSchema = z.object({
+  version: z.literal(1),
+  classificationFailures: z.record(z.string().regex(/^\d{4}$/), z.iso.datetime()).optional(),
+  years: z.record(z.string().regex(/^\d{4}$/), annualYearSchema).refine(value => Object.keys(value).length > 0),
+})
+export type AnnualYear = z.infer<typeof annualYearSchema>
+type AnnualFeed = z.infer<typeof annualFeedSchema>
+export const isAnnualFeed = (value: unknown): value is AnnualFeed => annualFeedSchema.safeParse(value).success
 
-export const isAnnualFeed = (value: unknown): value is AnnualFeed =>
-  record(value) && value.version === 1 && record(value.years) && Object.keys(value.years).length > 0 &&
-  Object.entries(value.years).every(([year, data]) =>
-    /^\d{4}$/.test(year) && record(data) && data.source === SOURCE && data.filter === "ckSem=0" &&
-    typeof data.verifiedAt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data.verifiedAt) &&
-    Number.isFinite(Date.parse(data.verifiedAt)) && new Date(data.verifiedAt).toISOString().slice(0, 10) === data.verifiedAt &&
-    record(data.groups) && Object.keys(data.groups).length > 0 && Object.entries(data.groups).every(([id, groups]) =>
-      /^\d{8}$/.test(id) && Array.isArray(groups) && groups.length > 0 &&
-      groups.every(group => typeof group === "string" && /^\d{2}$/.test(group))))
-
-let years: Record<string, AnnualYear> = { ...bundled }
-/** Preserve missing years and reject rollback; a refreshed year replaces its old classification. */
+let years: Record<string, AnnualYear> = {}
+/** Classification and each course's exams advance independently. Never re-date retained exams. */
 export const acceptAnnualFeed = (value: unknown) => {
-  if (!isAnnualFeed(value)) throw new Error("Invalid annual-course feed")
-  const updated = { ...years }
-  for (const [year, data] of Object.entries(value.years)) {
-    if (!updated[year] || data.verifiedAt >= updated[year].verifiedAt) updated[year] = data
-  }
-  years = updated
+  const feed = annualFeedSchema.parse(value)
+  years = { ...years, ...Object.fromEntries(Object.entries(feed.years).map(([year, incoming]) => {
+    const previous = years[year]
+    const classification = !previous || incoming.verifiedAt >= previous.verifiedAt ? incoming : previous
+    const exams = Object.fromEntries([...new Set([...Object.keys(previous?.exams ?? {}), ...Object.keys(incoming.exams ?? {})])].map(id => {
+      const before = previous?.exams?.[id], after = incoming.exams?.[id]
+      return [id, after && (!before || after.verifiedAt >= before.verifiedAt) ? after : before!]
+    }))
+    const examFailures = Object.fromEntries([...new Set([...Object.keys(previous?.examFailures ?? {}), ...Object.keys(incoming.examFailures ?? {})])].flatMap(id => {
+      const failedAt = [previous?.examFailures?.[id], incoming.examFailures?.[id]].filter((date): date is string => !!date).sort().slice(-1)[0]!
+      return !exams[id] || failedAt > exams[id].verifiedAt ? [[id, failedAt]] : []
+    }))
+    return [year, { ...classification,
+      ...(Object.keys(exams).length ? { exams } : {}),
+      ...(previous?.examFailures || incoming.examFailures ? { examFailures } : {}),
+    }]
+  })) }
 }
 try {
   const cached = localStorage.getItem(CACHE_KEY)
   if (cached) acceptAnnualFeed(JSON.parse(cached) as unknown)
-} catch { /* Missing, corrupt, or unavailable cache: retain the bundled fallback. */ }
+} catch { /* Without validated cached data, classification stays unknown until the feed arrives. */ }
 
 export const annualYear = (year: string) => years[year]
 export const refreshAnnualFeed = async () => {

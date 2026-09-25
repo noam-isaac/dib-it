@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import { chromium, firefox, webkit } from "playwright"
@@ -29,7 +30,7 @@ try {
     page.on("pageerror", error => errors.push(error.message))
     page.on("console", message => { if (message.text().includes("same key")) errors.push(message.text()) })
     await page.route("**/*", route => new URL(route.request().url()).origin === url ? route.continue() : route.abort())
-    await page.route("https://arazim-project.com/data/**", route => {
+    await page.route("**/data/**", route => {
       const filename = new URL(route.request().url()).pathname.split("/").pop()
       return route.fulfill({ json: filename === "info.json" ? { currentSemester: semester, semesters: dates }
         : history.catalogs[filename.slice(8, -5)] ?? {} })
@@ -40,6 +41,7 @@ try {
       localStorage.setItem("Dib It Fork Intro Seen", "true")
       if (!localStorage.getItem("Dib It")) localStorage.setItem("Dib It", JSON.stringify({ semester, tab: "schedule" }))
     }, semester)
+    await prepareAnnualFeed(page)
     await page.goto(url)
     await page.getByPlaceholder("חיפוש קורסים להוספה").fill("צרפתית למתחילים")
     await page.getByRole("option", { name: "צרפתית למתחילים (21721600)", exact: true }).click()
@@ -63,7 +65,7 @@ try {
     const calendarDownload = page.waitForEvent("download")
     await page.getByRole("menuitem", { name: "ייצוא ל-Apple/Google Calendar", exact: true }).click()
     const calendar = await readFile(await (await calendarDownload).path(), "utf8")
-    assert.equal(calendar.match(/BEGIN:VEVENT/g)?.length, 2)
+    assert.equal(calendar.match(new RegExp(`UID:${other}-21721600-01-`, "g"))?.length, 2, "two lessons, independently of annual exams")
     assert.ok(calendar.includes(`UID:${other}-21721600-01-`))
     await page.getByRole("button", { name: "פעולות", exact: true }).click()
     await page.getByRole("menuitem", { name: "יצירת טופס רישום ב-Word", exact: true }).click()

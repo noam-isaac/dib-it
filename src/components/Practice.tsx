@@ -1,9 +1,9 @@
-import { useMemo } from "react"
-import { assertCourseCatalog, importSemesterCourses } from "../catalog"
+import { dataUrls } from "../dataUrls"
+import { useCatalog } from "../useCatalog"
+import ExamDataNotice from "./ExamDataNotice"
 import {
   allTimeCoursesSchema,
   gradesSchema,
-  semesterCoursesSchema,
   type Grades,
 } from "../schemas"
 import {
@@ -21,7 +21,7 @@ import { useCourseInfo } from "../CourseInfoContext"
 import { useURLValue } from "../hooks"
 import { DibItCourse, useDibIt } from "../models"
 import { formatSemester, getColor } from "../utilities"
-import { collectExams, isCourseScheduled } from "../exams"
+import { collectExams } from "../exams"
 
 const PracticeInfo = ({
   course,
@@ -32,12 +32,9 @@ const PracticeInfo = ({
   semester: string
   gradeInfo: Partial<Grades>
 }) => {
-  const [source, loadingSemesterInfo, semesterLoad] = useURLValue(`https://arazim-project.com/data/courses-${semester}.json`, semesterCoursesSchema, assertCourseCatalog,
-  )
-
-  const semesterInfo = useMemo(() => importSemesterCourses(semester, source), [semester, source])
-  if (semesterLoad.failed) return <Button variant="subtle" color="gray" size="compact-xs" onClick={semesterLoad.retry}>טעינת פרטי הסמסטר נכשלה — ניסיון נוסף</Button>
-  if (loadingSemesterInfo) return <span role="status" aria-label="טוען פרטי סמסטר"><Loader size="xs" /></span>
+  const { courses: semesterInfo, ready, failed, retry } = useCatalog(semester)
+  if (failed) return <Button variant="subtle" color="gray" size="compact-xs" onClick={retry}>טעינת פרטי הסמסטר נכשלה — ניסיון נוסף</Button>
+  if (!ready) return <span role="status" aria-label="טוען פרטי סמסטר"><Loader size="xs" /></span>
 
   const mean = ((((gradeInfo ?? {})[course.id] ?? {})[semester] ?? {})["00"] ??
     [])[0]?.mean
@@ -113,10 +110,10 @@ const PracticeInfo = ({
 const Practice = () => {
   const courseInfo = useCourseInfo()
   const [allTimeCourseInfo, loadingCourses, courseLoad] = useURLValue(
-    "https://arazim-project.com/data/courses.json", allTimeCoursesSchema
+    dataUrls.courses, allTimeCoursesSchema
   )
   const [gradeInfo, loadingGrades, gradeLoad] = useURLValue(
-    "https://arazim-project.com/data/grades.json", gradesSchema
+    dataUrls.grades, gradesSchema
   )
 
   const [dibIt, setDibIt] = useDibIt()
@@ -124,7 +121,7 @@ const Practice = () => {
   const currentCourses = (dibIt.courses ?? {})[dibIt.semester ?? ""] ?? []
 
   let examDates = collectExams(
-    currentCourses.filter(course => isCourseScheduled(course, courseInfo[course.id])),
+    currentCourses,
     courseInfo,
   )
   const seenCourses = new Set<string>()
@@ -139,9 +136,11 @@ const Practice = () => {
     <Button variant="subtle" color="gray" onClick={() => { courseLoad.retry(); gradeLoad.retry() }}>ניסיון נוסף</Button>
   </Alert>
   if (loadingCourses || loadingGrades) return <div role="status" aria-label="טוען מבחנים לתרגול"><Loader size="sm" /></div>
-  if (!examDates.length) return <Text c="dimmed" p="md">אין מבחנים לתרגול בקורסים שנבחרו. בחרו קבוצות בקורסים עם מועדי מבחנים בסמסטר הנוכחי.</Text>
+  if (!examDates.length) return <><ExamDataNotice courses={currentCourses} /><Text c="dimmed" p="md">אין מבחנים לתרגול בקורסים שנבחרו. בחרו קבוצות בקורסים עם מועדי מבחנים בסמסטר הנוכחי.</Text></>
 
   return (
+    <>
+    <ExamDataNotice courses={currentCourses} />
     <Accordion
       multiple
       value={dibIt.openedPracticeCourses ?? []}
@@ -246,6 +245,7 @@ const Practice = () => {
         )
       })}
     </Accordion>
+    </>
   )
 }
 

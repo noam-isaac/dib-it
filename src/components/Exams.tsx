@@ -1,9 +1,10 @@
 import { Button, Group, Text, Tooltip } from "@mantine/core"
 import { Calendar } from "@mantine/dates"
-import React, { useState } from "react"
+import { useState } from "react"
 import dayjs from "dayjs"
 import ExamSearch from "./ExamSearch"
-import { collectExams, isCourseScheduled, type CourseExam } from "../exams"
+import ExamDataNotice from "./ExamDataNotice"
+import { collectExams, type CourseExam } from "../exams"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useDibIt } from "../models"
 import { MILLISECONDS_IN_DAY, getColor } from "../utilities"
@@ -36,7 +37,7 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
   const currentCourses = (dibIt.courses ?? {})[dibIt.semester ?? ""] ?? []
 
   const examDates = collectExams(
-    currentCourses.filter(course => isCourseScheduled(course, courseInfo[course.id])),
+    currentCourses,
     courseInfo,
   )
   const dateToExams: Record<string, CourseExam[]> = {}
@@ -48,10 +49,12 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
     examDates[examDates.length - 1]?.date
 
   if (!firstExam) {
-    return <Text c="dimmed" my="md">אין מבחנים להצגה. בחרו קבוצות לימוד בקורסים שבמערכת.</Text>
+    return <><ExamDataNotice courses={currentCourses} /><Text c="dimmed" my="md">אין מבחנים להצגה. בחרו קבוצות לימוד בקורסים שבמערכת.</Text></>
   }
 
   return (
+    <>
+    <ExamDataNotice courses={currentCourses} />
     <div
       className="adaptive-flex"
       style={{
@@ -77,15 +80,14 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
           </p>
         ))}
         <h3 style={{ marginTop: 10, marginBottom: 10 }}>הפרשי ימים</h3>
-        <div dir="ltr">
-          {examDates.map(({ course, date, moed }, index) => (
-            <React.Fragment key={index}>
+        <div dir="ltr" style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+          {examDates.map(({ id, course, date }, index) => (
+            <div key={id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              {index > 0 && <span>→</span>}
               <Tooltip label={courseInfo[course.id]?.name}>
                 <div
-                  key={index}
                   style={{
                     backgroundColor: getColor(course),
-                    display: "inline-block",
                     padding: 5,
                     paddingRight: 10,
                     paddingLeft: 10,
@@ -102,24 +104,12 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
                       )}
                 </div>
               </Tooltip>
-
-              {index !== examDates.length - 1 && (
-                <span
-                  style={{
-                    marginRight:
-                      moed !== examDates[index + 1]?.moed ? 10 : undefined,
-                    marginLeft:
-                      moed !== examDates[index + 1]?.moed ? 10 : undefined,
-                  }}
-                >
-                  →
-                </span>
-              )}
-            </React.Fragment>
+            </div>
           ))}
         </div>
       </div>
       <Calendar
+        key={firstExam.getTime()}
         firstDayOfWeek={0}
         weekendDays={[]}
         getDayProps={(day) => ({ onClick: () => onDateClick(day), "aria-label": `חיפוש מבחנים בתאריך ${day}` })}
@@ -187,6 +177,7 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
         }}
       />
     </div>
+    </>
   )
 }
 

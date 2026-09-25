@@ -1,9 +1,9 @@
-import { generalInfoSchema, semesterCoursesSchema, stringArraySchema } from "./schemas"
+import { stringArraySchema } from "./schemas"
 import { Autocomplete, Button, Loader, MantineProvider, Select } from "@mantine/core"
 import { useColorScheme } from "@mantine/hooks"
 import { ModalsProvider } from "@mantine/modals"
 import { Notifications } from "@mantine/notifications"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect } from "react"
 import CourseInfoContext from "./CourseInfoContext"
 import Exams from "./components/Exams"
 import Footer from "./components/Footer"
@@ -15,15 +15,13 @@ import Settings from "./components/Settings"
 import Sidebar from "./components/Sidebar"
 import GoogleScheduleSync from "./components/GoogleScheduleSync"
 import StudyPlan from "./components/StudyPlan"
-import { cachedFetch, useLocalStorage } from "./hooks"
+import { useLocalStorage } from "./hooks"
 import { visibleTabs } from "./tabs"
-import { refreshAnnualClassification, cacheSemesterCourses, getDibIt, useDibIt } from "./models"
+import { useDibIt } from "./models"
 import { sumHours } from "./utilities"
 import { filterSearchOptions } from "./search"
-import { lautmanCourses } from "./lautmanCourses"
-import { assertCourseCatalog, importSemesterCourses, selectedCatalogConflicts, type CatalogCourses } from "./catalog"
-
-const startDateString = `date=${encodeURIComponent(new Date().toDateString())}`
+import { useCatalog } from "./useCatalog"
+import { selectedCatalogConflicts } from "./catalog"
 
 const App = () => {
   const colorScheme = useColorScheme()
@@ -32,48 +30,10 @@ const App = () => {
     key: "Hidden Tabs", schema: stringArraySchema,
     defaultValue: [],
   })
-  const [catalog, setCatalog] = useState<{ semester: string; courses: CatalogCourses } | null>(null)
-  const [loadError, setLoadError] = useState(false)
-  const [retry, setRetry] = useState(0)
-  const catalogReady = catalog !== null && catalog.semester === dibIt.semester
-  const courses = useMemo<CatalogCourses>(
-    () => ({
-      ...(catalog?.semester === dibIt.semester ? catalog?.courses : {}),
-      ...(dibIt.semester ? importSemesterCourses(dibIt.semester,
-        Object.fromEntries(Object.values(dibIt.customCourses ?? {}).flatMap(Object.entries))) : {}),
-    }),
-    [catalog, dibIt.semester, dibIt.customCourses],
-  )
+  const { courses, ready: catalogReady, failed: loadError, retry: retryCatalog, attempt: retry } = useCatalog(dibIt.semester, dibIt.customCourses, true)
 
   const conflicts = selectedCatalogConflicts(dibIt.courses?.[dibIt.semester ?? ""] ?? [], courses)
   const hours = sumHours(courses, dibIt)
-
-  useEffect(() => {
-    let cancelled = false
-    setLoadError(false)
-    const semester = dibIt.semester
-    const load = async () => {
-      if (!semester) {
-        const info = await cachedFetch("https://arazim-project.com/data/info.json", generalInfoSchema)
-        if (!info.currentSemester) throw new Error("Missing current semester")
-        if (!cancelled) setDibIt({ ...getDibIt(), semester: info.currentSemester })
-        return
-      }
-      const result = await cachedFetch(`https://arazim-project.com/data/courses-${semester}.json?${startDateString}`, semesterCoursesSchema, assertCourseCatalog,
-      )
-      if (cancelled) return
-      setCatalog({ semester, courses: cacheSemesterCourses(semester, { ...result, ...lautmanCourses }) })
-      const otherSemester = semester.slice(0, 4) + (semester.endsWith("a") ? "b" : "a")
-      void cachedFetch(`https://arazim-project.com/data/courses-${otherSemester}.json?${startDateString}`, semesterCoursesSchema, assertCourseCatalog,
-      ).then(other => cacheSemesterCourses(otherSemester, other)).catch(() => {})
-    }
-    void load().catch(() => { if (!cancelled) setLoadError(true) })
-    return () => { cancelled = true }
-  }, [dibIt.semester, retry])
-
-  useEffect(() => {
-    void refreshAnnualClassification().catch(() => {})
-  }, [])
 
   const shownTabs = visibleTabs(hiddenTabs)
   const tab = shownTabs.find(({ id }) => id === dibIt.tab)?.id ?? shownTabs[0]!.id
@@ -152,7 +112,7 @@ const App = () => {
                   {!catalogReady ? (
                     <div role={loadError ? "alert" : "status"} style={{ padding: 20 }}>
                       <p>{loadError ? "לא ניתן לטעון את נתוני הסמסטר. המערכות שלכם נשמרו במכשיר." : "טוען את הקורסים של הסמסטר..."}</p>
-                      {loadError ? <Button mt="sm" onClick={() => setRetry(value => value + 1)}>ניסיון נוסף</Button> : <Loader mt="sm" />}
+                      {loadError ? <Button mt="sm" onClick={retryCatalog}>ניסיון נוסף</Button> : <Loader mt="sm" />}
                     </div>
                   ) : <div key={dibIt.activePlanId}>
                     {tab === "schedule" && <Schedule />}

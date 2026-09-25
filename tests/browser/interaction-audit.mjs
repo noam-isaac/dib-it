@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { chromium } from "playwright"
 import { createServer } from "vite"
@@ -25,7 +26,7 @@ try {
   page.on("pageerror", error => errors.push(error.message))
   await page.route("**/*", async route => {
     const url = new URL(route.request().url())
-    if (url.hostname === "127.0.0.1") return route.continue()
+    if (url.hostname === "127.0.0.1" && !url.pathname.startsWith("/data/")) return route.continue()
     const filename = url.pathname.split("/").pop()
     if (filename === "courses-2026a.json") await catalogGate
     if (filename === "courses.json" || filename === "grades.json") metadataRequests.push(filename)
@@ -43,6 +44,7 @@ try {
     localStorage.setItem("Auto Bid Faculty Points", JSON.stringify([{ faculty: "A", points: 100 }, { faculty: "B", points: 200 }]))
     localStorage.setItem("Dib It", JSON.stringify({ semester: "2026a", tab: "practice", courses: { "2026a": ids.map(id => ({ id, groups: ["01"] })) } }))
   }, ids)
+  await prepareAnnualFeed(page)
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
   await page.getByRole("button", { name: "פעולות", exact: true }).waitFor()
   assert.deepEqual(metadataRequests, [], "card metadata must wait for the selected catalog")

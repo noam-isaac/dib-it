@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { chromium, firefox, webkit } from "playwright"
 import { createServer } from "vite"
@@ -24,7 +25,7 @@ try {
     const errors = []
     page.on("pageerror", error => errors.push(error.message))
     await page.route("**/*", route => new URL(route.request().url()).origin === url ? route.continue() : route.abort())
-    await page.route("https://arazim-project.com/data/**", route => {
+    await page.route("**/data/**", route => {
       const filename = new URL(route.request().url()).pathname.split("/").pop()
       if (/^courses-\d{4}[ab]\.json$/.test(filename)) {
         pending.get(filename.slice(8, -5))?.resolve(route)
@@ -61,6 +62,7 @@ try {
       await page.locator("#semester-selector").click()
       await page.getByRole("option").nth(semesters.indexOf(semester)).click()
     }
+    await prepareAnnualFeed(page)
     await page.goto(url)
     await checkPending()
     await release("2027a")

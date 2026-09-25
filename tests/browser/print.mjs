@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { mkdir, readFile } from "node:fs/promises"
 import { chromium, firefox, webkit } from "playwright"
@@ -38,7 +39,7 @@ try {
     page.on("pageerror", error => errors.push(error.message))
     await page.route("**/*", route => {
       const url = new URL(route.request().url())
-      if (url.hostname === "127.0.0.1") return route.continue()
+      if (url.hostname === "127.0.0.1" && !url.pathname.startsWith("/data/")) return route.continue()
       return route.fulfill({ json: url.pathname.endsWith("info.json")
         ? { currentSemester: "2026a", semesters: { "2026a": {} } }
         : url.pathname.includes("courses-") ? catalog : {} })
@@ -51,6 +52,7 @@ try {
       window.printEvents = 0
       addEventListener("beforeprint", () => window.printEvents++)
     }, { theme, compact: width === 390, ids: Object.keys(catalog) })
+    await prepareAnnualFeed(page)
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
     await page.locator("#schedule-container").getByText(`${catalog["22222222"].name} (שיעור)`, { exact: true }).waitFor()
     const assertTimeOnRight = async () => {

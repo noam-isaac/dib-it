@@ -1,5 +1,7 @@
+import { dataUrls } from "../dataUrls"
 import { allTimeCoursesSchema, booleanSchema, generalInfoSchema, semesterPlansSchema } from "../schemas"
-import { isCourseScheduled } from "../exams"
+import { collectExams, courseExamSources } from "../exams"
+import ExamDataNotice from "./ExamDataNotice"
 import {
   ActionIcon,
   Alert,
@@ -23,7 +25,6 @@ import {
   getClosestValue,
   getPastAndPresentCourses,
   MILLISECONDS_IN_DAY,
-  parseDateString,
 } from "../utilities"
 
 const StudyPlan = () => {
@@ -43,11 +44,11 @@ const StudyPlan = () => {
   const savedIndex = savedStudyPlans.findIndex(plan =>
     plan.school === dibIt.school && plan.studyPlan === dibIt.studyPlan)
   const [allTimeCourseInfo, loadingAllTimeCourseInfo, courseLoad] =
-    useURLValue("https://arazim-project.com/data/courses.json", allTimeCoursesSchema)
+    useURLValue(dataUrls.courses, allTimeCoursesSchema)
   const [generalInfo, loadingSemesters, semesterLoad] = useURLValue(
-    "https://arazim-project.com/data/info.json", generalInfoSchema
+    dataUrls.info, generalInfoSchema
   )
-  const [plans, loadingPlans, planLoad] = useURLValue(dibIt.degreeStartYear ? `https://arazim-project.com/data/plans-${dibIt.degreeStartYear}.json` : null, semesterPlansSchema)
+  const [plans, loadingPlans, planLoad] = useURLValue(dibIt.degreeStartYear ? dataUrls.plans(dibIt.degreeStartYear) : null, semesterPlansSchema)
   const dataReady = !loadingAllTimeCourseInfo && !loadingSemesters && !loadingPlans && !courseLoad.failed && !semesterLoad.failed && !planLoad.failed
   const planOptions = Object.entries(plans).flatMap(([school, programs]) =>
     Object.keys(programs ?? {}).sort().map(studyPlan => ({
@@ -61,29 +62,12 @@ const StudyPlan = () => {
   const currentCourses = (dibIt.courses[dibIt.semester] ??= [])
   const selectedPlan = plans[dibIt.school ?? ""]?.[dibIt.studyPlan ?? ""] ?? {}
 
-  let courseDates: number[] = []
-  for (const course of currentCourses) {
-    if (!isCourseScheduled(course, courseInfo[course.id])) continue
-    const examDates = courseInfo[course.id]?.exams
-    if (examDates?.length !== undefined && examDates.length > 0) {
-      for (const date of examDates) {
-        const parsedDate = parseDateString(date.date)
-        if (parsedDate) {
-          courseDates.push(parsedDate.getTime())
-        }
-      }
-    }
-  }
-
-  courseDates.sort()
+  const courseDates = collectExams(currentCourses, courseInfo).map(exam => exam.date.getTime()).sort((a, b) => a - b)
+  const availableExams = (courseId: string) => collectExams([{ id: courseId }], courseInfo, "catalog")
 
   const getDayDifference = (courseId: string) => {
     if (courseDates.length === 0) return
-    const date = courseInfo[courseId]?.exams
-    if (!date || date.length === 0 || date[0]?.date === "") {
-      return
-    }
-    const time = parseDateString(date[0]?.date)?.getTime()
+    const time = availableExams(courseId)[0]?.date.getTime()
     if (time === undefined) return
     const closest = getClosestValue(time, courseDates)
     if (closest === undefined) return
@@ -98,7 +82,7 @@ const StudyPlan = () => {
       return 99999999999
     }
 
-    const date = courseInfo[courseId]?.exams ?? []
+    const date = availableExams(courseId)
 
     if (date.length === 0) {
       return -100000000000
@@ -108,7 +92,7 @@ const StudyPlan = () => {
       return 0
     }
 
-    const time = parseDateString(date[0]?.date)?.getTime()
+    const time = date[0]?.date.getTime()
     if (time === undefined) return -100000000000
     const difference = Math.abs((getClosestValue(time, courseDates) ?? time) - time)
     return -difference
@@ -152,6 +136,7 @@ const StudyPlan = () => {
         marginLeft: 10,
       }}
     >
+      <ExamDataNotice courses={currentCourses} />
       {(planLoad.failed || courseLoad.failed || semesterLoad.failed) && <Alert color="red" role="alert" mb="xs">
         לא ניתן לטעון את נתוני תוכניות הלימוד. הבחירות שלכם נשמרו.
         <Button variant="subtle" color="gray" onClick={() => { planLoad.retry(); courseLoad.retry(); semesterLoad.retry() }}>ניסיון נוסף</Button>
@@ -330,7 +315,7 @@ const StudyPlan = () => {
                       {included && (
                         <Badge
                           mr={5}
-                          variant="light"
+                          variant="filled"
                           color="green"
                           leftSection={<i className="fa-solid fa-check" />}
                         >
@@ -343,7 +328,7 @@ const StudyPlan = () => {
                           undefined && (
                           <Badge
                             mr={5}
-                            variant="light"
+                            variant="filled"
                             color="green"
                             leftSection={<i className="fa-solid fa-check" />}
                           >
@@ -363,8 +348,8 @@ const StudyPlan = () => {
                         >
                           <Badge
                             mr={5}
-                            variant="light"
-                            color="yellow"
+                            variant="filled"
+                            color="red"
                             leftSection={<i className="fa-solid fa-exclamation-circle" />}
                           >
                             חסרות דרישות קדם
@@ -377,7 +362,7 @@ const StudyPlan = () => {
                         courseInfo[courseId] === undefined && (
                           <Badge
                             mr={5}
-                            color="gray"
+                            color="red"
                             leftSection={<i className="fa-solid fa-xmark" />}
                           >
                             לא עובר בסמסטר הנבחר
@@ -385,16 +370,15 @@ const StudyPlan = () => {
                         )}
 
                       {courseInfo[courseId] !== undefined &&
-                        courseInfo[courseId]?.exams?.filter(
-                          (x) => x.date !== ""
-                        ).length === 0 && (
+                        courseExamSources({ id: courseId }, courseInfo[courseId], "catalog").every(source => source.status === "ready") &&
+                        availableExams(courseId).length === 0 && (
                           <Badge
                             mr={5}
-                            variant="light"
-                            color="gray"
+                            variant="filled"
+                            color="green"
                             leftSection={<i className="fa-solid fa-check" />}
                           >
-                            אין מבחן
+                            אין מועדי בחינות שפורסמו
                           </Badge>
                         )}
 

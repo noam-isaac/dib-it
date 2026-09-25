@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { chromium } from "playwright"
 import { createServer } from "vite"
@@ -25,8 +26,8 @@ try {
     page.on("request", request => requests.push(request.url()))
     await page.route("**/*", route => {
       const url = new URL(route.request().url())
-      if (url.hostname === "127.0.0.1") return route.continue()
-      if (url.hostname !== "arazim-project.com") return route.abort()
+      if (url.hostname === "127.0.0.1" && !url.pathname.startsWith("/data/")) return route.continue()
+      if (!url.pathname.startsWith("/data/")) return route.abort()
       const filename = url.pathname.split("/").pop()
       if (failed && filename === failedResource) return route.fulfill({ status: 503, body: "Unavailable" })
       if (failedPlan && filename === "plans-2026.json") return route.fulfill({ status: 503, body: "Unavailable" })
@@ -43,6 +44,7 @@ try {
         courses: { "2026a": [{ id: "12345678", groups: ["01"] }] },
       }))
     })
+    await prepareAnnualFeed(page)
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
     await page.getByRole("alert").filter({ hasText: "לא ניתן לטעון" }).waitFor()
     // Backup remains reachable even if the current catalog failed.

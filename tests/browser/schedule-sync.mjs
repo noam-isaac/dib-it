@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { chromium } from "playwright"
 import { createServer } from "vite"
@@ -68,13 +69,14 @@ try {
   page.on("console", message => { if (message.type() === "error") console.error(message.text()) })
   await page.route("**/*", route => {
     const url = new URL(route.request().url())
-    if (url.hostname === "127.0.0.1") return route.continue()
-    if (url.hostname === "arazim-project.com") return route.fulfill({ json: url.pathname.endsWith("info.json")
+    if (url.hostname === "127.0.0.1" && !url.pathname.startsWith("/data/")) return route.continue()
+    if (url.hostname === "127.0.0.1" && url.pathname.startsWith("/data/")) return route.fulfill({ json: url.pathname.endsWith("info.json")
       ? { currentSemester: "2026a", semesters: { "2026a": { startDate: "2025-10-26", endDate: "2026-01-25" } } }
       : url.pathname.includes("courses-") ? { "12345678": { name: "קורס בדיקה", faculty: "פקולטה/חוג", groups: [{ group: "01", lessons: [] }], exams: [] } } : {} })
     return route.abort()
   })
   await page.addInitScript(state => localStorage.setItem("Dib It", JSON.stringify(state)), initial)
+  await prepareAnnualFeed(page)
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
   await page.getByRole("button", { name: "למערכת השעות", exact: true }).click()
   const menu = async () => page.getByRole("button", { name: "פעולות", exact: true }).click()

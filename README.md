@@ -10,7 +10,7 @@
     <b>A schedule planning website for Tel Aviv University built with <a href="https://react.dev">React</a>, <a href="https://mantine.dev">Mantine</a> and <a href="https://firebase.google.com">Firebase</a></b>
 </p>
 
-This is Noam Isaac's independently maintained fork of [Dib It by Arazim Project](https://github.com/arazimproject/dib-it), not the original Arazim deployment. Course catalogs and linked academic tools are still provided by Arazim Project. The original [MIT license and copyright notice](LICENSE.md) are preserved.
+This is Noam Isaac's independently maintained fork of [Dib It by Arazim Project](https://github.com/arazimproject/dib-it), not the original Arazim deployment. Course catalogs come from our TAU Tools feed; linked academic tools remain provided by Arazim Project. The original [MIT license and copyright notice](LICENSE.md) are preserved.
 
 This fork adds multiple saved schedules, exam-date search, Word registration forms, improved Hebrew search, academic-program shortcuts, hidden tabs, corrected calendar export, and backup restore previews. A Hebrew introduction opens on the first visit and can be reopened from the existing footer. Report fork issues [here](https://github.com/noam-isaac/dib-it/issues).
 
@@ -36,7 +36,6 @@ You will download an ICS file, which you can import to [Google calendar](https:/
 | --- | --- |
 | Bun | Installs project dependencies, runs package scripts, and runs unit tests through `bun:test`. Use 1.4.2 to match the CI baseline. |
 | Node.js | Runs the Playwright browser scripts and Firebase integration scripts. CI uses Node 22. |
-| Python 3 | Runs the annual-course scraper and its self-test. |
 | Java 21+ | Runs the local Firestore emulator for integration tests. The website itself does not need Java. |
 
 Install Bun once for your user account using the [official installer](https://bun.com/docs/installation):
@@ -87,9 +86,15 @@ The personal exam list, practice list, exam-spacing suggestions, and calendar ex
 
 The **מבחנים** tab keeps the original personal exam list, spacing indicator, and calendar. Click **חיפוש קורסים לפי תאריך בחינה**, or a day in the calendar, to discover exams across the selected semester. Choose a single date or an inclusive range using the date fields. Course and faculty filters are under **סינון לפי קורס או פקולטה**. Add a matching course to the sidebar to choose its groups. All exam sittings are included; entries without a valid date are skipped.
 
-Annual groups are marked **שנתי** and selections synchronize between semesters within the same saved schedule. Official groups are verified against [TAU's course search](https://www.ims.tau.ac.il/Tal/KR/Search_P.aspx), using its annual-only filter (`ckSem=0`), rather than inferred from matching names, lecturers, or exams. `src/annualGroups.json` records the verified groups and retrieval date separately for 2023–2027 (2026 means 2025/26). Unknown years are not inferred. Local/custom courses must explicitly mark a lesson as `שנתי`.
+Annual groups are marked **שנתי** and selections synchronize between semesters within the same saved schedule. Official groups are verified against [TAU's course search](https://www.ims.tau.ac.il/Tal/KR/Search_P.aspx), using its annual-only filter (`ckSem=0`), rather than inferred from matching names, lecturers, or exams. TAU Tools publishes the verified groups and retrieval dates in `/data/annual-groups.json` (2026 means 2025/26). Unknown years are not inferred. Local/custom courses must explicitly mark a lesson as `שנתי`.
 
-Annual classification updates independently through the public `annual-data` branch feed. A daily GitHub workflow refreshes the official TAU annual-only listing and publishes atomically, without an app deployment. The app keeps validated data in the browser and retains the bundled index as an offline fallback. Missing years preserve pending edits; Settings shows verification dates and provides refresh/retry. Activation and maintenance are documented in [MAINTAINING.md](MAINTAINING.md).
+Annual exams use the selected group's TAU snapshot in both semester views and ICS
+exports. Exam search includes all groups. Confirmed empty results remove canceled
+exams; unavailable results remain unknown, and failed refreshes show a warning
+while retaining the last verified dates. Snapshot age alone does not warn. Local/custom
+course data keeps precedence.
+
+Annual classification updates through the same static feed as the catalogs. TAU Tools owns the weekly refresh and publication. The app caches validated data for offline use; without cached data, classification remains unknown until the feed is available. Missing years preserve pending edits; Settings shows verification dates and provides refresh/retry. Activation and maintenance are documented in [MAINTAINING.md](MAINTAINING.md).
 
 ## Saved schedules
 
@@ -146,7 +151,7 @@ For this fork, Google backup uses an unbilled **Spark** project with one free-ti
 ## Validation and Vercel
 
 `bun run check` runs unit tests, lint, the production build, all Chromium browser suites,
-and the annual scraper self-test. The `Validate` GitHub workflow runs it with the frozen
+and exports across simulated deployments. The `Validate` GitHub workflow runs it with the frozen
 Bun lockfile on pull requests and pushes to `main`. The `validate` job is required by
 branch protection. Firestore emulator tests remain a separate optional command. `bun run deploy` also runs `check` before
 publishing. Visual approval remains part of release review.

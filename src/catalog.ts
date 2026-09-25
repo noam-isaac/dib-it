@@ -1,6 +1,8 @@
 import "core-js/es/map/group-by"
 import type { DibItCourse } from "./models"
 import { isCourseCatalog } from "./scheduleBackup"
+import type { AnnualYear } from "./annualRegistry"
+import { lautmanCourses } from "./lautmanCourses"
 
 export type CourseDetails = Omit<SemesterCourseInfo, "groups">
 type GroupRecord = Readonly<Omit<SemesterCourseGroupInfo, "lessons">> & {
@@ -10,10 +12,18 @@ export type CatalogGroup = { readonly group: string } & (
   | { readonly status: "ready"; readonly data: GroupRecord }
   | { readonly status: "conflict"; readonly records: readonly GroupRecord[] }
 )
-export type CatalogCourse = Readonly<CourseDetails> & {
+export type ExamData = {
+  readonly status: "ready" | "unknown" | "stale"
+  readonly source: "catalog" | "tau" | "custom"
+  readonly verifiedAt?: string | undefined
+  readonly exams: readonly SemesterCourseExamInfo[]
+}
+export type CatalogCourse = Readonly<Omit<CourseDetails, "exams">> & {
   readonly semester: string
   readonly groups: ReadonlyMap<string, CatalogGroup>
   readonly unidentifiedGroups: readonly GroupRecord[]
+  readonly examData: ExamData
+  readonly groupExamData: ReadonlyMap<string, ExamData>
 }
 export type CatalogCourses = Readonly<Record<string, CatalogCourse | undefined>>
 
@@ -40,8 +50,10 @@ const sameGroup = (a: GroupRecord, b: GroupRecord) =>
 export const importSemesterCourses = (semester: string, source: unknown): CatalogCourses => {
   assertCourseCatalog(source)
   if (!/^\d{4}[ab]$/.test(semester)) throw new Error("נתוני הקורסים אינם תקינים.")
-  return Object.fromEntries(Object.entries(source).map(([id, course]) => [id, {
+  return Object.fromEntries(Object.entries(source).map(([id, { exams, ...course }]) => [id, {
     ...course,
+    examData: { source: "catalog", status: exams === undefined ? "unknown" : "ready", exams: exams ?? [] },
+    groupExamData: new Map(),
     semester,
     groups: new Map([...Map.groupBy((course.groups ?? []).filter(row => !!row.group), row => row.group!).entries()]
       .map(([group, records]): [string, CatalogGroup] => [group, records.every(row => sameGroup(records[0]!, row))
@@ -49,6 +61,34 @@ export const importSemesterCourses = (semester: string, source: unknown): Catalo
         : { group, status: "conflict", records }])),
     unidentifiedGroups: (course.groups ?? []).filter(row => !row.group),
   }]))
+}
+
+/** One resolved catalog, independent of plans or selected groups. Local catalogs own their courses. */
+export const resolveCatalog = (
+  semester: string,
+  catalog: CatalogCourses,
+  annual?: AnnualYear,
+  custom: Record<string, SemesterCourses> = {},
+  feedFailed = false,
+): CatalogCourses => {
+  const official = Object.fromEntries(Object.entries(catalog).map(([id, course]) => {
+    if (!course) return [id, course]
+    const snapshot = annual?.exams?.[id]
+    const stale = feedFailed || !!annual?.examFailures?.[id]
+    return [id, { ...course, groupExamData: new Map((annual?.groups[id] ?? [])
+      .filter(group => course.groups.has(group)).map(group => [group, {
+        source: "tau" as const,
+        status: snapshot?.groups[group] === undefined ? "unknown" as const : stale ? "stale" as const : "ready" as const,
+        verifiedAt: snapshot?.verifiedAt,
+        exams: (snapshot?.groups[group] ?? []).filter(exam => (exam.type?.includes("ביניים") ?? false) === semester.endsWith("a")),
+      }])) }]
+  }))
+  const local = importSemesterCourses(semester, { ...lautmanCourses,
+    ...Object.fromEntries(Object.values(custom).flatMap(Object.entries)),
+  })
+  return { ...official, ...Object.fromEntries(Object.entries(local).map(([id, course]) => [id,
+    course && { ...course, examData: { ...course.examData, source: "custom" as const } },
+  ])) }
 }
 
 /** A selected identity is visited once, irrespective of source-row repetition. */

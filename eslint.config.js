@@ -4,7 +4,7 @@ import tsPlugin from "@typescript-eslint/eslint-plugin"
 import hooks from "eslint-plugin-react-hooks"
 
 export default [
-  { ignores: ["dist/**", "node_modules/**", ".vercel/**", ".playwright-mcp/**"] },
+  { ignores: ["dist/**", "vendor/**", "node_modules/**", ".vercel/**", ".playwright-mcp/**"] },
   {
     files: ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
     languageOptions: {

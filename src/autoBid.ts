@@ -1,3 +1,4 @@
+import { dataUrls } from "./dataUrls"
 import { biddingSchema, type FacultyPoints } from "./schemas"
 import { cachedFetch } from "./hooks"
 import { DibItCourse } from "./models"
@@ -8,7 +9,7 @@ export const getPossibleFaculties = async (
   bidding?: AllTimeBiddingInfo
 ) => {
   bidding ??= await cachedFetch(
-    "https://arazim-project.com/data/bidding.json", biddingSchema
+    dataUrls.bidding, biddingSchema
   )
 
   const facultyPointsMap: Record<string, number> = {}
@@ -52,7 +53,7 @@ const autoBid = async (
   bidding?: AllTimeBiddingInfo
 ) => {
   bidding ??= await cachedFetch(
-    "https://arazim-project.com/data/bidding.json", biddingSchema
+    dataUrls.bidding, biddingSchema
   )
 
   const facultyPointsMap: Record<string, number> = {}

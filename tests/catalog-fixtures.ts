@@ -1,3 +1,8 @@
+import { acceptAnnualFeed } from "../src/annualRegistry"
+import annualFeed from "./fixtures/annual-feed.json"
+
+acceptAnnualFeed(annualFeed)
+
 import { importSemesterCourses } from "../src/catalog"
 
 /** Import raw semester fixtures through the same boundary as downloaded catalogs. */

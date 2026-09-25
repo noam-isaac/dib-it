@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -67,7 +68,7 @@ try {
     const errors = []
     page.on("pageerror", error => errors.push(error.message))
     await page.route("**/*", route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort())
-    await page.route("https://arazim-project.com/data/**", route => {
+    await page.route("**/data/**", route => {
       const file = new URL(route.request().url()).pathname.split("/").pop()
       return route.fulfill({ json: file === "info.json" ? { currentSemester: "2026a", semesters: {
         "2026a": { startDate: "2025-10-26", endDate: "2026-01-25" } } } : file === "courses-2026a.json" ? catalog : {} })
@@ -82,6 +83,7 @@ try {
         window.copiedImageSize = blob.size
       } } })
     }, width === 390)
+    await prepareAnnualFeed(page)
     await page.goto(origin)
     await page.locator("#course-01234567").waitFor()
     await choose(page, "יצירת טופס רישום ב-Word")

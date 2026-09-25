@@ -1,3 +1,4 @@
+import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import { chromium, firefox, webkit } from "playwright"
@@ -24,7 +25,7 @@ try {
     page.on("pageerror", error => errors.push(error.message))
     let corrected = false
     await page.route("**/*", route => new URL(route.request().url()).origin === url ? route.continue() : route.abort())
-    await page.route("https://arazim-project.com/data/**", route => {
+    await page.route("**/data/**", route => {
       const filename = new URL(route.request().url()).pathname.split("/").pop()
       const json = filename === "info.json" ? { currentSemester: semester, semesters: { [semester]: {} } }
         : filename === `courses-${semester}.json` ? { ...source,
@@ -38,6 +39,7 @@ try {
         courses: { [semester]: [{ id, groups: [group] }, { id: "21721600", groups: ["01"] }] },
       }))
     }, { semester, id, group })
+    await prepareAnnualFeed(page)
     await page.goto(url)
     await page.getByText("שעות: 4 (חלקי)", { exact: true }).waitFor()
     await page.locator("#schedule-container").getByRole("alert").waitFor()
