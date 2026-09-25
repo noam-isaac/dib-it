@@ -80,9 +80,9 @@ const PersonalExams = ({ onDateClick }: { onDateClick: (date: string) => void })
           </p>
         ))}
         <h3 style={{ marginTop: 10, marginBottom: 10 }}>הפרשי ימים</h3>
-        <div dir="ltr" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <div dir="ltr" style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
           {examDates.map(({ id, course, date }, index) => (
-            <div key={id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div key={id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
               {index > 0 && <span>→</span>}
               <Tooltip label={courseInfo[course.id]?.name}>
                 <div
