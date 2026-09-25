@@ -315,7 +315,7 @@ const StudyPlan = () => {
                       {included && (
                         <Badge
                           mr={5}
-                          variant="light"
+                          variant="filled"
                           color="green"
                           leftSection={<i className="fa-solid fa-check" />}
                         >
@@ -328,7 +328,7 @@ const StudyPlan = () => {
                           undefined && (
                           <Badge
                             mr={5}
-                            variant="light"
+                            variant="filled"
                             color="green"
                             leftSection={<i className="fa-solid fa-check" />}
                           >
@@ -348,8 +348,8 @@ const StudyPlan = () => {
                         >
                           <Badge
                             mr={5}
-                            variant="light"
-                            color="yellow"
+                            variant="filled"
+                            color="red"
                             leftSection={<i className="fa-solid fa-exclamation-circle" />}
                           >
                             חסרות דרישות קדם
@@ -362,7 +362,7 @@ const StudyPlan = () => {
                         courseInfo[courseId] === undefined && (
                           <Badge
                             mr={5}
-                            color="gray"
+                            color="red"
                             leftSection={<i className="fa-solid fa-xmark" />}
                           >
                             לא עובר בסמסטר הנבחר
@@ -374,8 +374,8 @@ const StudyPlan = () => {
                         availableExams(courseId).length === 0 && (
                           <Badge
                             mr={5}
-                            variant="light"
-                            color="gray"
+                            variant="filled"
+                            color="green"
                             leftSection={<i className="fa-solid fa-check" />}
                           >
                             אין מועדי בחינות שפורסמו
