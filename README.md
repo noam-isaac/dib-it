@@ -10,7 +10,7 @@
     <b>A schedule planning website for Tel Aviv University built with <a href="https://react.dev">React</a>, <a href="https://mantine.dev">Mantine</a> and <a href="https://firebase.google.com">Firebase</a></b>
 </p>
 
-This is Noam Isaac's independently maintained fork of [Dib It by Arazim Project](https://github.com/arazimproject/dib-it), not the original Arazim deployment. Course catalogs and linked academic tools are still provided by Arazim Project. The original [MIT license and copyright notice](LICENSE.md) are preserved.
+This is Noam Isaac's independently maintained fork of [Dib It by Arazim Project](https://github.com/arazimproject/dib-it), not the original Arazim deployment. Course catalogs come from our TAU Tools feed; linked academic tools remain provided by Arazim Project. The original [MIT license and copyright notice](LICENSE.md) are preserved.
 
 This fork adds multiple saved schedules, exam-date search, Word registration forms, improved Hebrew search, academic-program shortcuts, hidden tabs, corrected calendar export, and backup restore previews. A Hebrew introduction opens on the first visit and can be reopened from the existing footer. Report fork issues [here](https://github.com/noam-isaac/dib-it/issues).
 
@@ -90,8 +90,8 @@ Annual groups are marked **שנתי** and selections synchronize between semeste
 
 Annual exams use the selected group's TAU snapshot in both semester views and ICS
 exports. Exam search includes all groups. Confirmed empty results remove canceled
-exams; unavailable results remain unknown, and failed or older-than-seven-day
-snapshots show a warning while retaining the last verified dates. Local/custom
+exams; unavailable results remain unknown, and failed refreshes show a warning
+while retaining the last verified dates. Snapshot age alone does not warn. Local/custom
 course data keeps precedence.
 
 Annual classification updates through the same static feed as the catalogs. TAU Tools owns the weekly refresh and publication. The app caches validated data for offline use; without cached data, classification remains unknown until the feed is available. Missing years preserve pending edits; Settings shows verification dates and provides refresh/retry. Activation and maintenance are documented in [MAINTAINING.md](MAINTAINING.md).

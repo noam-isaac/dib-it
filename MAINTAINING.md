@@ -25,8 +25,8 @@ unknown. User changes remain pending (including removals) until classification
 arrives; no course is inferred annual from matching semester offerings. Settings
 shows the verification date and provides retry. The pending marker travels with
 JSON and Google backups. Scraper failures retain previous verification timestamps;
-confirmed empty exam results replace old dates. The app warns after seven days,
-matching the planned weekly cadence. `catalogData.ts` shares loaded catalogs and
+confirmed empty exam results replace old dates. Warnings indicate missing data or
+failed refreshes, not the age of retained data. `catalogData.ts` shares loaded catalogs and
 notifies consumers when annual data changes; `useCatalog.ts` serves current and
 historical views. `catalog.ts` resolves source precedence once, and `exams.ts`
 filters those results by selected groups or all groups for discovery. ICS uses

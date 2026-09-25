@@ -8,7 +8,6 @@ const id = "21721600"
 const first = { date: "27/06/2090", moed: "א", hour: "09:00", type: "בחינה סופית" }
 const second = { ...first, date: "22/07/2090", moed: "ב" }
 const verifiedAt = "2026-09-18T09:00:00Z"
-const now = Date.parse(verifiedAt)
 const annual: AnnualYear = {
   source: "https://www.ims.tau.ac.il/Tal/KR/Search_P.aspx", filter: "ckSem=0", verifiedAt: "2026-09-18",
   groups: { [id]: ["01", "02"] },
@@ -16,7 +15,7 @@ const annual: AnnualYear = {
 }
 const raw = { [id]: { name: "צרפתית למתחילים", groups: ["01", "02", "03"].map(group => ({ group })), exams: [{ ...first, date: "26/06/2090" }] } }
 const selected = [{ id, groups: ["01"] }]
-const catalog = (data = annual, semester = "2090a") => resolveCatalog(semester, importSemesterCourses(semester, raw), data, {}, false, now)
+const catalog = (data = annual, semester = "2090a") => resolveCatalog(semester, importSemesterCourses(semester, raw), data)
 
 test("one immutable catalog serves discovery, selected groups, both semesters and ICS", () => {
   for (const semester of ["2090a", "2090b"]) {
@@ -41,10 +40,10 @@ test("authoritative snapshots replace changed dates and explicit cancellations; 
   expect(collectExams(selected, info).map(exam => exam.key)).toEqual(["2090-06-28"])
   expect(collectExams([{ id, groups: ["02"] }], info)).toEqual([])
   expect(courseExamSources({ id, groups: ["02"] }, info[id])[0].status).toBe("ready")
-  const custom = resolveCatalog("2090a", importSemesterCourses("2090a", raw), annual, { local: raw }, false, now)
+  const custom = resolveCatalog("2090a", importSemesterCourses("2090a", raw), annual, { local: raw })
   expect(collectExams(selected, custom)[0].key).toBe("2090-06-26")
   expect(courseExamSources(selected[0], custom[id])[0].source).toBe("custom")
-  expect(collectExams(selected, resolveCatalog("2089a", importSemesterCourses("2089a", raw), undefined, {}, false, now))[0].key).toBe("2090-06-26")
+  expect(collectExams(selected, resolveCatalog("2089a", importSemesterCourses("2089a", raw)))[0].key).toBe("2090-06-26")
 })
 
 test("missing and failed annual data never become verified empty data or replace valid dates", () => {
@@ -55,10 +54,8 @@ test("missing and failed annual data never become verified empty data or replace
   const stale = catalog({ ...annual, examFailures: { [id]: "2026-09-19T09:00:00Z" } })
   expect(collectExams(selected, stale)[0].key).toBe("2090-06-27")
   expect(courseExamSources(selected[0], stale[id])[0]).toMatchObject({ status: "stale", verifiedAt })
-  const aged = resolveCatalog("2090a", importSemesterCourses("2090a", raw), annual, {}, false, now + 8 * 86400000)
-  expect(examDataWarnings(selected, aged)).toHaveLength(1)
-  const withinWeek = resolveCatalog("2090a", importSemesterCourses("2090a", raw), annual, {}, false, now + 6 * 86400000)
-  expect(examDataWarnings(selected, withinWeek)).toEqual([])
+  const retained = catalog({ ...annual, exams: { [id]: { ...annual.exams![id]!, verifiedAt: "2000-01-01T00:00:00Z" } } })
+  expect(examDataWarnings(selected, retained)).toEqual([])
 })
 
 test("classification and exam timestamps advance independently and reject rollback", () => {

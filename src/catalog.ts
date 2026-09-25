@@ -70,12 +70,11 @@ export const resolveCatalog = (
   annual?: AnnualYear,
   custom: Record<string, SemesterCourses> = {},
   feedFailed = false,
-  now = Date.now(),
 ): CatalogCourses => {
   const official = Object.fromEntries(Object.entries(catalog).map(([id, course]) => {
     if (!course) return [id, course]
     const snapshot = annual?.exams?.[id]
-    const stale = feedFailed || !!annual?.examFailures?.[id] || !!snapshot && now - Date.parse(snapshot.verifiedAt) > 7 * 24 * 60 * 60 * 1000
+    const stale = feedFailed || !!annual?.examFailures?.[id]
     return [id, { ...course, groupExamData: new Map((annual?.groups[id] ?? [])
       .filter(group => course.groups.has(group)).map(group => [group, {
         source: "tau" as const,
