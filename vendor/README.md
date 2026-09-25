@@ -21,8 +21,13 @@ git -C vendor/tau-tools fetch upstream
 
 The fork's static dataset deployment is https://tau-tools.vercel.app, with files
 under `/data/`. The configured weekly GitHub workflow (Saturday, 22:23 UTC) refreshes the
-newest academic year's schedules, exams, prerequisites and plans from TAU, with other
-supplementary feeds from Arazim. Scraping stops by 04:00 UTC (06:00/07:00 Israel),
+newest academic year's schedules, exams, prerequisites and plans directly from TAU.
+It makes no Arazim feed downloads. Our saved calendar/default semester, grades,
+bidding, archived exam links and historical files are retained. The calendar needs
+explicit maintenance; the other supplementary data does not update in this job.
+The Tools README documents missing generators, the standalone bidding scraper's
+request load and the Moodle login requirement. Missing new-year calendar dates or
+saved indexed catalogs block publication instead of fetching an Arazim fallback. Scraping stops by 04:00 UTC (06:00/07:00 Israel),
 including delayed or manually requested refreshes. Publication occurs only after the complete refresh and build
 succeed. See the fork's README, workflow history, and `snapshot.json` for the
 last successful refresh and source provenance.
