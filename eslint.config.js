@@ -31,5 +31,22 @@ export default [
       "react-hooks/exhaustive-deps": "off",
     },
   },
+  {
+    files: ["src/App.tsx", "src/components/**/*.tsx"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: [
+        { group: ["**/catalogData"], message: "Use useCatalog; components must not load or cache course catalogs." },
+        { group: ["**/catalog"], importNames: ["importSemesterCourses", "resolveCatalog", "assertCourseCatalog"], message: "Catalog normalization belongs to useCatalog, not a screen." },
+        { group: ["**/annualRegistry"], importNames: ["acceptAnnualFeed", "refreshAnnualFeed"], message: "Use the shared refresh action so all consumers receive the same data." },
+      ] }],
+      "no-restricted-syntax": ["error", {
+        selector: "MemberExpression[property.name='examData'], MemberExpression[property.name='groupExamData'], MemberExpression[property.name='exams']",
+        message: "Use the exam selectors; screens must not interpret raw exam data.",
+      }, {
+        selector: "Literal[value=/\\x2fdata\\x2fcourses-/], TemplateElement[value.raw=/\\x2fdata\\x2fcourses-/]",
+        message: "Semester catalogs must be loaded through useCatalog.",
+      }],
+    },
+  },
   { files: ["tests/**/*.ts"], languageOptions: { parser: tsParser }, plugins: { "@typescript-eslint": tsPlugin }, rules: { "@typescript-eslint/no-explicit-any": "error" } },
 ]
