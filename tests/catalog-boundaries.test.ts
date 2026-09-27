@@ -2,7 +2,10 @@ import { expect, test } from "bun:test"
 import { ESLint } from "eslint"
 
 test("UI cannot bypass catalog loading or shared exam selectors", async () => {
-  const eslint = new ESLint()
+  // These snippets differ from the file on disk, including when CI enables single-run inference.
+  const eslint = new ESLint({ overrideConfig: {
+    languageOptions: { parserOptions: { disallowAutomaticSingleRunInference: true } },
+  } })
   const [result] = await eslint.lintText(`
     import { importSemesterCourses } from "../catalog"
     import { loadSemesterCourses } from "../catalogData"
