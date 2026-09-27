@@ -16,6 +16,7 @@ test("UI cannot bypass catalog loading or shared exam selectors", async () => {
       return [course?.examData, course?.groupExamData, course?.exams]
     }
   `, { filePath: "src/components/ExamSearch.tsx" })
+  expect(result!.messages.filter(message => message.fatal)).toEqual([])
   expect(result!.messages.filter(message => message.ruleId === "no-restricted-imports")).toHaveLength(3)
   expect(result!.messages.filter(message => message.ruleId === "no-restricted-syntax")).toHaveLength(5)
 
