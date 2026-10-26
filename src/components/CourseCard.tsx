@@ -112,9 +112,9 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
                 const previous = courses[index - 1]
                 const current = courses[index]
                 if (!previous || !current) return
-                courses[index] = previous
-                courses[index - 1] = current
-                setDibIt({ ...dibIt })
+                setDibIt({ ...dibIt, courses: { ...dibIt.courses,
+                  [semester]: courses.map((item, position) => position === index ? previous : position === index - 1 ? current : item),
+                } })
               }}
             />
           )}
@@ -129,9 +129,9 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
                 const next = courses[index + 1]
                 const current = courses[index]
                 if (!next || !current) return
-                courses[index] = next
-                courses[index + 1] = current
-                setDibIt({ ...dibIt })
+                setDibIt({ ...dibIt, courses: { ...dibIt.courses,
+                  [semester]: courses.map((item, position) => position === index ? next : position === index + 1 ? current : item),
+                } })
               }}
             />
           )}
@@ -142,8 +142,9 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
             className="fa-solid fa-trash"
             style={{ cursor: "pointer" }}
             onClick={() => {
-              courses.splice(index, 1)
-              setDibIt({ ...dibIt })
+              setDibIt({ ...dibIt, courses: { ...dibIt.courses,
+                [semester]: courses.filter((_, position) => position !== index),
+              } })
             }}
           />
         </Tooltip>
@@ -215,8 +216,10 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
               size="md"
               value={courseColor}
               onChange={(color) => {
-                course.color = color === "" ? getDefaultColor(course) : color
-                setDibIt({ ...dibIt })
+                setDibIt({ ...dibIt, courses: { ...dibIt.courses,
+                  [semester]: courses.map((item, position) => position === index
+                    ? { ...item, color: color === "" ? getDefaultColor(course) : color } : item),
+                } })
               }}
             />
           </div>

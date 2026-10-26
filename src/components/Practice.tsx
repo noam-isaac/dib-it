@@ -185,24 +185,12 @@ const Practice = () => {
                           ]?.includes(semester + "a") ?? false
                         }
                         onChange={(e) => {
-                          if (!dibIt.practicedExams) {
-                            dibIt.practicedExams = {}
-                          }
-                          if (!dibIt.practicedExams[exam.course.id]) {
-                            dibIt.practicedExams[exam.course.id] = []
-                          }
-                          if (e.currentTarget.checked) {
-                            ;(dibIt.practicedExams[exam.course.id] ??= []).push(
-                              semester + "a"
-                            )
-                          } else {
-                            dibIt.practicedExams[exam.course.id] = (
-                              dibIt.practicedExams[exam.course.id] ?? []
-                            ).filter(
-                                (s) => s !== semester + "a"
-                              )
-                          }
-                          setDibIt({ ...dibIt })
+                          const practiced = dibIt.practicedExams?.[exam.course.id] ?? []
+                          setDibIt({ ...dibIt, practicedExams: { ...dibIt.practicedExams,
+                            [exam.course.id]: e.currentTarget.checked
+                              ? [...practiced, semester + "a"]
+                              : practiced.filter(value => value !== semester + "a"),
+                          } })
                         }}
                       />
                       <Checkbox
@@ -215,24 +203,12 @@ const Practice = () => {
                           ]?.includes(semester + "b") ?? false
                         }
                         onChange={(e) => {
-                          if (!dibIt.practicedExams) {
-                            dibIt.practicedExams = {}
-                          }
-                          if (!dibIt.practicedExams[exam.course.id]) {
-                            dibIt.practicedExams[exam.course.id] = []
-                          }
-                          if (e.currentTarget.checked) {
-                            ;(dibIt.practicedExams[exam.course.id] ??= []).push(
-                              semester + "b"
-                            )
-                          } else {
-                            dibIt.practicedExams[exam.course.id] = (
-                              dibIt.practicedExams[exam.course.id] ?? []
-                            ).filter(
-                                (s) => s !== semester + "b"
-                              )
-                          }
-                          setDibIt({ ...dibIt })
+                          const practiced = dibIt.practicedExams?.[exam.course.id] ?? []
+                          setDibIt({ ...dibIt, practicedExams: { ...dibIt.practicedExams,
+                            [exam.course.id]: e.currentTarget.checked
+                              ? [...practiced, semester + "b"]
+                              : practiced.filter(value => value !== semester + "b"),
+                          } })
                         }}
                       />
                       <PracticeInfo gradeInfo={gradeInfo} course={exam.course} semester={semester} />

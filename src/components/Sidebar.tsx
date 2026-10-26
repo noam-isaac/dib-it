@@ -110,8 +110,7 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
           value={loadingSemesters || semesterLoad.failed ? null : semester || null}
           onChange={(v) => {
             if (v) {
-              dibIt.semester = v
-              setDibIt({ ...dibIt })
+              setDibIt({ ...dibIt, semester: v })
             }
           }}
           data={Object.keys(generalInfo.semesters ?? {})
@@ -284,14 +283,9 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
           if (courseId && courseInfo[courseId] !== undefined) {
             setSearch("")
             if (currentCourses.some(course => course.id === courseId)) return
-            if (!dibIt.courses) {
-              dibIt.courses = {}
-            }
-            if (!dibIt.courses[semester]) {
-              dibIt.courses[semester] = []
-            }
-            dibIt.courses[semester].push({ id: courseId })
-            setDibIt({ ...dibIt })
+            setDibIt({ ...dibIt, courses: { ...dibIt.courses,
+              [semester]: [...currentCourses, { id: courseId }],
+            } })
           } else {
             setSearch(courseName)
           }
