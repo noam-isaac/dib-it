@@ -12,7 +12,8 @@ import {
 import { useCourseInfo } from "../CourseInfoContext"
 import { useLocalStorage } from "../hooks"
 import { useDibIt } from "../models"
-import { getColor, parseTime, revealCourse } from "../utilities"
+import { getColor, parseTime } from "../utilities"
+import { useCourseFocus } from "../CourseFocusContext"
 
 const googleWideScheduleTheme = createTheme("google", {
   hourHeight: "var(--schedule-hour-height, 85px)",
@@ -47,6 +48,7 @@ const themes: Record<
 }
 
 const Schedule = ({ exportRef }: { exportRef: Ref<HTMLDivElement> }) => {
+  const { revealCourse } = useCourseFocus()
   const courseInfo = useCourseInfo()
   const [compactView] = useLocalStorage({
     schema: booleanSchema,
@@ -111,16 +113,7 @@ const Schedule = ({ exportRef }: { exportRef: Ref<HTMLDivElement> }) => {
           daySchedules={data}
           viewStartTime={8}
           viewEndTime={20}
-          handleEventClick={(event) => {
-            const id: string = event.id
-
-            const card = document.getElementById(`course-${id}`)
-            if (card) {
-              revealCourse(id)
-              card.style.scale = "1.03"
-              setTimeout(() => (card.style.scale = "1"), 500)
-            }
-          }}
+          handleEventClick={event => revealCourse(event.id, true)}
         />
       </div>
     </div>
