@@ -1,5 +1,24 @@
 # UI and export verification
 
+## Shared export dialog — 2026-10-25
+
+- Removed the non-timetable shortcut to native printing. Every tab uses the same
+  PDF/copy-image/save-PNG dialog; images capture the active tab's content and omit
+  controls marked `dont-print`. The timetable retains its existing grid fitting.
+- Desktop and mobile checks in Chromium, Firefox and WebKit cover exam-list and
+  calendar image copying, real PNG downloads, filtered exam results, DOM cleanup,
+  unchanged workspace, and the shared dialog on every tab. Clipboard writes are
+  intercepted at the API boundary; generated PNGs are real. Desktop light and
+  mobile dark exam PNGs were visually checked.
+- Manual UI checks with two real catalog courses verified actual clipboard PNG
+  readback, keyboard paste into a separate editable page, desktop/mobile downloads,
+  and filtered results. The filtered image exposed search instructions and action
+  buttons; these now share the existing `dont-print` exclusion. The native PDF
+  action blocked the interactive browser driver, so that save flow was not manually
+  verified; its earlier automated print checks passed.
+- This replaces the timetable-only export behavior described in the historical
+  September entries below. The in-app guide now describes the shared flow.
+
 ## Maintenance verification — 2026-09-11
 
 - Confirmed the existing behavior: annual data refreshes daily, retains valid data

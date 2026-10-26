@@ -71,7 +71,7 @@ const ExamSearch = ({ initialDate }: { initialDate: string }) => {
   }
   return (
     <Stack gap="sm" className="exam-search">
-      <Text size="sm" c="dimmed">
+      <Text size="sm" c="dimmed" className="dont-print">
         חיפוש בכל הקורסים של הסמסטר הנבחר. ליום יחיד מלאו רק את השדה הראשון;
         לטווח מלאו גם תאריך סיום.
       </Text>
@@ -181,6 +181,7 @@ const ExamSearch = ({ initialDate }: { initialDate: string }) => {
                 </div>
                 <Anchor
                   component="button"
+                  className="dont-print"
                   size="xs"
                   onClick={() => addCourse(exam.course.id)}
                 >
@@ -192,6 +193,7 @@ const ExamSearch = ({ initialDate }: { initialDate: string }) => {
       </div>
       {totalPages > 1 && (
         <Pagination
+          className="dont-print"
           size="sm"
           total={totalPages}
           value={visiblePage}

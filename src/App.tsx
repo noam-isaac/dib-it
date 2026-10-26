@@ -114,7 +114,7 @@ const App = () => {
                       <p>{loadError ? "לא ניתן לטעון את נתוני הסמסטר. המערכות שלכם נשמרו במכשיר." : "טוען את הקורסים של הסמסטר..."}</p>
                       {loadError ? <Button mt="sm" onClick={retryCatalog}>ניסיון נוסף</Button> : <Loader mt="sm" />}
                     </div>
-                  ) : <div key={dibIt.activePlanId}>
+                  ) : <div id="export-content" key={dibIt.activePlanId}>
                     {tab === "schedule" && <Schedule />}
                     {tab === "exams" && <Exams key={dibIt.semester} />}
                     {tab === "study-plan" && <StudyPlan />}

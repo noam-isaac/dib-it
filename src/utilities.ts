@@ -71,16 +71,19 @@ export const downloadBlob = (filename: string, blob: Blob) => {
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
-export const createScheduleImage = async () => {
-  const element = document.getElementById("schedule-container")
-  if (!element) throw new Error("פתחו את לשונית המערכת כדי ליצור תמונה.")
-  // Reflow a DOM copy of the existing timetable; never resize the live schedule.
+export const createExportImage = async () => {
+  const content = document.getElementById("export-content")
+  const element = content?.querySelector<HTMLElement>("#schedule-container") ?? content
+  if (!element) throw new Error("אין תוכן לייצוא. נסו שוב לאחר טעינת הנתונים.")
+  // Reflow a DOM copy of the displayed content; never resize the live page.
   const wrapper = document.createElement("div")
   wrapper.setAttribute("aria-hidden", "true")
   wrapper.inert = true
   Object.assign(wrapper.style, { position: "fixed", left: "-10000px", top: "0" })
   const copy = element.cloneNode(true) as HTMLElement
   Object.assign(copy.style, { width: "1400px", maxWidth: "none", overflowWrap: "anywhere" })
+  copy.querySelectorAll(".dont-print").forEach(control => control.remove())
+  if (element === content) Object.assign(copy.style, { padding: "16px", boxSizing: "border-box" })
   copy.style.setProperty("--schedule-hour-height", "100px")
   wrapper.append(copy)
   document.body.append(wrapper)

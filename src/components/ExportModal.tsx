@@ -1,8 +1,8 @@
 import { Button, Stack, Text } from "@mantine/core"
 import { useState } from "react"
-import { createScheduleImage, downloadBlob } from "../utilities"
+import { createExportImage, downloadBlob } from "../utilities"
 
-export default function ScheduleExportModal({ semester }: { semester: string }) {
+export default function ExportModal({ semester }: { semester: string }) {
   const [working, setWorking] = useState(false)
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
@@ -16,13 +16,13 @@ export default function ScheduleExportModal({ semester }: { semester: string }) 
           throw new Error("הדפדפן לא תומך בהעתקת תמונות. אפשר לבחור בשמירה כתמונה.")
         }
         // Start the clipboard write during the click; Safari requires user activation.
-        const image = createScheduleImage()
+        const image = createExportImage()
         try {
           await navigator.clipboard.write([new ClipboardItem({ "image/png": image })])
         } finally { await image.catch(() => {}) }
         setMessage("התמונה הועתקה — אפשר להדביק אותה כעת.")
       } else {
-        downloadBlob(`dibit-${semester}.png`, await createScheduleImage())
+        downloadBlob(`dibit-${semester}.png`, await createExportImage())
         setMessage("התמונה נשמרה.")
       }
     } catch (error) {
