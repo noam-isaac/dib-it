@@ -71,9 +71,7 @@ export const downloadBlob = (filename: string, blob: Blob) => {
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
-export const createExportImage = async () => {
-  const content = document.getElementById("export-content")
-  const element = content?.querySelector<HTMLElement>("#schedule-container") ?? content
+export const createExportImage = async (element: HTMLElement | null, timetable: boolean) => {
   if (!element) throw new Error("אין תוכן לייצוא. נסו שוב לאחר טעינת הנתונים.")
   // Reflow a DOM copy of the displayed content; never resize the live page.
   const wrapper = document.createElement("div")
@@ -83,7 +81,7 @@ export const createExportImage = async () => {
   const copy = element.cloneNode(true) as HTMLElement
   Object.assign(copy.style, { width: "1400px", maxWidth: "none", overflowWrap: "anywhere" })
   copy.querySelectorAll(".dont-print").forEach(control => control.remove())
-  if (element === content) Object.assign(copy.style, { padding: "16px", boxSizing: "border-box" })
+  if (!timetable) Object.assign(copy.style, { padding: "16px", boxSizing: "border-box" })
   copy.style.setProperty("--schedule-hour-height", "100px")
   wrapper.append(copy)
   document.body.append(wrapper)

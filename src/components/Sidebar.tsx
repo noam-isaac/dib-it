@@ -31,10 +31,9 @@ import CourseCard from "./CourseCard"
 import GoogleSaveButtons from "./GoogleSaveButtons"
 import RegistrationModal from "./RegistrationModal"
 import PlanSelector from "./PlanSelector"
-import ExportModal from "./ExportModal"
 import { downloadWorkspaceBackup, openScheduleRestore } from "./RestoreScheduleModal"
 
-const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
+const Sidebar = ({ catalogReady, onExport }: { catalogReady: boolean; onExport: () => void }) => {
   const courseInfo = useCourseInfo()
   const courseOptions = useMemo(() => Object.keys(courseInfo).map(id => ({
     id, value: `${courseInfo[id]?.name} (${id})`, label: `${courseInfo[id]?.name} (${id})`,
@@ -234,10 +233,7 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
               disabled={!catalogReady || hasCatalogConflicts}
               leftSection={<i className="fa-solid fa-print" aria-hidden="true" />}
 
-              onClick={() => {
-                modals.open({ title: "ייצוא ל־PDF או לתמונה", centered: true,
-                  children: <ExportModal semester={semester} /> })
-              }}
+              onClick={onExport}
             >
               ייצוא ל־PDF או לתמונה
             </Menu.Item>

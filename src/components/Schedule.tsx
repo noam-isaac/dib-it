@@ -1,4 +1,5 @@
 import { booleanSchema } from "../schemas"
+import { type Ref } from "react"
 import { selectedGroups, selectedCatalogConflicts } from "../catalog"
 import { useColorScheme } from "@mantine/hooks"
 import {
@@ -45,7 +46,7 @@ const themes: Record<
   apple: [compactScheduleTheme, wideScheduleTheme],
 }
 
-const Schedule = () => {
+const Schedule = ({ exportRef }: { exportRef: Ref<HTMLDivElement> }) => {
   const courseInfo = useCourseInfo()
   const [compactView] = useLocalStorage({
     schema: booleanSchema,
@@ -92,6 +93,7 @@ const Schedule = () => {
       <div
         dir="rtl"
         id="schedule-container"
+        ref={exportRef}
         className={compactView ? "" : "wide"}
         style={{ minWidth: compactView ? undefined : 600, maxWidth: "100%" }}
       >
