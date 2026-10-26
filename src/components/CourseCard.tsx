@@ -109,12 +109,17 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
               className="fa-solid fa-chevron-up"
               style={{ cursor: "pointer" }}
               onClick={() => {
-                const previous = courses[index - 1]
-                const current = courses[index]
-                if (!previous || !current) return
-                setDibIt({ ...dibIt, courses: { ...dibIt.courses,
-                  [semester]: courses.map((item, position) => position === index ? previous : position === index - 1 ? current : item),
-                } })
+                setDibIt(current => {
+                  const latest = current.courses?.[semester] ?? []
+                  const position = latest.findIndex(item => item.id === course.id)
+                  const adjacent = position - 1
+                  const selected = latest[position]
+                  const neighbor = latest[adjacent]
+                  if (!selected || !neighbor) return current
+                  return { ...current, courses: { ...current.courses,
+                    [semester]: latest.map((item, index) => index === position ? neighbor : index === adjacent ? selected : item),
+                  } }
+                })
               }}
             />
           )}
@@ -126,12 +131,17 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
                 cursor: "pointer",
               }}
               onClick={() => {
-                const next = courses[index + 1]
-                const current = courses[index]
-                if (!next || !current) return
-                setDibIt({ ...dibIt, courses: { ...dibIt.courses,
-                  [semester]: courses.map((item, position) => position === index ? next : position === index + 1 ? current : item),
-                } })
+                setDibIt(current => {
+                  const latest = current.courses?.[semester] ?? []
+                  const position = latest.findIndex(item => item.id === course.id)
+                  const adjacent = position + 1
+                  const selected = latest[position]
+                  const neighbor = latest[adjacent]
+                  if (!selected || !neighbor) return current
+                  return { ...current, courses: { ...current.courses,
+                    [semester]: latest.map((item, index) => index === position ? neighbor : index === adjacent ? selected : item),
+                  } }
+                })
               }}
             />
           )}
@@ -142,9 +152,9 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
             className="fa-solid fa-trash"
             style={{ cursor: "pointer" }}
             onClick={() => {
-              setDibIt({ ...dibIt, courses: { ...dibIt.courses,
-                [semester]: courses.filter((_, position) => position !== index),
-              } })
+              setDibIt(current => ({ ...current, courses: { ...current.courses,
+                [semester]: (current.courses?.[semester] ?? []).filter(item => item.id !== course.id),
+              } }))
             }}
           />
         </Tooltip>
@@ -189,13 +199,13 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
             styles={{ input: { cursor: "pointer" } }}
             ml={10}
             checked={course.groups?.includes(group.group) ?? false}
-            onChange={() => {
-              const groups = course.groups?.includes(group.group)
-                ? course.groups.filter(id => id !== group.group)
-                : [...course.groups ?? [], group.group]
-              setDibIt({ ...dibIt, courses: { ...dibIt.courses,
-                [semester]: courses.map(item => item.id === course.id ? { ...item, groups } : item),
-              } })
+            onChange={(event) => {
+              const checked = event.currentTarget.checked
+              setDibIt(current => ({ ...current, courses: { ...current.courses,
+                [semester]: (current.courses?.[semester] ?? []).map(item => item.id === course.id ? { ...item,
+                  groups: checked ? [...new Set([...item.groups ?? [], group.group])] : item.groups?.filter(id => id !== group.group) ?? [],
+                } : item),
+              } }))
             }}
           />
           {group.status === "ready" ? <span>{group.group} ({group.data.lessons?.[0]?.type ?? ""}): {group.data.lecturer}</span>
@@ -216,10 +226,10 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
               size="md"
               value={courseColor}
               onChange={(color) => {
-                setDibIt({ ...dibIt, courses: { ...dibIt.courses,
-                  [semester]: courses.map((item, position) => position === index
-                    ? { ...item, color: color === "" ? getDefaultColor(course) : color } : item),
-                } })
+                setDibIt(current => ({ ...current, courses: { ...current.courses,
+                  [semester]: (current.courses?.[semester] ?? []).map(item => item.id === course.id
+                    ? { ...item, color: color === "" ? getDefaultColor(item) : color } : item),
+                } }))
               }}
             />
           </div>

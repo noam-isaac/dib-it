@@ -30,7 +30,7 @@ const App = () => {
     key: "Hidden Tabs", schema: stringArraySchema,
     defaultValue: [],
   })
-  const { courses, ready: catalogReady, failed: loadError, retry: retryCatalog, attempt: retry } = useCatalog(dibIt.semester, dibIt.customCourses, true)
+  const { courses, ready: catalogReady, failed: loadError, retry: retryCatalog, attempt: retry } = useCatalog(dibIt.semester, dibIt.customCourses, true, dibIt.activePlanId)
 
   const conflicts = selectedCatalogConflicts(dibIt.courses?.[dibIt.semester ?? ""] ?? [], courses)
   const hours = sumHours(courses, dibIt)
@@ -39,8 +39,8 @@ const App = () => {
   const tab = shownTabs.find(({ id }) => id === dibIt.tab)?.id ?? shownTabs[0]!.id
 
   useEffect(() => {
-    if (dibIt.tab && dibIt.tab !== tab) setDibIt({ ...dibIt, tab })
-  }, [dibIt.tab, tab])
+    if (dibIt.tab && dibIt.tab !== tab) setDibIt(current => current.tab === dibIt.tab ? { ...current, tab } : current)
+  }, [dibIt.tab, tab, setDibIt])
 
   return (
     <MantineProvider
@@ -100,7 +100,7 @@ const App = () => {
                           size="md"
                           variant={tab === id ? "light" : "subtle"}
                           leftSection={<i className={`fa-solid fa-${icon}`} aria-hidden="true" />}
-                          onClick={() => setDibIt({ ...dibIt, tab: id })}
+                          onClick={() => setDibIt(current => ({ ...current, tab: id }))}
                         >
                           {label}
                         </Button>
