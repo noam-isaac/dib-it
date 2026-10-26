@@ -14,13 +14,15 @@ import { useMemo, useState } from "react"
 import { useCourseInfo } from "../CourseInfoContext"
 import { collectExams, filterExamDates, isCourseScheduled } from "../exams"
 import { getDibIt, useDibIt } from "../models"
-import { getColor, revealCourse } from "../utilities"
+import { getColor } from "../utilities"
 import { searchItems } from "../search"
+import { useCourseFocus } from "../CourseFocusContext"
 
 const PAGE_SIZE = 30
 
 const ExamSearch = ({ initialDate }: { initialDate: string }) => {
   const info = useCourseInfo()
+  const { revealCourse } = useCourseFocus()
   const [dibIt, setDibIt] = useDibIt()
   const [start, setStart] = useState(initialDate)
   const [end, setEnd] = useState("")

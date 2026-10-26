@@ -167,15 +167,6 @@ export const sumHours = (info: CatalogCourses, view: DibIt) =>
       return minutes + (start !== undefined && end !== undefined && end > start ? end - start : 0)
     }, 0) / 60
 
-/** Scroll to a course and focus its group control after rendering. */
-export const revealCourse = (id: string) => {
-  requestAnimationFrame(() => {
-    const card = document.getElementById(`course-${id}`)
-    card?.scrollIntoView({ behavior: "smooth", block: "center" })
-    card?.querySelector<HTMLElement>('input[type="checkbox"]')?.focus({ preventScroll: true })
-  })
-}
-
 export const getPastAndPresentCourses = (dibIt: DibIt, until?: string) => {
   const pastCourses = new Set<string>()
   const pastAndPresentCourses = new Set<string>()

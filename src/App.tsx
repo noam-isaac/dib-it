@@ -5,6 +5,7 @@ import { ModalsProvider } from "@mantine/modals"
 import { Notifications } from "@mantine/notifications"
 import { useEffect } from "react"
 import CourseInfoContext from "./CourseInfoContext"
+import { CourseFocusProvider } from "./CourseFocusContext"
 import Exams from "./components/Exams"
 import Footer from "./components/Footer"
 import Guide from "./components/Guide"
@@ -70,6 +71,7 @@ const App = () => {
           >
             <Header />
             <GoogleScheduleSync />
+            <CourseFocusProvider scope={`${dibIt.activePlanId}:${dibIt.semester}:${tab}`}>
             <div
                 id="main"
                 style={{
@@ -126,6 +128,7 @@ const App = () => {
                   </div>}
                 </div>
             </div>
+            </CourseFocusProvider>
 
             <Footer />
           </div>
