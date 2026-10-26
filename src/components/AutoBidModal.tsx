@@ -58,10 +58,8 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
             disabled={loading}
             value={faculty}
             onChange={(e) => {
-              const point = facultyPoints[index]
-              if (!point) return
-              point.faculty = e.currentTarget.value
-              setFacultyPoints([...facultyPoints])
+              const faculty = e.currentTarget.value
+              setFacultyPoints(points => points.map((point, position) => position === index ? { ...point, faculty } : point))
             }}
           />
           <span style={{ flexGrow: 1 }} />
@@ -74,11 +72,8 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
             value={points ?? ""}
             min={0}
             onChange={(v) => {
-              const point = facultyPoints[index]
-              if (!point) return
-              point.points =
-                typeof v === "number" ? v : undefined
-              setFacultyPoints([...facultyPoints])
+              setFacultyPoints(points => points.map((point, position) => position === index
+                ? { ...point, points: typeof v === "number" ? v : undefined } : point))
             }}
           />
           <ActionIcon
@@ -88,8 +83,7 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
             variant="subtle"
             mr={5}
             onClick={() => {
-              facultyPoints.splice(index, 1)
-              setFacultyPoints([...facultyPoints])
+              setFacultyPoints(points => points.filter((_, position) => position !== index))
             }}
           >
             <i className="fa-solid fa-trash" aria-hidden="true" />
@@ -123,14 +117,11 @@ const AutoBidModal = ({ courses }: { courses: DibItCourse[] }) => {
                 key={facultyIndex}
                 checked={possibleFaculties[courseId]?.includes(faculty) ?? false}
                 onChange={(e) => {
-                  if (e.currentTarget.checked) {
-                    ;(possibleFaculties[courseId] ??= []).push(faculty)
-                  } else {
-                    possibleFaculties[courseId] = (
-                      possibleFaculties[courseId] ?? []
-                    ).filter((x) => x !== faculty)
-                  }
-                  setPossibleFaculties({ ...possibleFaculties })
+                  const checked = e.currentTarget.checked
+                  setPossibleFaculties(previous => ({ ...previous, [courseId]: checked
+                    ? [...previous[courseId] ?? [], faculty]
+                    : (previous[courseId] ?? []).filter(value => value !== faculty),
+                  }))
                   setResults({})
                   setError("")
                 }}

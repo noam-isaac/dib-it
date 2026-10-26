@@ -72,8 +72,10 @@ try {
     await switchTo("2026a")
     await release("2027b") // A late response from the previous year must not end loading.
     await checkPending()
-    await release("2026a", 503)
-    await page.getByRole("alert").filter({ hasText: "לא ניתן לטעון" }).waitFor()
+    if (width === 390) await release("2026a", 503)
+    await page.getByRole("alert").filter({ hasText: "לא ניתן לטעון" }).waitFor({ timeout: 20000 })
+    // Desktop leaves the request unanswered: the real 15s deadline must release loading.
+    if (width === 1280) pending.set("2026a", Promise.withResolvers())
     await checkPending()
     await page.getByRole("button", { name: "ניסיון נוסף", exact: true }).click()
     await release("2026a")
@@ -84,7 +86,7 @@ try {
     assert.deepEqual(saved, Object.fromEntries(semesters.map(s => [s, [{ id, groups: ["01"] }]])))
     assert.deepEqual(errors, [])
     await page.close()
-    console.log(`PASS ${engine} ${width}: delayed catalogs, semester/year switch, stale response, failure/retry, preserved selections and backup access`)
+    console.log(`PASS ${engine} ${width}: delayed catalogs, semester/year switch, stale response, ${width === 1280 ? "timeout" : "failure"}/retry, preserved selections and backup access`)
   }
 } finally {
   await browser?.close()

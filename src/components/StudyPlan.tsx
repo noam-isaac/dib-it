@@ -55,11 +55,9 @@ const StudyPlan = () => {
       value: JSON.stringify([school, studyPlan]), label: `${studyPlan} — ${school}`, school, studyPlan,
     })))
 
-  if (!dibIt.semester) return null
-  if (!dibIt.courses) {
-    dibIt.courses = {}
-  }
-  const currentCourses = (dibIt.courses[dibIt.semester] ??= [])
+  const semester = dibIt.semester
+  if (!semester) return null
+  const currentCourses = dibIt.courses?.[semester] ?? []
   const selectedPlan = plans[dibIt.school ?? ""]?.[dibIt.studyPlan ?? ""] ?? {}
 
   const courseDates = collectExams(currentCourses, courseInfo).map(exam => exam.date.getTime()).sort((a, b) => a - b)
@@ -304,8 +302,9 @@ const StudyPlan = () => {
                           leftSection={<i className="fa-solid fa-plus" />}
                           size="xs"
                           onClick={() => {
-                            currentCourses.push({ id: courseId })
-                            setDibIt({ ...dibIt })
+                            setDibIt({ ...dibIt, courses: { ...dibIt.courses,
+                              [semester]: [...currentCourses, { id: courseId }],
+                            } })
                           }}
                         >
                           הוספה

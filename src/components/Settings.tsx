@@ -62,8 +62,7 @@ const Settings = ({ hiddenTabs, onHiddenTabsChange }: {
         ]}
         value={dibIt.theme ?? "apple"}
         onChange={(v) => {
-          dibIt.theme = v === "google" ? "google" : "apple"
-          setDibIt({ ...dibIt })
+          setDibIt({ ...dibIt, theme: v === "google" ? "google" : "apple" })
         }}
       />
       <Dropzone

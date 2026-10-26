@@ -4,6 +4,28 @@ import { chromium } from "playwright"
 import { createServer } from "vite"
 
 const server = await createServer({
+  plugins: [{
+    name: "freeze-react-snapshots",
+    enforce: "pre",
+    transform(code, id) {
+      const replacement = id.endsWith("/src/models.ts")
+        ? ["return [activePlanView(workspace), setDibIt] as const", "return [freezeSnapshot(activePlanView(workspace)), setDibIt] as const"]
+        : id.endsWith("/src/hooks.ts")
+          ? ["return [value, userSetValue] as const", "return [freezeSnapshot(value), userSetValue] as const"]
+          : id.endsWith("/src/components/AutoBidModal.tsx")
+            ? ["  return (", "  freezeSnapshot(possibleFaculties)\n  return ("] : null
+      if (!replacement) return
+      assert.ok(code.includes(replacement[0]), "snapshot freezing must stay connected to the state boundary")
+      return code.replace(...replacement) + `
+        function freezeSnapshot(value) {
+          if (value && typeof value === "object" && !Object.isFrozen(value)) {
+            Object.values(value).forEach(freezeSnapshot)
+            Object.freeze(value)
+          }
+          return value
+        }`
+    },
+  }],
   define: { "import.meta.env.VITE_ENABLE_GOOGLE_SYNC": '"false"' },
   cacheDir: "node_modules/.vite-interaction-test",
   server: { host: "127.0.0.1", port: 0 },
@@ -34,15 +56,16 @@ try {
       ? route.fulfill({ status: 503, body: "Unavailable" })
       : route.fulfill({ json: { [ids[0]]: { "2025a": { "01": [{ faculty: "A", minimal: 10 }, { faculty: "B", minimal: 20 }] } } } })
     if (filename === "courses-2024a.json") historyRequests.push(filename)
-    const json = filename === "info.json" ? { currentSemester: "2026a", semesters: { "2026a": {} } }
+    const json = filename === "info.json" ? { currentSemester: "2026a", semesters: { "2026a": {}, "2026b": {} } }
       : filename.startsWith("courses-") ? catalog
+      : filename === "plans-2026.json" ? { Faculty: { Program: { Required: { count: 1, courses: { [ids[0]]: {} } } } } }
       : filename === "courses.json" ? Object.fromEntries(ids.map(id => [id, { semesters: ["2024a"] }])) : {}
     return route.fulfill({ json })
   })
   await page.addInitScript(ids => {
     localStorage.setItem("Dib It Fork Intro Seen", "true")
     localStorage.setItem("Auto Bid Faculty Points", JSON.stringify([{ faculty: "A", points: 100 }, { faculty: "B", points: 200 }]))
-    localStorage.setItem("Dib It", JSON.stringify({ semester: "2026a", tab: "practice", courses: { "2026a": ids.map(id => ({ id, groups: ["01"] })) } }))
+    localStorage.setItem("Dib It", JSON.stringify({ semester: "2026a", tab: "practice", degreeStartYear: "2026", school: "Faculty", studyPlan: "Program", courses: { "2026a": ids.map(id => ({ id, groups: ["01"] })) } }))
   }, ids)
   await prepareAnnualFeed(page)
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
@@ -82,6 +105,14 @@ try {
   await page.getByText(/לא חושבה המלצה לקורסים/).waitFor()
   await page.getByRole("checkbox", { name: "A", exact: true }).uncheck()
   assert.equal(await page.getByRole("heading", { name: "מסלול: A", exact: true }).count(), 0, "editing mappings clears stale results")
+  await page.getByRole("checkbox", { name: "A", exact: true }).check()
+  await page.getByRole("textbox", { name: "מסלול בבידינג", exact: true }).first().fill("A updated")
+  await page.getByRole("textbox", { name: "מסלול בבידינג", exact: true }).first().fill("A")
+  await page.getByLabel("נקודות בבידינג", { exact: true }).first().fill("101")
+  await page.getByLabel("נקודות בבידינג", { exact: true }).first().fill("100")
+  await page.getByRole("button", { name: "הוספת מסלול בבידינג", exact: true }).click()
+  await page.getByRole("button", { name: "מחיקת מסלול בבידינג", exact: true }).last().click()
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Auto Bid Faculty Points"))), [{ faculty: "A", points: 100 }, { faculty: "B", points: 200 }])
   await page.keyboard.press("Escape")
   await page.evaluate(async () => {
     const { getDibIt, setDibIt } = await import("/src/models.ts")
@@ -132,8 +163,24 @@ try {
   await search.click()
   await option.waitFor()
   assert.equal(await page.evaluate(() => window.indexRebuilds), 0, "adding/removing a course must reuse the full catalog index")
+  await option.click()
+  const card = page.locator(`#course-${ids[0]}`)
+  await card.getByRole("button", { name: "הזזת הקורס למעלה", exact: true }).click()
+  assert.deepEqual(await page.locator("#course-list > .card").evaluateAll(cards => cards.map(card => card.id)), ids.map(id => `course-${id}`))
+  await card.getByRole("button", { name: "הזזת הקורס למטה", exact: true }).click()
+  await card.getByRole("textbox").fill("#123456")
+  assert.equal(await page.evaluate(id => JSON.parse(localStorage.getItem("Dib It")).plans[0].courses["2026a"].find(course => course.id === id).color, ids[0]), "#123456")
+  await page.getByRole("button", { name: "הגדרות", exact: true }).click()
+  await page.getByRole("textbox", { name: "עיצוב", exact: true }).click()
+  await page.getByRole("option", { name: "גוגל", exact: true }).click()
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).theme), "google")
+  await page.locator("#semester-selector").click()
+  await page.getByRole("option", { name: "תשפ״ו ב'", exact: true }).click()
+  await page.getByRole("button", { name: "תוכנית", exact: true }).click()
+  await page.getByRole("button", { name: /הוספה$/ }).click()
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).plans[0].courses["2026b"].map(course => course.id)), [ids[0]])
   assert.deepEqual(errors, [])
-  console.log("PASS metadata ordering, stable search index and selected-course filtering, mobile group focus, practice lazy loading, bidding recovery")
+  console.log("PASS frozen React snapshots: metadata ordering, search, focus, practice, bidding, course reorder/color/remove, theme, semester and study-plan edits")
 } finally {
   await browser?.close()
   await server.close()
