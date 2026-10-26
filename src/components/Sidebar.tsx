@@ -31,7 +31,7 @@ import CourseCard from "./CourseCard"
 import GoogleSaveButtons from "./GoogleSaveButtons"
 import RegistrationModal from "./RegistrationModal"
 import PlanSelector from "./PlanSelector"
-import ScheduleExportModal from "./ScheduleExportModal"
+import ExportModal from "./ExportModal"
 import { downloadWorkspaceBackup, openScheduleRestore } from "./RestoreScheduleModal"
 
 const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
@@ -236,12 +236,11 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
               leftSection={<i className="fa-solid fa-print" aria-hidden="true" />}
 
               onClick={() => {
-                if (dibIt.tab && dibIt.tab !== "schedule") return window.print()
-                modals.open({ title: "איך לייצא את מערכת השעות?", centered: true,
-                  children: <ScheduleExportModal semester={semester} /> })
+                modals.open({ title: "ייצוא ל־PDF או לתמונה", centered: true,
+                  children: <ExportModal semester={semester} /> })
               }}
             >
-              {(!dibIt.tab || dibIt.tab === "schedule") ? "ייצוא ל־PDF או לתמונה" : "הדפסה/שמירה כ-PDF"}
+              ייצוא ל־PDF או לתמונה
             </Menu.Item>
 
             <Menu.Item

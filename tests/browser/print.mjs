@@ -157,15 +157,82 @@ try {
     await page.emulateMedia({ media: "screen" })
     assert.equal(await page.locator("#schedule-container").evaluate(el => el.clientHeight), screenHeight, "printing preserves screen density")
     await page.keyboard.press("Escape")
-    if (theme === "apple" && engine === "chromium") {
+    if (theme === "apple") {
       await page.getByRole("button", { name: "מבחנים", exact: true }).click()
+      const examsBefore = await page.evaluate(() => localStorage.getItem("Dib It"))
+      await page.evaluate(() => {
+        HTMLCanvasElement.prototype.toBlob = function (...args) {
+          const copy = document.querySelector('[inert] #export-content')
+          window.exportedContent = { text: copy.textContent, controls: copy.querySelectorAll(".dont-print").length,
+            paragraphs: [...copy.querySelectorAll("p")].map(p => {
+              const bounds = p.getBoundingClientRect(), parent = copy.getBoundingClientRect()
+              return { text: p.textContent, inside: bounds.left >= parent.left && bounds.right <= parent.right
+                && bounds.top >= parent.top && bounds.bottom <= parent.bottom }
+            }) }
+          return window.originalToBlob.apply(this, args)
+        }
+        navigator.clipboard.write = async items => {
+          window.copyStartedDuringClick = navigator.userActivation.isActive
+          const blob = await items[0].getType("image/png")
+          window.copiedImage = { type: blob.type, size: blob.size }
+        }
+      })
+      await page.getByRole("button", { name: "פעולות", exact: true }).click()
+      assert.equal(await page.getByRole("menuitem", { name: "הדפסה/שמירה כ-PDF", exact: true }).count(), 0, "no legacy print route")
+      await page.getByRole("menuitem", { name: "ייצוא ל־PDF או לתמונה", exact: true }).click()
+      await dialog.getByRole("button", { name: "העתקת תמונה", exact: true }).click()
+      await dialog.getByText("התמונה הועתקה — אפשר להדביק אותה כעת.", { exact: true }).waitFor()
+      assert.deepEqual(await page.evaluate(() => [window.copyStartedDuringClick, window.copiedImage.type, window.copiedImage.size > 1000]), [true, "image/png", true])
+      const captured = await page.evaluate(() => window.exportedContent)
+      for (const course of Object.values(catalog)) assert.ok(captured.text.includes(course.name), "image contains each exam")
+      assert.ok(captured.text.includes("פברואר 2026"), "image includes the exam calendar")
+      assert.equal(captured.controls, 0, "navigation and search controls are excluded")
+      assert.ok(captured.paragraphs.every(p => p.inside), "all exam text fits the image")
+      const examDownload = page.waitForEvent("download")
+      await dialog.getByRole("button", { name: "שמירת תמונה (PNG)", exact: true }).click()
+      const examFilename = `${output}/${engine}-exams-${width}.png`
+      await (await examDownload).saveAs(examFilename)
+      const examPng = await readFile(examFilename)
+      assert.equal(examPng.subarray(0, 8).toString("hex"), "89504e470d0a1a0a")
+      assert.equal(examPng.readUInt32BE(16), 2800)
+      assert.equal(await page.locator("#export-content").count(), 1, "exam export removes its DOM copy")
+      assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), examsBefore, "exam export preserves workspace")
       await page.emulateMedia({ media: "print" })
-      await page.pdf({ path: `${output}/exams-${width}.pdf`, format: "A4", printBackground: true, preferCSSPageSize: true })
+      assert.equal(await page.locator(".mantine-Modal-root:visible").count(), 0)
+      if (engine === "chromium") await page.pdf({ path: `${output}/exams-${width}.pdf`, format: "A4", printBackground: true, preferCSSPageSize: true })
       await page.emulateMedia({ media: "screen" })
-      await page.getByRole("button", { name: "מדריך", exact: true }).click()
-      await page.emulateMedia({ media: "print" })
-      const guide = await page.pdf({ path: `${output}/guide-${width}.pdf`, format: "A4", printBackground: true, preferCSSPageSize: true })
-      assert.ok((guide.toString("latin1").match(/\/Type\s*\/Page\b/g) ?? []).length > 1, "long content is not clipped to the viewport")
+      await page.keyboard.press("Escape")
+      await page.getByRole("button", { name: "חיפוש קורסים לפי תאריך בחינה", exact: true }).click()
+      await page.getByLabel("תאריך / מתאריך", { exact: true }).fill("2026-02-16")
+      await page.getByText("לא נמצאו מבחנים בתאריכים שנבחרו.", { exact: true }).waitFor()
+      await page.getByRole("button", { name: "פעולות", exact: true }).click()
+      await page.getByRole("menuitem", { name: "ייצוא ל־PDF או לתמונה", exact: true }).click()
+      await dialog.getByRole("button", { name: "העתקת תמונה", exact: true }).click()
+      await dialog.getByText("התמונה הועתקה — אפשר להדביק אותה כעת.", { exact: true }).waitFor()
+      assert.ok((await page.evaluate(() => window.exportedContent.text)).includes("לא נמצאו מבחנים בתאריכים שנבחרו."), "exports the current filtered screen")
+      assert.equal(await page.locator("#export-content").count(), 1)
+      await page.keyboard.press("Escape")
+      await page.getByLabel("תאריך / מתאריך", { exact: true }).fill("2026-02-15")
+      await page.getByRole("button", { name: "פעולות", exact: true }).click()
+      await page.getByRole("menuitem", { name: "ייצוא ל־PDF או לתמונה", exact: true }).click()
+      await dialog.getByRole("button", { name: "העתקת תמונה", exact: true }).click()
+      await dialog.getByText("התמונה הועתקה — אפשר להדביק אותה כעת.", { exact: true }).waitFor()
+      const resultsText = await page.evaluate(() => window.exportedContent.text)
+      assert.ok(resultsText.includes(catalog["11111111"].name), "matching exam results remain in the image")
+      assert.equal(/בחירת קבוצות|הוספת קורס|מלאו רק את השדה הראשון/.test(resultsText), false, "search instructions and actions stay out of exports")
+      await page.keyboard.press("Escape")
+      for (const name of ["תוכנית", "תרגול מבחנים", "הגדרות", "מדריך"]) {
+        await page.getByRole("button", { name, exact: true }).click()
+        await page.getByRole("button", { name: "פעולות", exact: true }).click()
+        await page.getByRole("menuitem", { name: "ייצוא ל־PDF או לתמונה", exact: true }).click()
+        await dialog.getByRole("button", { name: "העתקת תמונה", exact: true }).waitFor()
+        await page.keyboard.press("Escape")
+      }
+      if (engine === "chromium") {
+        await page.emulateMedia({ media: "print" })
+        const guide = await page.pdf({ path: `${output}/guide-${width}.pdf`, format: "A4", printBackground: true, preferCSSPageSize: true })
+        assert.ok((guide.toString("latin1").match(/\/Type\s*\/Page\b/g) ?? []).length > 1, "long content is not clipped to the viewport")
+      }
     }
     assert.deepEqual(errors, [])
     console.log(`PASS print ${engine} ${width}px ${colorScheme}/${theme}: menu, no overlays, light paper, six columns, preserved screen view${engine === "chromium" ? ", one PDF page" : ""}`)
