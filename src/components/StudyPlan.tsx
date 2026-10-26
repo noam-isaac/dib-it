@@ -165,13 +165,18 @@ const StudyPlan = () => {
             }))}
             onChange={value => {
               const plan = value === null ? undefined : savedStudyPlans[Number(value)]
-              if (plan) setDibIt({ ...dibIt, school: plan.school, studyPlan: plan.studyPlan })
+              if (plan) setDibIt(current => ({ ...current, school: plan.school, studyPlan: plan.studyPlan }))
             }}
           />
           {savedIndex >= 0 && (
             <Tooltip label="הסרה מהמעבר המהיר">
               <ActionIcon size="lg" variant="subtle" color="gray" aria-label="הסרה מהמעבר המהיר"
-                onClick={() => setDibIt({ ...dibIt, savedStudyPlans: savedStudyPlans.filter((_, index) => index !== savedIndex) })}>
+                onClick={() => {
+                  const removed = savedStudyPlans[savedIndex]!
+                  setDibIt(current => ({ ...current, savedStudyPlans: current.savedStudyPlans?.filter(plan =>
+                    plan.school !== removed.school || plan.studyPlan !== removed.studyPlan) ?? [],
+                  }))
+                }}>
                 <i className="fa-solid fa-xmark" aria-hidden="true" />
               </ActionIcon>
             </Tooltip>
@@ -185,7 +190,7 @@ const StudyPlan = () => {
         disabled={loadingSemesters || semesterLoad.failed}
         leftSection={<i className="fa-solid fa-calendar" />}
         value={dibIt.degreeStartYear || null}
-        onChange={(v) => setDibIt({ ...dibIt, degreeStartYear: v ?? "" })}
+        onChange={(v) => setDibIt(current => ({ ...current, degreeStartYear: v ?? "" }))}
         data={[
           ...new Set(
             Object.keys(generalInfo.semesters ?? {})
@@ -209,7 +214,7 @@ const StudyPlan = () => {
         value={dibIt.school && dibIt.studyPlan ? JSON.stringify([dibIt.school, dibIt.studyPlan]) : null}
         onChange={value => {
           const plan = planOptions.find(option => option.value === value)
-          if (plan) setDibIt({ ...dibIt, school: plan.school, studyPlan: plan.studyPlan })
+          if (plan) setDibIt(current => ({ ...current, school: plan.school, studyPlan: plan.studyPlan }))
         }}
         nothingFoundMessage="לא נמצאו תוכניות מתאימות"
         limit={30}
@@ -222,7 +227,7 @@ const StudyPlan = () => {
         variant="subtle" color="gray"
         leftSection={<i className="fa-solid fa-bookmark" aria-hidden="true" />}
         disabled={!plans[dibIt.school ?? ""]?.[dibIt.studyPlan ?? ""]}
-        onClick={() => setDibIt(saveStudyPlan(dibIt))}
+        onClick={() => setDibIt(saveStudyPlan)}
       >
         שמירה למעבר מהיר
       </Button>}
@@ -302,9 +307,12 @@ const StudyPlan = () => {
                           leftSection={<i className="fa-solid fa-plus" />}
                           size="xs"
                           onClick={() => {
-                            setDibIt({ ...dibIt, courses: { ...dibIt.courses,
-                              [semester]: [...currentCourses, { id: courseId }],
-                            } })
+                            setDibIt(current => {
+                              const courses = current.courses?.[semester] ?? []
+                              return courses.some(course => course.id === courseId) ? current : {
+                                ...current, courses: { ...current.courses, [semester]: [...courses, { id: courseId }] },
+                              }
+                            })
                           }}
                         >
                           הוספה

@@ -15,7 +15,7 @@ import { notifications } from "@mantine/notifications"
 import { useEffect, useMemo, useState } from "react"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useLocalStorage, useURLValue } from "../hooks"
-import { DibItCourse, setDibIt, useWorkspace } from "../models"
+import { DibItCourse, updateDibIt, useWorkspace } from "../models"
 import { activePlanView } from "../plans"
 import { prepareSearch, searchItems } from "../search"
 import { examDataWarnings } from "../exams"
@@ -110,7 +110,7 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
           value={loadingSemesters || semesterLoad.failed ? null : semester || null}
           onChange={(v) => {
             if (v) {
-              setDibIt({ ...dibIt, semester: v })
+              updateDibIt(current => ({ ...current, semester: v }), workspace.activePlanId)
             }
           }}
           data={Object.keys(generalInfo.semesters ?? {})
@@ -282,10 +282,12 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
           const courseId = split[split.length - 1]?.split(")")[0]
           if (courseId && courseInfo[courseId] !== undefined) {
             setSearch("")
-            if (currentCourses.some(course => course.id === courseId)) return
-            setDibIt({ ...dibIt, courses: { ...dibIt.courses,
-              [semester]: [...currentCourses, { id: courseId }],
-            } })
+            updateDibIt(current => {
+              const courses = current.courses?.[semester] ?? []
+              return courses.some(course => course.id === courseId) ? current : {
+                ...current, courses: { ...current.courses, [semester]: [...courses, { id: courseId }] },
+              }
+            }, workspace.activePlanId)
           } else {
             setSearch(courseName)
           }

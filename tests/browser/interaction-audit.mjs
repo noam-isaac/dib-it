@@ -9,7 +9,7 @@ const server = await createServer({
     enforce: "pre",
     transform(code, id) {
       const replacement = id.endsWith("/src/models.ts")
-        ? ["return [activePlanView(workspace), setDibIt] as const", "return [freezeSnapshot(activePlanView(workspace)), setDibIt] as const"]
+        ? ["return [activePlanView(workspace), update] as const", "return [freezeSnapshot(activePlanView(workspace)), update] as const"]
         : id.endsWith("/src/hooks.ts")
           ? ["return [value, userSetValue] as const", "return [freezeSnapshot(value), userSetValue] as const"]
           : id.endsWith("/src/components/AutoBidModal.tsx")
@@ -80,10 +80,18 @@ try {
   assert.equal(historyRequests.length, 0, "collapsed practice panels must not fetch historical catalogs")
   assert.equal(await page.locator("#course-list").isVisible(), true)
   assert.equal(await page.getByRole("button", { name: /^(הסתרת|הצגת) קורסים/ }).count(), 0, "mobile course cards stay visible without a toggle")
-  await second.click()
-  await page.getByText("2024א'", { exact: true }).waitFor()
+  await second.evaluate(async (button, firstId) => {
+    const { getWorkspace } = await import("/src/models.ts")
+    const workspace = getWorkspace()
+    workspace.openedPracticeCourses = [firstId]
+    localStorage.setItem("Dib It", JSON.stringify(workspace))
+    button.click()
+  }, ids[0])
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).openedPracticeCourses), ids,
+    "opening a stale practice panel preserves panels opened by another writer")
+  await page.getByText("2024א'", { exact: true }).last().waitFor()
   assert.equal(historyRequests.length, 1)
-  await page.getByRole("checkbox", { name: "מועד א׳", exact: true }).check()
+  await page.getByRole("region", { name: `קורס 2 (${ids[1]})`, exact: true }).getByRole("checkbox", { name: "מועד א׳", exact: true }).check()
   await page.evaluate(async () => {
     const { getDibIt, setDibIt } = await import("/src/models.ts")
     const view = getDibIt()
