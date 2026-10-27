@@ -29,23 +29,25 @@ test("rejected HTTP-200 catalogs are refetched; accepted catalogs are shared and
 
 test("a shared 15-second deadline rejects stalled headers or JSON and allows a fresh retry", async () => {
   const original = globalThis.fetch
-  const deadlines: AbortController[] = []
-  const timeout = spyOn(AbortSignal, "timeout").mockImplementation(milliseconds => {
+  const deadlines: (() => void)[] = []
+  const timeout = spyOn(globalThis, "setTimeout").mockImplementation((handler, milliseconds) => {
     expect(milliseconds).toBe(15000)
-    const deadline = new AbortController()
-    deadlines.push(deadline)
-    return deadline.signal
+    deadlines.push(handler as () => void)
+    return deadlines.length as unknown as ReturnType<typeof setTimeout>
   })
+  const clear = spyOn(globalThis, "clearTimeout").mockImplementation(() => {})
   const catalog = { "12345678": { name: "Valid", groups: [] } }
   try {
     for (const phase of ["headers", "json"] as const) {
       let requests = 0
+      let requestSignal: AbortSignal | undefined
       let readingBody = () => {}
       const bodyStarted = new Promise<void>(resolve => { readingBody = resolve })
       globalThis.fetch = (async (_url, options) => {
         requests += 1
         if (requests > 1) return Response.json(catalog)
         const signal = options!.signal!
+        requestSignal = signal
         if (phase === "headers") return new Promise<Response>((_resolve, reject) => {
           signal.addEventListener("abort", () => reject(signal.reason), { once: true })
         })
@@ -66,8 +68,8 @@ test("a shared 15-second deadline rejects stalled headers or JSON and allows a f
       ])
       if (phase === "json") await bodyStarted
       expect(requests).toBe(1)
-      const failure = new DOMException("Request timed out", "TimeoutError")
-      deadlines.at(-1)!.abort(failure)
+      deadlines.at(-1)!()
+      const failure = requestSignal!.reason
       expect(await consumers).toEqual([
         { status: "rejected", reason: failure }, { status: "rejected", reason: failure },
       ])
@@ -75,8 +77,24 @@ test("a shared 15-second deadline rejects stalled headers or JSON and allows a f
       expect(await cachedFetch(url, semesterCoursesSchema)).toEqual(catalog)
       expect(requests).toBe(2)
     }
+    expect(clear).toHaveBeenCalledTimes(4)
   } finally {
     timeout.mockRestore()
+    clear.mockRestore()
+    globalThis.fetch = original
+  }
+})
+
+test("requests work without AbortSignal.timeout", async () => {
+  const original = globalThis.fetch
+  const descriptor = Object.getOwnPropertyDescriptor(AbortSignal, "timeout")!
+  const catalog = { "12345678": { name: "Valid", groups: [] } }
+  Object.defineProperty(AbortSignal, "timeout", { value: undefined, configurable: true })
+  globalThis.fetch = (async () => Response.json(catalog)) as typeof fetch
+  try {
+    expect(await cachedFetch("https://test.invalid/no-timeout-api", semesterCoursesSchema)).toEqual(catalog)
+  } finally {
+    Object.defineProperty(AbortSignal, "timeout", descriptor)
     globalThis.fetch = original
   }
 })

@@ -87,11 +87,13 @@ export const cachedFetch = <T>(url: string, schema: z.ZodType<T>, validate?: (va
   let promise = cache.get(url)
   if (!promise) {
     // The shared request owns its deadline, including reading the response body.
-    promise = fetch(url, { signal: AbortSignal.timeout(15000) }).then(async response => {
+    const controller = new AbortController()
+    const deadline = setTimeout(() => controller.abort(), 15000)
+    promise = fetch(url, { signal: controller.signal }).then(async response => {
       if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`)
       const value: unknown = await response.json()
       return schema.parse(value)
-    })
+    }).finally(() => clearTimeout(deadline))
     cache.set(url, promise)
   }
   const currentCache = cache

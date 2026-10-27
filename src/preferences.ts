@@ -11,11 +11,16 @@
 export const WORKSPACE_KEYS = ["Dib It", "Dib It Sync"] as const
 
 /** The two historical layouts: shared keys, or course/group/color keys per semester. */
-export const legacyWorkspaceKeys = () => Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
-  .filter((key): key is string => key !== null && (
-    /^(Courses|Groups|Colors)(?: \d{4}[ab])?$/.test(key) || key === "Semester" ||
-    /^(School|Study Plan|Taken Courses) \(Dib It Serialize\)$/.test(key)
-  ))
+export const legacyWorkspaceKeys = () => {
+  // The recovery screen must still render when the browser denies storage access.
+  try {
+    return Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+      .filter((key): key is string => key !== null && (
+        /^(Courses|Groups|Colors)(?: \d{4}[ab])?$/.test(key) || key === "Semester" ||
+        /^(School|Study Plan|Taken Courses) \(Dib It Serialize\)$/.test(key)
+      ))
+  } catch { return [] }
+}
 
 /** Keep modern-only backups byte-for-byte; legacy or mixed data needs its original strings. */
 export const recoveryData = () => {

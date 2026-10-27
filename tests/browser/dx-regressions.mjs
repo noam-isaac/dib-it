@@ -57,6 +57,7 @@ try {
     assert.equal(await page.getByRole("textbox", { name: "סמסטר:" }).inputValue() !== "", true)
     await page.getByPlaceholder("חיפוש קורסים להוספה", { exact: true }).fill("ללא מידע על מבחן (12345678)")
     assert.equal(await page.locator("#course-12345678").count(), 1, "pasting an existing course must not duplicate it")
+    await page.keyboard.press("Escape")
     const card = page.locator("#course-12345678")
     await card.getByText("ללא שעות במערכת", { exact: true }).waitFor()
     assert.equal(await card.evaluate(el => getComputedStyle(el).borderTopStyle), "dashed")
@@ -183,6 +184,21 @@ try {
     assert.deepEqual(errors, [])
     await page.close()
     console.log(`PASS ${failedResource}: retry, backup access, shared state, missing exams, year race, recovery`)
+  }
+  // Storage denial must not make the recovery screen fail while enumerating old keys.
+  {
+    const page = await browser.newPage()
+    const errors = []
+    page.on("pageerror", error => errors.push(error.message))
+    await page.addInitScript(() => Object.defineProperty(window, "localStorage", {
+      get() { throw new DOMException("Storage denied", "SecurityError") },
+    }))
+    await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
+    await page.getByRole("heading", { name: "לא ניתן להציג את המערכת", exact: true }).waitFor()
+    assert.equal(await page.getByRole("button", { name: "טעינה מחדש", exact: true }).isEnabled(), true)
+    assert.deepEqual(errors, [], "the fallback must not throw its own storage error")
+    await page.close()
+    console.log("PASS denied storage: recovery remains visible")
   }
   // Legacy recovery must survive reloads; never re-seed the failed data after reset.
   for (const mode of ["valid", "legacy", "mixed"]) {
