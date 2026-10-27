@@ -24,12 +24,13 @@ export const activePlanView = (workspace: PlanWorkspace): DibIt => {
   return { ...shared, ...data, activePlanId: id }
 }
 
-export const updateActivePlan = (workspace: PlanWorkspace, view: DibIt, catalogs: Record<string, CatalogCourses> = {}): PlanWorkspace => {
+export const updateActivePlan = (workspace: PlanWorkspace, view: DibIt, catalogs: Record<string, CatalogCourses> = {}, editSemester = view.semester): PlanWorkspace => {
   // A callback from a plan that was switched away from must not overwrite the new plan.
   if (view.activePlanId && view.activePlanId !== workspace.activePlanId) return workspace
   const { courses, school, studyPlan, savedStudyPlans, degreeStartYear, activePlanId: _, ...shared } = view
   const previous = workspace.plans.find(plan => plan.id === workspace.activePlanId)!
-  const changes = annualChanges(previous.courses, view)
+  // A stale control can edit its rendered semester while navigation has moved on.
+  const changes = annualChanges(previous.courses, { ...view, semester: editSemester })
   return reconcileActivePlan({
     ...workspace,
     ...shared,

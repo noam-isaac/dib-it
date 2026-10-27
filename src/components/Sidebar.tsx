@@ -287,7 +287,7 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
               return courses.some(course => course.id === courseId) ? current : {
                 ...current, courses: { ...current.courses, [semester]: [...courses, { id: courseId }] },
               }
-            }, workspace.activePlanId)
+            }, workspace.activePlanId, semester)
           } else {
             setSearch(courseName)
           }

@@ -61,6 +61,23 @@ test("offline removal and deselection survive reload, backups, and either catalo
   }
 })
 
+test("a late course edit reconciles its rendered semester without reverting current navigation", () => {
+  for (const semester of ["2026b", "2027a"]) for (const remove of [false, true]) for (const available of [{}, catalogs]) {
+    const workspace = { ...initial(), semester }
+    const view = activePlanView(workspace)
+    const edited = updateActivePlan(workspace, { ...view, courses: {
+      ...view.courses, "2026a": remove ? [] : [{ ...course, groups: [] }],
+    } }, importCatalogs(available), "2026a")
+    expect(edited.semester).toBe(semester)
+    if (!Object.keys(available).length) expect(edited.plans[0].pendingAnnualChanges).toHaveLength(1)
+    const completed = reconcileActivePlan(roundTrip(edited), importCatalogs(catalogs))
+    expect(completed.semester).toBe(semester)
+    expect(completed.plans[0].courses!["2026a"]).toEqual(remove ? [] : [{ ...course, groups: [] }])
+    expect(completed.plans[0].courses!["2026b"]).toEqual(remove ? [] : [{ ...course, groups: [] }])
+    expect(completed.plans[0].pendingAnnualChanges).toBeUndefined()
+  }
+})
+
 test("the last explicit edit wins when both semesters are edited offline", () => {
   let workspace = initial()
   workspace = updateActivePlan(workspace, { ...activePlanView(workspace), courses: { "2026a": [], "2026b": [course] } })

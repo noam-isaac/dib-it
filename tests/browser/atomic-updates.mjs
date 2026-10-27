@@ -110,6 +110,33 @@ try {
   }, ids[0])
   assert.deepEqual((await read()).courses["2026b"], [])
 
+  // Annual intent belongs to the rendered course's semester, even after navigation.
+  for (const semester of ["2026b", "2027a"]) for (const remove of [false, true]) {
+    await page.evaluate(async id => {
+      const { getWorkspace, setWorkspace } = await import("/src/models.ts")
+      const workspace = getWorkspace()
+      const annual = { id, groups: ["01"] }
+      setWorkspace({ ...workspace, semester: "2026a", customCourses: {
+        "annual.json": { [id]: { name: "Annual course", groups: [{ group: "01", lessons: [{ type: "שנתי" }] }] } },
+      }, plans: workspace.plans.map(plan => plan.id === workspace.activePlanId ? { ...plan,
+        courses: { "2026a": [annual], "2026b": [annual] },
+      } : plan) })
+    }, ids[0])
+    await page.locator(`#course-${ids[0]} input[type=checkbox]`).first().waitFor()
+    await page.evaluate(({ id, semester, remove }) => {
+      const workspace = JSON.parse(localStorage.getItem("Dib It"))
+      workspace.semester = semester
+      workspace.theme = "apple"
+      localStorage.setItem("Dib It", JSON.stringify(workspace))
+      document.querySelector(remove ? `#course-${id} [aria-label="הסרת הקורס"]` : `#course-${id} input[type=checkbox]`).click()
+    }, { id: ids[0], semester, remove })
+    const latest = await read()
+    assert.equal(latest.semester, semester)
+    assert.equal(latest.theme, "apple")
+    for (const source of ["2026a", "2026b"]) assert.deepEqual(latest.courses[source], remove ? [] : [{ id: ids[0], groups: [] }],
+      `late annual ${remove ? "removal" : "deselection"} updates ${source} while navigation stays ${semester}`)
+  }
+
   const guard = await page.evaluate(async () => {
     const { getWorkspace, setWorkspace, getDibIt } = await import("/src/models.ts")
     const { addPlan } = await import("/src/plans.ts")
@@ -123,7 +150,7 @@ try {
   assert.equal(guard.unchanged, true, "hook callbacks captured before a plan switch must be rejected")
   assert.notEqual(guard.active, guard.previous)
   assert.deepEqual(errors, [])
-  console.log("PASS atomic edits: stale tab/group/reorder/remove controls preserve newer data, semester intent and plan ownership")
+  console.log("PASS atomic edits: stale controls preserve newer data, annual semester intent and plan ownership")
 } finally {
   await browser?.close()
   await server.close()

@@ -23,13 +23,13 @@ export const getDibIt = () => activePlanView(getWorkspace())
 export const setDibIt = (dibIt: DibIt) =>
   setLocalStorage("Dib It", updateActivePlan(getWorkspace(), dibIt, getSemesterCatalogs()), storedWorkspaceSchema)
 /** Apply a synchronous edit to the latest workspace, optionally bound to its originating plan. */
-export const updateDibIt = (update: (current: DibIt) => DibIt, expectedPlanId?: string) => {
+export const updateDibIt = (update: (current: DibIt) => DibIt, expectedPlanId?: string, editSemester?: string) => {
   const workspace = getWorkspace()
   if (expectedPlanId && workspace.activePlanId !== expectedPlanId) return
   const current = activePlanView(workspace)
   const updated = update(current)
   if (updated === current) return
-  setLocalStorage("Dib It", updateActivePlan(workspace, updated, getSemesterCatalogs()), storedWorkspaceSchema)
+  setLocalStorage("Dib It", updateActivePlan(workspace, updated, getSemesterCatalogs(), editSemester), storedWorkspaceSchema)
 }
 
 export const useWorkspace = () => {
@@ -39,7 +39,7 @@ export const useWorkspace = () => {
 export const useDibIt = () => {
   const workspace = useWorkspace()
   const update = useCallback((change: (current: DibIt) => DibIt) =>
-    updateDibIt(change, workspace.activePlanId), [workspace.activePlanId])
+    updateDibIt(change, workspace.activePlanId, workspace.semester), [workspace.activePlanId, workspace.semester])
   return [activePlanView(workspace), update] as const
 }
 
