@@ -71,7 +71,8 @@ const App = () => {
           >
             <Header />
             <GoogleScheduleSync />
-            <CourseFocusProvider scope={`${dibIt.activePlanId}:${dibIt.semester}:${tab}`}>
+            <CourseFocusProvider scope={`${dibIt.activePlanId}:${dibIt.semester}:${tab}`}
+              courseIds={(dibIt.courses?.[dibIt.semester ?? ""] ?? []).map(course => course.id)}>
             <div
                 id="main"
                 style={{

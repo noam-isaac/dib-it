@@ -82,6 +82,26 @@ try {
     assert.equal(await page.locator("#course-11111111").getByRole("checkbox").evaluate(node => node === document.activeElement), false)
     await context.close()
   }
+  // Removing a course abandons its pending request, even if a sync later restores it.
+  {
+    const { page, context, releaseGrades } = await open()
+    const selectCourse = selected => page.evaluate(async selected => {
+      const { getWorkspace, setWorkspace } = await import("/src/models.ts")
+      const workspace = getWorkspace()
+      setWorkspace({ ...workspace, plans: workspace.plans.map(plan => plan.id === workspace.activePlanId
+        ? { ...plan, courses: { ...plan.courses, "2026a": selected ? [{ id: "11111111" }] : [] } } : plan) })
+    }, selected)
+    await selectCourse(false)
+    await page.getByRole("status", { name: "טוען פרטי קורס", exact: true }).waitFor({ state: "hidden" })
+    await selectCourse(true)
+    await page.getByRole("status", { name: "טוען פרטי קורס", exact: true }).waitFor()
+    releaseGrades()
+    await page.locator("#course-11111111").waitFor()
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    assert.equal(await page.locator("#course-11111111").getByRole("checkbox").evaluate(node => node === document.activeElement), false,
+      "course removal cancels the request before an external restore")
+    await context.close()
+  }
   // Returning to the original context must not revive its abandoned request.
   for (const field of ["activePlanId", "semester"]) {
     const { page, context, releaseGrades } = await open()
@@ -101,7 +121,7 @@ try {
     await context.close()
   }
   assert.deepEqual(errors, [])
-  console.log("Course focus: delayed metadata, existing cards, schedule highlighting, dialog and context cancellation passed")
+  console.log("Course focus: delayed metadata, existing cards, schedule highlighting, dialog, removal and context cancellation passed")
 } finally {
   await browser?.close()
   await server.close()

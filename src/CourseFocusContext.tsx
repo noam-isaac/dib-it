@@ -7,9 +7,11 @@ const CourseFocusContext = createContext<{
   complete: (request: FocusRequest) => void
 }>({ request: null, revealCourse: () => {}, complete: () => {} })
 
-export const CourseFocusProvider = ({ scope, children }: { scope: string; children: ReactNode }) => {
+export const CourseFocusProvider = ({ scope, courseIds, children }: { scope: string; courseIds: readonly string[]; children: ReactNode }) => {
   const [request, setRequest] = useState<FocusRequest | null>(null)
-  useEffect(() => { setRequest(null) }, [scope])
+  useEffect(() => {
+    setRequest(current => current && (current.scope !== scope || !courseIds.includes(current.courseId)) ? null : current)
+  }, [scope, courseIds])
 
   return <CourseFocusContext.Provider value={{
     request: request?.scope === scope ? request : null,
