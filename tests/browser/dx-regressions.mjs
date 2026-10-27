@@ -186,19 +186,31 @@ try {
     console.log(`PASS ${failedResource}: retry, backup access, shared state, missing exams, year race, recovery`)
   }
   // Storage denial must not make the recovery screen fail while enumerating old keys.
-  {
+  for (const denied of ["storage", "enumeration"]) {
     const page = await browser.newPage()
     const errors = []
     page.on("pageerror", error => errors.push(error.message))
-    await page.addInitScript(() => Object.defineProperty(window, "localStorage", {
-      get() { throw new DOMException("Storage denied", "SecurityError") },
-    }))
+    await page.addInitScript(denied => {
+      if (denied === "storage") Object.defineProperty(window, "localStorage", {
+        get() { throw new DOMException("Storage denied", "SecurityError") },
+      })
+      else Object.defineProperty(Storage.prototype, "length", {
+        get() { throw new DOMException("Enumeration denied", "SecurityError") },
+      })
+    }, denied)
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
     await page.getByRole("heading", { name: "לא ניתן להציג את המערכת", exact: true }).waitFor()
     assert.equal(await page.getByRole("button", { name: "טעינה מחדש", exact: true }).isEnabled(), true)
+    if (denied === "enumeration") {
+      assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), null)
+      assert.equal(await page.evaluate(async () => {
+        try { (await import("/src/preferences.ts")).legacyWorkspaceKeys(); return false }
+        catch { return true }
+      }), true, "migration, backup and reset must not treat failed enumeration as empty storage")
+    }
     assert.deepEqual(errors, [], "the fallback must not throw its own storage error")
     await page.close()
-    console.log("PASS denied storage: recovery remains visible")
+    console.log(`PASS denied ${denied}: recovery remains visible`)
   }
   // Legacy recovery must survive reloads; never re-seed the failed data after reset.
   for (const mode of ["valid", "legacy", "mixed"]) {

@@ -129,6 +129,11 @@ const InitializedApp = () => {
 
 const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
   const colorScheme = useColorScheme()
+  // An optional legacy-data notice must not hide recovery when storage is denied.
+  const hasLegacyData = (() => {
+    try { return legacyWorkspaceKeys().length > 0 }
+    catch { return false }
+  })()
 
   return (
     <MantineProvider
@@ -161,7 +166,7 @@ const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
         <Button variant="default" onClick={() => downloadBlob("dibit-recovery.json", new Blob([
           recoveryData(),
         ], { type: "application/json" }))}>הורדת הנתונים לפני איפוס</Button>
-        {legacyWorkspaceKeys().length > 0 && <p style={{ fontSize: 14 }}>
+        {hasLegacyData && <p style={{ fontSize: 14 }}>
           נמצאו נתונים מהגרסה הישנה. קובץ השחזור שומר את כל ערכי מערכות השעות המקוריים לצורך תיקון,
           ואינו גיבוי רגיל לשחזור אוטומטי.
         </p>}
