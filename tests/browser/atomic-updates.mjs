@@ -9,7 +9,7 @@ const server = await createServer({
     enforce: "pre",
     transform(code, id) {
       if (!id.endsWith("/src/models.ts")) return
-      const boundary = "return [activePlanView(workspace), update] as const"
+      const boundary = "return [view, update] as const"
       assert.ok(code.includes(boundary), "regression must capture the actual hook updater")
       return code.replace(boundary, `globalThis.__planUpdaters ??= {};
         globalThis.__planUpdaters[workspace.activePlanId] = update;
@@ -135,6 +135,27 @@ try {
     assert.equal(latest.theme, "apple")
     for (const source of ["2026a", "2026b"]) assert.deepEqual(latest.courses[source], remove ? [] : [{ id: ids[0], groups: [] }],
       `late annual ${remove ? "removal" : "deselection"} updates ${source} while navigation stays ${semester}`)
+  }
+
+  // Accepted backups can carry a plan-level semester that overrides shared navigation.
+  for (const remove of [false, true]) {
+    await page.evaluate(async id => {
+      const { getWorkspace, setWorkspace } = await import("/src/models.ts")
+      const { storedWorkspaceSchema } = await import("/src/schemas.ts")
+      const workspace = getWorkspace()
+      const annual = { id, groups: ["01"] }
+      setWorkspace(storedWorkspaceSchema.parse({ ...workspace, semester: "2026b", plans: workspace.plans.map(plan =>
+        plan.id === workspace.activePlanId ? { ...plan, semester: "2026a",
+          courses: { "2026a": [annual], "2026b": [annual] },
+        } : plan),
+      }))
+    }, ids[0])
+    await page.waitForFunction(id => document.querySelector(`#course-${id} input[type=checkbox]`)?.checked, ids[0])
+    assert.equal((await read()).semester, "2026a", "the accepted active plan controls the rendered semester")
+    await page.locator(remove ? `#course-${ids[0]} [aria-label="הסרת הקורס"]` : `#course-${ids[0]} input[type=checkbox]`).first().click()
+    const latest = await read()
+    for (const semester of ["2026a", "2026b"]) assert.deepEqual(latest.courses[semester], remove ? [] : [{ id: ids[0], groups: [] }],
+      `annual ${remove ? "removal" : "deselection"} follows the rendered semester from an accepted backup`)
   }
 
   const guard = await page.evaluate(async () => {

@@ -2,9 +2,9 @@
 
 ## Agreed scope
 
-[PR #35](https://github.com/noam-isaac/dib-it/pull/35) prevents a stale rendered control from replacing newer, already-saved workspace edits. Keep that scope unchanged. Cross-tab transactional coordination is a separate architectural follow-up; it has not been approved for implementation, merge, or deployment.
+[PR #35](https://github.com/noam-isaac/dib-it/pull/35) prevents a stale rendered control from replacing newer, already-saved workspace edits. Keep that scope unchanged. Cross-tab transactional coordination is a separate architectural follow-up and is not part of this PR.
 
-The production and regression-test baseline is commit `76c606ad7eca60cc386c746d28c1295a82efefa4`, validated by [CI run 40693989813](https://github.com/noam-isaac/dib-it/actions/runs/40693989813). The handoff adds documentation and optional diagnostics only. Verify the current PR head before continuing.
+The original production and regression-test baseline is commit `76c606ad7eca60cc386c746d28c1295a82efefa4`, validated by [CI run 40693989813](https://github.com/noam-isaac/dib-it/actions/runs/40693989813). The initial handoff added documentation and optional diagnostics only. A later independent review found that accepted backups can override the workspace semester inside a plan. `useDibIt` now binds its updater to the same active view it returns; the browser regression covers annual deselection and deletion with conflicting plan/workspace semesters. The saved-data shape is unchanged. Verify the current PR head before continuing, including when integrating the persistence follow-up.
 
 The branch is `codex/atomic-workspace-updates`, based on `codex/immutable-react-state` / [PR #33](https://github.com/noam-isaac/dib-it/pull/33). Do not merge, retarget, delete dependency branches, or publish as part of taking over this investigation.
 
@@ -70,5 +70,5 @@ Old already-open app versions will bypass a new cooperative lock. Browser suppor
 ## Remaining work outside this follow-up
 
 - PRs #32, #33, and #34 have passed their current-head CI and prior code review; no external review comments were open when this handoff was prepared.
-- PRs #36 (React-owned exports) and #37 (course-focus readiness) still need the user's separate architectural decisions. Both have passed current-head CI and regression review.
+- The user approved the approaches for PRs #36 (React-owned exports) and #37 (course-focus readiness). Independent review subsequently found and prompted fixes for the accepted-backup issue above and #37's delayed-focus cancellation. Required checks and release review must cover those updated commits.
 - After approvals, prepare and show the working previews, handle dependency/retargeting and any real merge conflicts, rerun required checks on the resulting commits, and obtain release approval before merging/publishing.

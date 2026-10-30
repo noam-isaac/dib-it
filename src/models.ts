@@ -38,9 +38,10 @@ export const useWorkspace = () => {
 }
 export const useDibIt = () => {
   const workspace = useWorkspace()
+  const view = activePlanView(workspace)
   const update = useCallback((change: (current: DibIt) => DibIt) =>
-    updateDibIt(change, workspace.activePlanId, workspace.semester), [workspace.activePlanId, workspace.semester])
-  return [activePlanView(workspace), update] as const
+    updateDibIt(change, view.activePlanId, view.semester), [view.activePlanId, view.semester])
+  return [view, update] as const
 }
 
 export type { DibIt, DibItCourse } from "./schemas"

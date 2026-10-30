@@ -22,9 +22,9 @@ const server = await createServer({
     name: "stale-snapshot-negative-control", enforce: "pre",
     transform(code, id) {
       if (!id.endsWith("/src/models.ts")) return
-      const boundary = "updateDibIt(change, workspace.activePlanId, workspace.semester)"
+      const boundary = "updateDibIt(change, view.activePlanId, view.semester)"
       assert.ok(code.includes(boundary))
-      return code.replace(boundary, "updateDibIt(() => change(activePlanView(workspace)), workspace.activePlanId, workspace.semester)")
+      return code.replace(boundary, "updateDibIt(() => change(view), view.activePlanId, view.semester)")
     },
   }] : [],
   define: { "import.meta.env.VITE_ENABLE_GOOGLE_SYNC": '"false"' },
