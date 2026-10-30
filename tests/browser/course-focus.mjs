@@ -92,6 +92,7 @@ try {
       await page.getByRole("button", { name: "פעולות", exact: true }).click()
       await page.getByRole("menuitem", { name: "ייצוא ל־PDF או לתמונה", exact: true }).click()
       await page.getByRole("dialog").waitFor()
+      await page.waitForFunction(() => !!document.activeElement?.closest('[role="dialog"]'))
       await page.keyboard.press("Escape")
       await page.getByRole("dialog").waitFor({ state: "hidden" })
     } else if (interaction === "text") {
