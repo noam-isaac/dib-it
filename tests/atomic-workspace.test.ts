@@ -43,7 +43,7 @@ const withStorage = (initial: unknown, check: (storage: {
         writes += 1
       },
     } },
-    window: { configurable: true, value: { dispatchEvent: () => { events += 1 } } },
+    window: { configurable: true, value: { dispatchEvent: (event: Event) => { if (event.type === "storage") events += 1 } } },
     StorageEvent: { configurable: true, value: TestStorageEvent },
   })
   try { check({ raw: () => raw, writes: () => writes, events: () => events, fail: () => { failed = true } }) }
@@ -124,7 +124,9 @@ describe("atomic workspace persistence", () => {
       expect(saved.plans[1]).toEqual({ ...initial.plans[1], courses: {
         ...initial.plans[1]!.courses, "2026a": [{ ...legacy().courses["2026a"][0], color: "blue" }, { id: "added", groups: [] }],
       } })
-      expect(getDibIt()).toMatchObject({ ...legacy(), tab: "exams", theme: "google", courses: saved.plans[1]!.courses })
+      const { userMetadata, ...visible } = legacy()
+      expect(getDibIt()).toMatchObject({ ...visible, tab: "exams", theme: "google", courses: saved.plans[1]!.courses })
+      expect(getWorkspace().userMetadata).toEqual(userMetadata)
       expect(storage.writes()).toBe(3)
       expect(storage.events()).toBe(3)
       expect(storedWorkspaceSchema.parse(JSON.parse(storage.raw()!))).toEqual(saved)
@@ -190,7 +192,9 @@ describe("atomic workspace persistence", () => {
       updateDibIt(current => ({ ...current, semester: "2026b" }), "default")
       const saved = JSON.parse(storage.raw()!)
       expect(saved.plans).toHaveLength(1)
-      expect(getDibIt()).toEqual({ ...legacy(), semester: "2026b", activePlanId: "default" })
+      const { userMetadata, ...visible } = legacy()
+      expect(getDibIt()).toEqual({ ...visible, semester: "2026b", activePlanId: "default" })
+      expect(getWorkspace().userMetadata).toEqual(userMetadata)
       expect(normalizePlans(storedWorkspaceSchema.parse(clone(saved)))).toEqual(getWorkspace())
     })
   })
@@ -217,7 +221,9 @@ describe("atomic workspace persistence", () => {
       storage.fail()
       expect(() => updateDibIt(current => ({ ...current, courses: {} }))).toThrow("Quota exceeded")
       expect(storage.raw()).toBe(before)
-      expect(getDibIt()).toEqual({ ...legacy(), tab: "exams", activePlanId: "default" })
+      const { userMetadata, ...visible } = legacy()
+      expect(getDibIt()).toEqual({ ...visible, tab: "exams", activePlanId: "default" })
+      expect(getWorkspace().userMetadata).toEqual(userMetadata)
       expect(storage.writes()).toBe(1)
       expect(storage.events()).toBe(1)
     })

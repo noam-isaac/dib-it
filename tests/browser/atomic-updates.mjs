@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { chromium } from "playwright"
+import { chromium, firefox, webkit } from "playwright"
 import { createServer } from "vite"
 import { prepareAnnualFeed } from "./annual-fixture.mjs"
 
@@ -27,7 +27,7 @@ const catalog = Object.fromEntries(ids.map((id, index) => [id, {
 let browser
 try {
   await server.listen()
-  browser = await chromium.launch()
+  browser = await ({ chromium, firefox, webkit })[process.env.DIBIT_BROWSER ?? "chromium"].launch()
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
   const errors = []
   page.on("pageerror", error => errors.push(error.message))
@@ -137,7 +137,7 @@ try {
       `late annual ${remove ? "removal" : "deselection"} updates ${source} while navigation stays ${semester}`)
   }
 
-  // Accepted backups can carry a plan-level semester that overrides shared navigation.
+  // Retired plan navigation stays archived; the workspace semester drives the rendered control.
   for (const remove of [false, true]) {
     await page.evaluate(async id => {
       const { getWorkspace, setWorkspace } = await import("/src/models.ts")
@@ -151,11 +151,13 @@ try {
       }))
     }, ids[0])
     await page.waitForFunction(id => document.querySelector(`#course-${id} input[type=checkbox]`)?.checked, ids[0])
-    assert.equal((await read()).semester, "2026a", "the accepted active plan controls the rendered semester")
+    assert.equal((await read()).semester, "2026b", "workspace navigation wins over retired plan navigation")
+    assert.equal(await page.getByRole("textbox", { name: "סמסטר:" }).inputValue(), "תשפ״ו ב'")
     await page.locator(remove ? `#course-${ids[0]} [aria-label="הסרת הקורס"]` : `#course-${ids[0]} input[type=checkbox]`).first().click()
     const latest = await read()
     for (const semester of ["2026a", "2026b"]) assert.deepEqual(latest.courses[semester], remove ? [] : [{ id: ids[0], groups: [] }],
       `annual ${remove ? "removal" : "deselection"} follows the rendered semester from an accepted backup`)
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).plans[0].semester), "2026a", "retired navigation remains available for recovery")
   }
 
   const guard = await page.evaluate(async () => {

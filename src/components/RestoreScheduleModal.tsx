@@ -3,14 +3,15 @@ import { modals } from "@mantine/modals"
 import { notifications } from "@mantine/notifications"
 import { useState } from "react"
 import { getWorkspace, setWorkspace } from "../models"
-import { normalizePlans, type PlanWorkspace } from "../plans"
-import { isScheduleBackup } from "../scheduleBackup"
+import { type PlanWorkspace } from "../plans"
+import { readScheduleBackup } from "../scheduleBackup"
 import { downloadBlob } from "../utilities"
+import { UnsupportedWorkspaceVersionError } from "../workspaceFormat"
 
 export const downloadWorkspaceBackup = (filename = "dibit.json") =>
   downloadBlob(filename, new Blob([JSON.stringify(getWorkspace())], { type: "application/json" }))
 
-const RestoreScheduleModal = ({ backup, source }: { backup: PlanWorkspace; source: "file" | "google" }) => {
+const RestoreScheduleModal = ({ backup, source, raw }: { backup: PlanWorkspace; source: "file" | "google"; raw: string }) => {
   const [error, setError] = useState("")
   return (
     <Stack dir="rtl">
@@ -44,11 +45,11 @@ const RestoreScheduleModal = ({ backup, source }: { backup: PlanWorkspace; sourc
               ...backup,
               semester: source === "google" ? latest.semester ?? backup.semester : backup.semester || latest.semester,
               tab: source === "google" ? latest.tab ?? backup.tab : backup.tab,
-            })
+            }, { kind: source, raw })
             modals.closeAll()
             notifications.show({ title: "השחזור הושלם", message: `שוחזרו ${backup.plans.length} מערכות שעות.`, color: "green" })
-          } catch {
-            setError("לא ניתן לשמור את השחזור בדפדפן. המערכות הנוכחיות נשארו כפי שהן.")
+          } catch (failure) {
+            setError(failure instanceof UnsupportedWorkspaceVersionError ? failure.message : "לא ניתן לשמור את השחזור בדפדפן. המערכות הנוכחיות נשארו כפי שהן.")
           }
         }}>החלפת כל המערכות ושחזור</Button>
       </Group>
@@ -57,11 +58,11 @@ const RestoreScheduleModal = ({ backup, source }: { backup: PlanWorkspace; sourc
 }
 
 /** File and Google restores must pass the same validation and confirmation. */
-export const openScheduleRestore = (data: unknown, source: "file" | "google") => {
-  if (!isScheduleBackup(data)) throw new Error("הקובץ אינו גיבוי תקין של Dib It.")
+export const openScheduleRestore = (data: unknown, source: "file" | "google", raw = JSON.stringify(data)) => {
+  const backup = readScheduleBackup(data)
   modals.open({
     title: source === "google" ? "שחזור מגוגל" : "שחזור מקובץ",
     centered: true,
-    children: <RestoreScheduleModal backup={normalizePlans(data)} source={source} />,
+    children: <RestoreScheduleModal backup={backup} source={source} raw={raw} />,
   })
 }

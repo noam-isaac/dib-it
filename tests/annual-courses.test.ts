@@ -56,7 +56,9 @@ test("annual checks look up course IDs directly and preserve custom-source prece
   const courses = { "2026a": [{ id, groups: ["02"] }] }
   expect(annualGroupIds({ customCourses }, "2026a", id)).toEqual(["02"])
   const view = { semester: "2026a", customCourses, courses }
-  const result = activePlanView(updateActivePlan(normalizePlans({ ...view, courses: {} }), view))
+  // Validation at ingress must inspect catalog data; this guard measures the subsequent annual lookup.
+  const workspace = { ...normalizePlans({ semester: "2026a", courses: {} }), customCourses }
+  const result = activePlanView(updateActivePlan(workspace, view))
   expect(result.courses?.["2026b"]).toEqual(courses["2026a"])
   expect(courses).toEqual({ "2026a": [{ id, groups: ["02"] }] })
 })

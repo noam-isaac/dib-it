@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test"
 import { normalizePlans } from "../src/plans"
-import { CloudScheduleError, cloudScheduleData, readCloudSchedule, scheduleKey, startScheduleSync, syncDecision, withLocalNavigation, LocalSyncSaveError, type SyncStatus } from "../src/scheduleSync"
-import { isScheduleBackup } from "../src/scheduleBackup"
+import { CloudScheduleError, cloudScheduleData, assertCloudDocumentSize, readCloudSchedule, scheduleKey, startScheduleSync, syncDecision, withLocalNavigation, LocalSyncSaveError, baseForAccount, readSyncBase, cloudCopyKey, UNAVAILABLE_SYNC_HISTORY, type SyncStatus } from "../src/scheduleSync"
+import { Bytes, GeoPoint, Timestamp, vector } from "firebase/firestore"
+import { isScheduleBackup, readScheduleBackup } from "../src/scheduleBackup"
+import { UnsupportedWorkspaceVersionError, decodeWorkspace } from "../src/workspaceFormat"
 
 const workspace = (id = "one") => normalizePlans({ semester: "2026a", courses: { "2026a": [{ id, groups: ["01"] }] } })
 const pause = () => new Promise(resolve => setTimeout(resolve, 10))
@@ -230,4 +232,53 @@ test("cloud success followed by local failure reports partial completion and doe
     await pause()
     expect(writes).toBe(1)
   } finally { sync.stop() }
+})
+
+test("safe historical baselines retain meaning without inventing active-plan context", () => {
+  const plans = [
+    { id: "first", name: "First", semester: "2026a", courses: { "2026a": [{ id: "one", groups: ["01"] }] } },
+    { id: "second", name: "Second", semester: "2026b", courses: {} },
+  ]
+  const legacyKey = JSON.stringify({ plans })
+  const base = readSyncBase(legacyKey)!
+  const otherActive = decodeWorkspace({ plans, activePlanId: "second" })
+  expect(scheduleKey(base)).toBe(scheduleKey(otherActive))
+  expect(JSON.parse(scheduleKey(base)!)).toHaveProperty("schemaVersion", 1)
+  const remote = { ...base, theme: "google" as const }
+  expect(syncDecision(base, remote, legacyKey)).toBe("download")
+  expect(syncDecision(remote, base, legacyKey)).toBe("upload")
+  expect(readSyncBase(JSON.stringify({ plans: plans.map((plan, index) => ({ ...plan, theme: index ? "apple" : "google" })) }))).toBeUndefined()
+})
+
+test("unusable history never becomes permission for a first-connection replacement", () => {
+  const empty = normalizePlans({}), remote = workspace("cloud")
+  const unavailable = baseForAccount({ workspace: empty, version: "v", time: null, historyUnavailable: true }, "test")
+  expect(unavailable).toBe(UNAVAILABLE_SYNC_HISTORY)
+  expect(syncDecision(empty, remote, unavailable)).toBe("conflict")
+  expect(syncDecision(remote, null, unavailable)).toBe("conflict")
+  expect(syncDecision(remote, remote, unavailable)).toBe("equal")
+  expect(syncDecision(empty, remote, "{bad json")).toBe("conflict")
+  expect(syncDecision(empty, remote, JSON.stringify({ ...remote, schemaVersion: 2 }))).toBe("conflict")
+  expect(syncDecision(empty, remote, undefined)).toBe("download")
+})
+
+test("future backups fail before conversion and reviewed copies include archived changes", () => {
+  const local = workspace()
+  const future = { ...local, schemaVersion: 2 }
+  expect(() => readScheduleBackup(future)).toThrow(UnsupportedWorkspaceVersionError)
+  expect(() => readCloudSchedule(future)).toThrow(UnsupportedWorkspaceVersionError)
+  expect(isScheduleBackup(future)).toBe(false)
+  const retired = { ...local, plans: local.plans.map(plan => ({ ...plan, semester: "obsolete" })) }
+  expect(scheduleKey(local)).toBe(scheduleKey(retired))
+  const copy = (value: typeof local) => ({ workspace: value, revision: 0, savedAt: null })
+  expect(cloudCopyKey(copy(local))).not.toBe(cloudCopyKey(copy(retired)))
+})
+
+test("cloud capacity includes the retained original and native Firestore values", () => {
+  const migrationOriginal = { note: Bytes.fromUint8Array(new Uint8Array(500000)), point: new GeoPoint(1, 2), time: Timestamp.fromMillis(0), vector: vector([1, 2]) }
+  const envelope = { protocol: 2, revision: 1, savedAt: Timestamp.fromMillis(0), workspace: { note: "x".repeat(500000) }, migrationOriginal }
+  expect(() => assertCloudDocumentSize(envelope, "test")).not.toThrow()
+  expect(() => assertCloudDocumentSize({ ...envelope, migrationOriginal: { ...migrationOriginal, note: Bytes.fromUint8Array(new Uint8Array(600000)) } }, "test")).toThrow(CloudScheduleError)
+  expect(migrationOriginal.note.toUint8Array().byteLength).toBe(500000)
+  expect(migrationOriginal.time).toBeInstanceOf(Timestamp)
 })

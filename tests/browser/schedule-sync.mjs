@@ -11,9 +11,9 @@ export const firestore = {};
 export const app = {};
 const listenerErrors = new Map();
 const listeners = new Set(), authListeners = new Set();
-export class Timestamp { constructor(ms) { this.ms = ms; } toMillis() { return this.ms; } }
+export class Timestamp { constructor(ms) { this.ms = ms; } toMillis() { return this.ms; } static now() { return new Timestamp(Date.now()); } }
 export const serverTimestamp = () => Date.now();
-let cloud, writes = 0, transactions = 0, offline = false, holdApply, releaseApply, committed = false;
+let cloud = window.__initialCloud, writes = 0, transactions = 0, offline = false, holdApply, releaseApply, committed = false;
 const snapshot = () => ({ data: () => cloud ? { ...structuredClone(cloud), savedAt: new Timestamp(cloud.savedAt) } : undefined, exists: () => cloud !== undefined, metadata: { fromCache: false, hasPendingWrites: false } });
 const emit = () => listeners.forEach(fn => fn(snapshot()));
 export const doc = () => ({});
@@ -140,9 +140,9 @@ try {
   await dialog.getByText(/נשמר בגוגל:.*2026/).waitFor()
   assert.equal(await dialog.getByText("עדכון מקומי: זמן לא זמין", { exact: true }).count(), 0)
   if (process.env.DIBIT_SCREENSHOT_DIR) {
-    await dialog.screenshot({ path: `${process.env.DIBIT_SCREENSHOT_DIR}/dibit-copy-comparison-${process.env.DIBIT_BROWSER ?? "chromium"}.png` })
+    await dialog.screenshot({ path: `${process.env.DIBIT_SCREENSHOT_DIR}/dibit-copy-comparison-${process.env.DIBIT_BROWSER ?? "chromium"}.png`, animations: "disabled" })
     await page.setViewportSize({ width: 1280, height: 900 })
-    await dialog.screenshot({ path: `${process.env.DIBIT_SCREENSHOT_DIR}/dibit-copy-comparison-desktop-${process.env.DIBIT_BROWSER ?? "chromium"}.png` })
+    await dialog.screenshot({ path: `${process.env.DIBIT_SCREENSHOT_DIR}/dibit-copy-comparison-desktop-${process.env.DIBIT_BROWSER ?? "chromium"}.png`, animations: "disabled" })
     await page.setViewportSize({ width: 390, height: 844 })
   }
   await dialog.getByRole("button", { name: "בדיקת מיזוג", exact: true }).click()
@@ -154,7 +154,7 @@ try {
   await dialog.locator("details").last().locator("summary").click()
   await dialog.getByText("קורס נוסף בגוגל (33333333) — קבוצות 01", { exact: true }).filter({ visible: true }).waitFor()
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
-  if (process.env.DIBIT_SCREENSHOT_DIR) await dialog.screenshot({ path: `${process.env.DIBIT_SCREENSHOT_DIR}/dibit-merge-mobile.png` })
+  if (process.env.DIBIT_SCREENSHOT_DIR) await dialog.screenshot({ path: `${process.env.DIBIT_SCREENSHOT_DIR}/dibit-merge-mobile.png`, animations: "disabled" })
   await dialog.getByRole("button", { name: "שמירת המיזוג", exact: true }).click()
   await dialog.waitFor({ state: "hidden" })
   assert.deepEqual(await page.evaluate(() => window.syncTest.cloud.workspace.plans[0].courses["2026a"].map(c => c.id)), ["12345678", "22222222", "33333333"])
@@ -296,6 +296,23 @@ try {
   await menu()
   assert.equal(await toggle().getAttribute("aria-checked"), "false", "toggle choice survives reload")
   assert.equal(await page.evaluate(() => window.syncTest.transactions), 0)
+  const cloudOriginal = { ...initial, note: "המקור לפני עדכון הגיבוי" }
+  await page.evaluate(workspace => window.syncTest.remote({ protocol: 2, revision: 7, savedAt: 1700000000000, workspace }), cloudOriginal)
+  await page.getByRole("menuitem", { name: "גיבוי בגוגל", exact: true }).click()
+  await page.getByRole("button", { name: "אישור החלפת העותק בגוגל", exact: true }).click()
+  await page.getByRole("dialog").waitFor({ state: "hidden" })
+  assert.deepEqual(await page.evaluate(() => window.syncTest.cloud.migrationOriginal), cloudOriginal)
+  await menu()
+  await page.getByRole("menuitem", { name: "גיבוי בגוגל", exact: true }).click()
+  await page.getByRole("button", { name: "הורדת העותק המקורי שנשמר בגוגל", exact: true }).waitFor()
+  if (process.env.DIBIT_SCREENSHOT_DIR) await page.getByRole("dialog").screenshot({ path: `${process.env.DIBIT_SCREENSHOT_DIR}/dibit-cloud-original.png`, animations: "disabled" })
+  const originalDownload = page.waitForEvent("download")
+  await page.getByRole("button", { name: "הורדת העותק המקורי שנשמר בגוגל", exact: true }).click()
+  const originalChunks = []
+  for await (const chunk of await (await originalDownload).createReadStream()) originalChunks.push(chunk)
+  assert.deepEqual(JSON.parse(Buffer.concat(originalChunks).toString()), cloudOriginal, "the atomic cloud original is available from the actual comparison UI")
+  await page.getByRole("dialog").getByRole("button", { name: "ביטול", exact: true }).click()
+  await menu()
   await toggle().click()
   await page.getByRole("button", { name: "אישור התוצאה והפעלת סנכרון אוטומטי", exact: true }).click()
   await page.getByRole("dialog").waitFor({ state: "hidden" })
@@ -305,7 +322,40 @@ try {
   await page.waitForTimeout(1200)
   assert.equal(await page.evaluate(() => window.syncTest.writes), writes)
   assert.deepEqual(errors, [])
-  console.log("PASS: reviewed merges and copy times/details, automatic conflict popup and pause, explicit resume/cancel, stale cloud/local choices, delayed completion, offline recovery and sign-out without Web Locks (synthetic Firebase)")
+  const resetPage = await browser.newPage({ viewport: { width: 390, height: 844 } })
+  const resetErrors = []
+  resetPage.on("pageerror", error => resetErrors.push(error.message))
+  await resetPage.route("**/*", route => {
+    const url = new URL(route.request().url())
+    if (url.hostname !== "127.0.0.1") return route.abort()
+    if (!url.pathname.startsWith("/data/")) return route.continue()
+    return route.fulfill({ json: url.pathname.endsWith("info.json")
+      ? { currentSemester: "2026a", semesters: { "2026a": {} } }
+      : url.pathname.includes("courses-") ? { "12345678": { name: "קורס בגוגל", groups: [{ group: "01", lessons: [] }] } } : {} })
+  })
+  await prepareAnnualFeed(resetPage)
+  const resetCloud = { protocol: 2, revision: 10, savedAt: 1700000000000, workspace: { ...initial, schemaVersion: 1 } }
+  await resetPage.addInitScript(cloud => {
+    window.__initialCloud = cloud
+    if (sessionStorage.getItem("reset-seeded")) return
+    sessionStorage.setItem("reset-seeded", "true")
+    localStorage.setItem("Dib It", "{broken")
+    localStorage.setItem("Dib It Fork Intro Seen", "true")
+    localStorage.setItem("Automatic Google Sync", "true")
+  }, resetCloud)
+  await resetPage.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
+  await resetPage.getByRole("heading", { name: "לא ניתן להציג את המערכת", exact: true }).waitFor()
+  resetPage.once("dialog", dialog => dialog.accept())
+  await resetPage.getByRole("button", { name: "איפוס המערכות במכשיר", exact: true }).click()
+  await resetPage.locator("#schedule-container").waitFor()
+  await resetPage.waitForTimeout(1200)
+  assert.equal(await resetPage.evaluate(() => localStorage.getItem("Dib It")), null, "confirmed local reset cannot immediately restore the cloud copy")
+  assert.equal(await resetPage.evaluate(() => localStorage.getItem("Automatic Google Sync") === "true"), false)
+  assert.equal(await resetPage.evaluate(() => window.syncTest.transactions), 0)
+  assert.deepEqual(await resetPage.evaluate(() => window.syncTest.cloud), resetCloud, "local reset leaves Google untouched")
+  assert.deepEqual(resetErrors, [])
+  await resetPage.close()
+  console.log("PASS: reviewed merges and copy times/details, archived cloud original download, automatic conflict popup and pause, explicit resume/cancel, stale cloud/local choices, delayed completion, offline recovery and sign-out without Web Locks (synthetic Firebase)")
 } catch (error) {
   console.error(await page?.locator("body").innerText())
   console.error(await page?.locator("#header").ariaSnapshot())

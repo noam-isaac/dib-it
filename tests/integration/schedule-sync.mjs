@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import { test } from "node:test"
 import { initializeTestEnvironment } from "@firebase/rules-unit-testing"
-import { doc, onSnapshot, runTransaction, setDoc, disableNetwork, enableNetwork, serverTimestamp } from "firebase/firestore"
+import { doc, getDoc, onSnapshot, runTransaction, setDoc, disableNetwork, enableNetwork, serverTimestamp, Timestamp } from "firebase/firestore"
 import { createServer } from "vite"
 
 assert.equal(process.env.FIRESTORE_EMULATOR_HOST, "127.0.0.1:8086")
@@ -22,8 +22,19 @@ test("real Firestore clients sync, reconnect, and preserve competing edits", { t
   })
   const clients = []
   try {
-    const { startScheduleSync, readCloudSchedule, scheduleKey, withLocalNavigation } = await server.ssrLoadModule("/src/scheduleSync.ts")
+    const { startScheduleSync, scheduleKey, withLocalNavigation } = await server.ssrLoadModule("/src/scheduleSync.ts")
+    const { readGoogleCopy } = await server.ssrLoadModule("/src/googleWorkspace.ts")
     const { normalizePlans } = await server.ssrLoadModule("/src/plans.ts")
+    const legacy = { courses: { "2026a": [{ id: "legacy", groups: ["01"] }] }, extra: "preserved" }
+    const decodedLegacy = readGoogleCopy(legacy)
+    assert.equal(decodedLegacy.workspace.schemaVersion, 1)
+    assert.equal(decodedLegacy.revision, 0)
+    assert.deepEqual(JSON.parse(decodedLegacy.source.raw), legacy)
+    const versionedLegacy = readGoogleCopy({ protocol: 2, revision: 4, savedAt: Timestamp.fromMillis(1000), workspace: legacy })
+    assert.equal(versionedLegacy.savedAt, 1000)
+    assert.deepEqual(JSON.parse(versionedLegacy.source.raw), legacy)
+    assert.throws(() => readGoogleCopy({ ...decodedLegacy.workspace, schemaVersion: 2 }), /גרסת הנתונים/)
+    assert.throws(() => readGoogleCopy({ protocol: 2, revision: 4, savedAt: Timestamp.now(), workspace: { ...decodedLegacy.workspace, schemaVersion: 2 } }), /גרסת הנתונים/)
     const createClient = (local = normalizePlans({})) => {
       const database = environment.authenticatedContext("sync-emulator").firestore()
       const reference = doc(database, "users", "sync-emulator")
@@ -39,7 +50,7 @@ test("real Firestore clients sync, reconnect, and preserve competing edits", { t
         },
         exchange: decide => runTransaction(database, async transaction => {
           const raw = (await transaction.get(reference)).data()
-          const before = raw ? { workspace: readCloudSchedule(raw.workspace), revision: raw.revision, savedAt: raw.savedAt.toMillis() } : null
+          const before = readGoogleCopy(raw)
           const upload = decide(before)
           const after = upload ? { workspace: upload, revision: (before?.revision ?? 0) + 1, savedAt: null } : before
           if (upload) transaction.set(reference, { protocol: 2, revision: after.revision, savedAt: serverTimestamp(), workspace: JSON.parse(JSON.stringify(upload)) })
@@ -90,6 +101,13 @@ test("real Firestore clients sync, reconnect, and preserve competing edits", { t
     await environment.withSecurityRulesDisabled(async context => setDoc(doc(context.firestore(), "users", "sync-emulator"), { protocol: 2, revision: 100, savedAt: serverTimestamp(), workspace: { plans: [] } }))
     await until(() => clients.every(client => client.status === "error"))
     assert.deepEqual(clients.map(client => client.local), before)
+    clients.forEach(client => { client.status = "connecting" })
+    await environment.withSecurityRulesDisabled(async context => setDoc(doc(context.firestore(), "users", "sync-emulator"), {
+      protocol: 2, revision: 101, savedAt: serverTimestamp(), workspace: { ...normalizePlans({}), schemaVersion: 2 },
+    }))
+    await until(() => clients.every(client => client.status === "error"))
+    assert.deepEqual(clients.map(client => client.local), before)
+    assert.equal((await getDoc(first.reference)).data().workspace.schemaVersion, 2)
   } finally {
     clients.forEach(client => client.stop())
     await environment.cleanup()

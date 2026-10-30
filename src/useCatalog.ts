@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { annualYear } from "./annualRegistry"
 import { resolveCatalog } from "./catalog"
 import { catalogVersion, getSemesterCatalogs, hasAnnualFeedFailed, loadGeneralInfo, loadSemesterCourses, subscribeCatalog } from "./catalogData"
-import { reconcileCatalogs, refreshAnnualClassification, updateDibIt } from "./models"
+import { reconcileCatalogs, refreshAnnualClassification } from "./models"
 
 /** Both the current semester and historical course details use the same loading boundary. */
 export const useCatalog = (semester?: string, custom?: Record<string, SemesterCourses>, active = false, activePlanId?: string) => {
@@ -17,7 +17,6 @@ export const useCatalog = (semester?: string, custom?: Record<string, SemesterCo
         const info = await loadGeneralInfo()
         const currentSemester = info.currentSemester
         if (!currentSemester) throw new Error("Missing current semester")
-        if (!cancelled) updateDibIt(current => current.semester ? current : { ...current, semester: currentSemester }, activePlanId)
         return
       }
       await loadSemesterCourses(semester)

@@ -1,6 +1,7 @@
 import { workspaceSchema } from "./schemas"
-import { z } from "zod"
 import type { PlanWorkspace, SchedulePlan } from "./plans"
+import { decodeWorkspace, workspaceContent, navigationFields, sharedFields, planFields } from "./workspaceFormat"
+export { readSyncBase as sharedMergeBase } from "./scheduleSync"
 
 export type MergeChoice = "local" | "remote"
 export type ScheduleChange = {
@@ -15,15 +16,9 @@ const keyOf = (value: unknown) => JSON.stringify(value, (_key, item: unknown) =>
 const same = (a: unknown, b: unknown) => keyOf(a) === keyOf(b)
 const union = <T>(...values: T[][]) => [...new Set(values.flat())]
 const without = (value: object, names: string[]) => Object.fromEntries(Object.entries(value).filter(([key]) => !names.includes(key)))
+const picked = (value: object, names: string[]) => Object.fromEntries(Object.entries(value).filter(([key]) => names.includes(key)))
 const fieldNames: Record<string, string> = {
   theme: "עיצוב", customCourses: "קורסים אישיים", practicedExams: "מבחנים שתורגלו", openedPracticeCourses: "קורסים לתרגול",
-}
-export const sharedMergeBase = (key: string | null | undefined): PlanWorkspace | undefined => {
-  if (!key) return undefined
-  try {
-    const value = z.object({ plans: z.array(z.object({ id: z.string() })).min(1) }).passthrough().parse(JSON.parse(key))
-    return workspaceSchema.parse({ ...JSON.parse(key) as Record<string, unknown>, activePlanId: value.plans[0]!.id })
-  } catch { return undefined }
 }
 const courseBundles = (plan: SchedulePlan): Record<string, Bundle> => {
   const entries = Object.entries(plan.courses ?? {}).flatMap(([semester, courses]) => courses.map(course => ({ semester, course })))
@@ -40,7 +35,12 @@ const courseBundles = (plan: SchedulePlan): Record<string, Bundle> => {
 const duplicateCourses = (workspace: PlanWorkspace) => workspace.plans.some(plan => Object.values(plan.courses ?? {}).some(courses => new Set(courses.map(course => course.id)).size !== courses.length))
 
 /** One comparison powers both the user-visible deltas and the resulting workspace. */
-export const compareSchedules = (base: PlanWorkspace | undefined, local: PlanWorkspace, remote: PlanWorkspace, choices: Record<string, MergeChoice> = {}) => {
+export const compareSchedules = (baseInput: PlanWorkspace | undefined, localInput: PlanWorkspace, remoteInput: PlanWorkspace, choices: Record<string, MergeChoice> = {}) => {
+  const originalLocal = decodeWorkspace(localInput), originalRemote = decodeWorkspace(remoteInput)
+  const semantic = (value: PlanWorkspace): PlanWorkspace => ({ ...workspaceContent(value), activePlanId: value.activePlanId,
+    ...picked(value, navigationFields) }) as PlanWorkspace
+  const base = baseInput ? semantic(decodeWorkspace(baseInput)) : undefined
+  const local = semantic(originalLocal), remote = semantic(originalRemote)
   const choose = <T>(before: T | undefined, left: T | undefined, right: T | undefined, context: Omit<ScheduleChange, "base" | "local" | "remote" | "conflict">): Part<T> => {
     if (same(before, left) && same(before, right)) return { value: left, changes: [] }
     const conflict = !same(left, right) && !same(left, before) && !same(right, before)
@@ -101,8 +101,13 @@ export const compareSchedules = (base: PlanWorkspace | undefined, local: PlanWor
   const unresolved = changes.filter(change => change.conflict && !choices[change.key])
   const list = (planOrder.value ?? keptPlans.map(plan => plan.id)).map(id => keptPlans.find(plan => plan.id === id)!)
   const parsed = workspaceSchema.safeParse({
+    // Retired fields are opaque recovery data: keep local values, or the remote copy for a new plan.
+    ...picked(originalLocal, [...planFields, "pendingAnnualChanges"]),
     ...Object.fromEntries(settings.filter(item => item.result.value !== undefined).map(item => [item.key, item.result.value])),
-    plans: list, activePlanId: list.some(plan => plan.id === local.activePlanId) ? local.activePlanId : list[0]?.id,
+    plans: list.map(plan => ({
+      ...picked(originalLocal.plans.find(item => item.id === plan.id) ?? originalRemote.plans.find(item => item.id === plan.id)!, [...navigationFields, ...sharedFields, "activePlanId"]),
+      ...plan,
+    })), activePlanId: list.some(plan => plan.id === local.activePlanId) ? local.activePlanId : list[0]?.id,
     ...(local.semester !== undefined ? { semester: local.semester } : {}), ...(local.tab !== undefined ? { tab: local.tab } : {}),
   })
   const selections = (workspace: PlanWorkspace) => workspace.plans.map(plan => ({ id: plan.id, courses: plan.courses, pending: plan.pendingAnnualChanges }))

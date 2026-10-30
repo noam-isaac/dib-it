@@ -106,7 +106,7 @@ export const createExportImage = async (element: HTMLElement | null, timetable: 
   }
 }
 
-export const uploadJson = (): Promise<unknown> => {
+export const uploadJson = (): Promise<{ data: unknown; raw: string }> => {
   return new Promise((resolve, reject) => {
     const element = document.getElementById("upload") as HTMLInputElement
     element.value = ""
@@ -115,7 +115,8 @@ export const uploadJson = (): Promise<unknown> => {
       const reader = new FileReader()
       reader.addEventListener("load", (e) => {
         try {
-          resolve(JSON.parse(e.target!.result as string))
+          const raw = e.target!.result as string
+          resolve({ data: JSON.parse(raw) as unknown, raw })
         } catch (error) {
           reject(error)
         }

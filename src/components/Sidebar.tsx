@@ -22,6 +22,7 @@ import { examDataWarnings } from "../exams"
 import { getICS } from "../serialize"
 import {
   downloadFile,
+  downloadBlob,
   FIRST_SEMESTER,
   formatSemesterInHebrew,
   uploadJson,
@@ -32,6 +33,7 @@ import GoogleSaveButtons from "./GoogleSaveButtons"
 import RegistrationModal from "./RegistrationModal"
 import PlanSelector from "./PlanSelector"
 import { downloadWorkspaceBackup, openScheduleRestore } from "./RestoreScheduleModal"
+import { MIGRATION_RECOVERY_KEY, recoveryData } from "../preferences"
 
 const Sidebar = ({ catalogReady, onExport }: { catalogReady: boolean; onExport: () => void }) => {
   const courseInfo = useCourseInfo()
@@ -148,13 +150,19 @@ const Sidebar = ({ catalogReady, onExport }: { catalogReady: boolean; onExport: 
                 גיבוי
               </Menu.Item>
             </Tooltip>
+            {localStorage.getItem(MIGRATION_RECOVERY_KEY) !== null && <Tooltip label="כולל את הנתונים המקוריים לפני ההמרה האחרונה. הקובץ מיועד לשחזור ולתיקון, ואינו היסטוריה של כל העריכות.">
+              <Menu.Item leftSection={<i className="fa-solid fa-clock-rotate-left" aria-hidden="true" />} onClick={() => {
+                try { downloadBlob("dibit-recovery.json", new Blob([recoveryData()], { type: "application/json" })) }
+                catch { notifications.show({ title: "ההורדה נכשלה", message: "נתוני השחזור נשארו במכשיר. נסו שוב לפני איפוס.", color: "red" }) }
+              }}>הורדת נתוני השחזור שנשמרו</Menu.Item>
+            </Tooltip>}
             <Menu.Item
 
               leftSection={<i className="fa-solid fa-upload" aria-hidden="true" />}
               onClick={async () => {
                 try {
-                  const state = await uploadJson()
-                  openScheduleRestore(state, "file")
+                  const { data, raw } = await uploadJson()
+                  openScheduleRestore(data, "file", raw)
                 } catch (error) {
                   notifications.show({ title: "השחזור נכשל", message: error instanceof Error ? error.message : "לא ניתן לקרוא את הקובץ.", color: "red" })
                 }

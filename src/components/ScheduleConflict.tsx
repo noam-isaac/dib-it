@@ -11,6 +11,7 @@ import { useCourseInfo } from "../CourseInfoContext"
 import type { CatalogCourses } from "../catalog"
 import { downloadBlob } from "../utilities"
 import type { PlanWorkspace } from "../plans"
+import { navigationFields, planFields, sharedFields } from "../workspaceFormat"
 
 const date = (at: number | null | undefined) => at == null ? "זמן לא זמין" : new Intl.DateTimeFormat("he-IL", {
   year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short",
@@ -39,6 +40,10 @@ const description = (value: unknown, kind: ScheduleChange["kind"], names: (id: s
 const fieldLabels: Record<string, string> = { school: "חוג", studyPlan: "תוכנית לימודים", degreeStartYear: "שנת תחילת לימודים", savedStudyPlans: "תוכניות לימודים שמורות", theme: "עיצוב", practicedExams: "מבחנים שתורגלו", openedPracticeCourses: "קורסים לתרגול", customCourses: "קורסים אישיים", pendingAnnualChanges: "שינויים שנתיים ממתינים" }
 const extraFields = (value: object, omitted: string[]) => Object.entries(value).filter(([key]) => !omitted.includes(key)).map(([key, value]) =>
   <Text size="sm" key={key} style={{ overflowWrap: "anywhere" }}>{fieldLabels[key] ?? key}: {typeof value === "string" ? value : JSON.stringify(value)}</Text>)
+const archivedFields = (value: object, fields: readonly string[]) => {
+  const archived = Object.fromEntries(Object.entries(value).filter(([key]) => fields.includes(key)))
+  return Object.keys(archived).length ? <details><summary>נתונים ישנים לשחזור — אינם פעילים</summary>{extraFields(archived, [])}</details> : null
+}
 const CopyContents = ({ title, time, workspace, names }: { title: string; time: string; workspace: PlanWorkspace | undefined; names: (id: string) => string }) => <Paper withBorder p="sm">
   <Text fw={500}>{title}</Text><Text size="sm">{time}</Text>
   {workspace ? workspaceSummary(workspace).map(plan => <div key={plan.id}>
@@ -55,9 +60,11 @@ const CopyContents = ({ title, time, workspace, names }: { title: string; time: 
           {extraFields(course, ["id", "groups"])}
         </div>)}
       </div>)}
-      {extraFields(plan, ["id", "name", "courses"])}
+      {extraFields(plan, ["id", "name", "courses", ...navigationFields, ...sharedFields, "activePlanId"])}
+      {archivedFields(plan, [...navigationFields, ...sharedFields, "activePlanId"])}
     </div>)}
-    {extraFields(workspace, ["plans", "activePlanId", "semester", "tab"])}
+    {extraFields(workspace, ["plans", "activePlanId", "semester", "tab", "schemaVersion", ...planFields, "pendingAnnualChanges"])}
+    {archivedFields(workspace, [...planFields, "pendingAnnualChanges"])}
   </details>}
 </Paper>
 
@@ -83,7 +90,7 @@ export default function ScheduleConflict({ uid, initial, initialChoice, resumeAu
   const stale = readLocalCopy().version !== review.local.version
   const names = (id: string) => courseName(id, remote ? [local, remote] : [local], catalog)
   const changes = [...comparison?.changes ?? []].sort((a, b) => Number(b.conflict) - Number(a.conflict) || Number(b.local === undefined || b.remote === undefined) - Number(a.local === undefined || a.remote === undefined))
-  const download = (workspace: PlanWorkspace, filename: string) => {
+  const download = (workspace: unknown, filename: string) => {
     try { downloadBlob(filename, new Blob([JSON.stringify(workspace)], { type: "application/json" })) }
     catch { setMessage("הורדת הגיבוי נכשלה. נסו שוב לפני החלפת עותק.") }
   }
@@ -114,7 +121,9 @@ export default function ScheduleConflict({ uid, initial, initialChoice, resumeAu
     <Group>
       <Button variant="default" onClick={() => download(local, "dibit-local-before-sync.json")}>הורדת העותק המקומי</Button>
       {remote && <Button variant="default" onClick={() => download(remote, "dibit-google-before-sync.json")}>הורדת העותק מגוגל</Button>}
+      {review.remote?.migrationOriginal !== undefined && <Button variant="default" onClick={() => download(review.remote?.migrationOriginal, "dibit-google-original.json")}>הורדת העותק המקורי שנשמר בגוגל</Button>}
     </Group>
+    {review.remote?.migrationOriginal !== undefined && <Text size="sm">העותק המקורי נשמר לפני עדכון הגיבוי לגרסה הזו. הוא נפרד מהגיבוי העדכני; זמן השמירה המקורי אינו זמין.</Text>}
     <Text fw={500}>{base ? "השינויים מאז העותק המשותף האחרון" : "הבדלים בין העותקים — ללא היסטוריה משותפת"}</Text>
     {!!changes.length && <Text size="sm">{changes.length} סעיפים להשוואה · {comparison?.unresolved.length ?? 0} בחירות מתחרות שטרם הוכרעו</Text>}
     {!changes.length && <Text>אין הבדלי תוכן להצגה.</Text>}

@@ -56,3 +56,29 @@ test("ordering, unknown metadata and custom-catalog dependencies are explicit", 
   expect((compareSchedules(base, extra, workspace("a", "b", "c", "d")).workspace as typeof extra).userMetadata).toEqual({ retained: true })
   expect(compareSchedules(base, { ...base, customCourses: { local: { x: { name: "Custom" } } } }, workspace("a", "b", "c", "d")).reason).toContain("קורסים האישיים")
 })
+
+test("retired fields stay preserved but never become merge choices", () => {
+  const base = workspace("a"), local = workspace("a", "b"), remote = workspace("a", "c")
+  const withArchive = (value: typeof base, semester: string) => ({
+    ...value, courses: { historic: [{ id: semester }] }, pendingAnnualChanges: { historic: semester },
+    plans: value.plans.map(plan => ({ ...plan, semester, theme: { historic: semester }, userMetadata: "keep" })),
+  })
+  const result = compareSchedules(withArchive(base, "base"), withArchive(local, "local"), withArchive(remote, "remote"))
+  expect(result.unresolved).toHaveLength(0)
+  expect(ids(result)).toEqual(["a", "b", "c"])
+  expect(result.changes.every(change => change.kind === "course")).toBe(true)
+  expect(result.workspace?.plans[0]?.semester).toBe("local")
+  expect(result.workspace?.plans[0]?.theme).toEqual({ historic: "local" })
+  expect(result.workspace?.plans[0]?.userMetadata).toBe("keep")
+  expect(result.workspace?.courses).toEqual({ historic: [{ id: "local" }] })
+  const extra = { ...remote, plans: [...remote.plans, { id: "new", name: "Remote plan", semester: "archived", courses: {} }] }
+  expect(compareSchedules(base, local, extra).workspace?.plans.find(plan => plan.id === "new")?.semester).toBe("archived")
+})
+
+test("first-upgrade merge still combines independent edits with a safe legacy baseline", () => {
+  const baseline = JSON.stringify({ plans: [{ id: "default", name: "מערכת השעות שלי", semester: "2026b", courses: { "2026a": [{ id: "a", groups: ["01"], note: "keep" }] } }] })
+  const base = sharedMergeBase(baseline)
+  expect(base).toBeDefined()
+  expect(ids(compareSchedules(base, workspace("a", "b"), workspace("a", "c")))).toEqual(["a", "b", "c"])
+  expect(sharedMergeBase(JSON.stringify({ schemaVersion: 2, plans: workspace("a").plans }))).toBeUndefined()
+})

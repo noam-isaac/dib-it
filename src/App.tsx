@@ -2,7 +2,7 @@ import { stringArraySchema } from "./schemas"
 import { Autocomplete, Button, Loader, MantineProvider, Select } from "@mantine/core"
 import { useColorScheme } from "@mantine/hooks"
 import { ModalsProvider } from "@mantine/modals"
-import { Notifications } from "@mantine/notifications"
+import { Notifications, notifications } from "@mantine/notifications"
 import { useEffect, useRef, useState } from "react"
 import CourseInfoContext from "./CourseInfoContext"
 import { CourseFocusProvider } from "./CourseFocusContext"
@@ -43,11 +43,16 @@ const App = () => {
   const [exportContext, setExportContext] = useState<string | null>(null)
   const viewContext = JSON.stringify([dibIt.activePlanId, dibIt.semester, tab, catalogReady, retry])
 
-  useEffect(() => setExportContext(null), [viewContext])
-
   useEffect(() => {
-    if (dibIt.tab && dibIt.tab !== tab) setDibIt(current => current.tab === dibIt.tab ? { ...current, tab } : current)
-  }, [dibIt.tab, tab, setDibIt])
+    const failed = (event: Event) => notifications.show({
+      id: "workspace-save-error", title: "השינוי לא נשמר", color: "red", autoClose: false,
+      message: (event as CustomEvent<string>).detail,
+    })
+    window.addEventListener("workspace-save-error", failed)
+    return () => window.removeEventListener("workspace-save-error", failed)
+  }, [])
+
+  useEffect(() => setExportContext(null), [viewContext])
 
   return (
     <MantineProvider

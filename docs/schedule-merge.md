@@ -1,8 +1,10 @@
 # Reviewed schedule conflicts
 
 This follow-up to PR #35 improves recovery when a device and Google contain
-different schedule copies. It keeps the existing `Dib It` localStorage workspace
-and backup JSON format. Ordinary edits, plan management, catalog reconciliation,
+different schedule copies. It keeps the existing `Dib It` localStorage key and
+workspace/plan structure. The combined candidate adds a `schemaVersion: 1` marker
+and preserves retired fields at their original locations; see the
+[migration and integration review](combined-schedule-candidate.md). Ordinary edits, plan management, catalog reconciliation,
 initialization, file restores and resets retain their synchronous behavior.
 No dependency was added. Nothing is merged or deployed by this work.
 
@@ -26,6 +28,9 @@ The comparison shows:
 - Course names and IDs, group choices, deletions and incompatible changes first.
 - Expandable full contents, settings, remaining differences and merged result.
 - Downloads of both reviewed copies before a choice replaces anything.
+- A separate download of the original legacy Google workspace, when retained by
+  the migration. This is distinct from the current Google copy and has no known
+  original save time. Retired fields are grouped as inactive recovery data.
 
 Times are evidence about the copy, not proof that it is more complete. Google
 times come from its server timestamp; old cloud backups have unknown times.
@@ -57,8 +62,10 @@ disable merging. A merge does not establish timetable validity or eligibility.
 Manual backup, download, merge and automatic sync share one controller. A reviewed
 choice checks the captured local contents/receipt and cloud revision. Firestore
 transactions retry against the latest cloud document and reject stale decisions.
-Server rules require a versioned envelope and increasing revision, reject
-obsolete unversioned writes, and preserve account ownership checks.
+Server rules require a supported workspace inside a versioned envelope and an
+increasing revision, reject obsolete unversioned writes, and preserve account
+ownership checks. A legacy cloud replacement atomically retains the original
+workspace map, which later writes cannot change or remove.
 
 After a network response, local contents are checked again before applying the
 download/merge. A newer observed local edit survives; the unaccepted copy cannot
@@ -104,3 +111,4 @@ their local copies remain available. Old local tabs are not isolated by this
 feature. Verify live sign-in and cloud round trips at release; local tests do not
 constitute a live-account check. Automatic Vercel deployment remains disabled for
 `codex/reviewed-schedule-merge`. PR #35 and other PRs remain unchanged.
+The same guard is present for `codex/combined-schedule-migration`.

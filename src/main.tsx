@@ -1,7 +1,6 @@
-import { z } from "zod"
 import { Button, MantineProvider } from "@mantine/core"
 import { useColorScheme } from "@mantine/hooks"
-import React from "react"
+import React, { useState } from "react"
 import ReactDOM from "react-dom/client"
 import { ErrorBoundary, FallbackProps } from "react-error-boundary"
 import App from "./App.tsx"
@@ -13,125 +12,28 @@ import "@mantine/dates/styles.css"
 import "@mantine/notifications/styles.css"
 import "@mantine/dropzone/styles.css"
 
-import { notifications } from "@mantine/notifications"
-import { getLocalStorage } from "./hooks.ts"
-import { legacyWorkspaceKeys, recoveryData, resetPreferences, resetWorkspace } from "./preferences.ts"
-import { DibIt, DibItCourse, setDibIt } from "./models.ts"
+import { legacyWorkspaceKeys, MIGRATION_RECOVERY_KEY, recoveryData, resetPreferences, resetWorkspace } from "./preferences.ts"
 import { downloadBlob } from "./utilities.ts"
 
-const handleDeprecation = () => {
-  // Remove "Cached Courses for {semester}", they weigh too much to be in local storage.
-  const keysToRemove = []
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i)
-    if (!key) {
-      continue
-    }
-
-    if (key.startsWith("Cached Courses for")) {
-      keysToRemove.push(key)
-    }
-  }
-
-  for (const key of keysToRemove) {
-    localStorage.removeItem(key)
-  }
-
-  if (localStorage.getItem("Dib It") !== null) return
-
-  const legacyKeys = legacyWorkspaceKeys()
-  const data: Record<string, unknown> = Object.fromEntries(legacyKeys.map(key =>
-    [key, getLocalStorage(key, z.unknown(), undefined)],
-  ))
-
-  if (Object.keys(data).some((x) => x.startsWith("Courses"))) {
-    const result: DibIt = {}
-    let semester = ""
-    if (data["Semester"]) {
-      semester = result.semester = z.string().parse(data["Semester"])
-      delete data["Semester"]
-    }
-    if (data["Courses"]) {
-      data[`Courses ${semester}`] = data["Courses"]
-      delete data["Courses"]
-    }
-    if (data["Groups"]) {
-      data[`Groups ${semester}`] = data["Groups"]
-      delete data["Groups"]
-    }
-    if (data["Colors"]) {
-      data[`Colors ${semester}`] = data["Colors"]
-      delete data["Colors"]
-    }
-    if (data["School (Dib It Serialize)"]) {
-      result.school = z.string().parse(data["School (Dib It Serialize)"])
-    }
-    if (data["Study Plan (Dib It Serialize)"]) {
-      result.studyPlan = z.string().parse(data["Study Plan (Dib It Serialize)"])
-    }
-
-    const keys = Object.keys(data).sort()
-    for (const key of keys) {
-      if (key.startsWith("Courses")) {
-        const semester = key.split(" ")[1] ?? ""
-        const courses = z.array(z.string()).parse(data[key])
-        const groupsKey = `Groups ${semester}`
-        let groups: Record<string, string[]> = {}
-        if (data[groupsKey]) {
-          groups = z.record(z.string(), z.array(z.string())).parse(data[groupsKey])
-        }
-        const colorsKey = `Colors ${semester}`
-        let colors: Record<string, string> = {}
-        if (data[colorsKey]) {
-          colors = z.record(z.string(), z.string()).parse(data[colorsKey])
-        }
-
-        if (!result.courses) {
-          result.courses = {}
-        }
-
-        if (!result.courses[semester]) {
-          result.courses[semester] = []
-        }
-
-        for (const course of courses) {
-          const courseDict: DibItCourse = { id: course }
-          result.courses[semester]!.push(courseDict)
-          if (groups[course]) {
-            courseDict.groups = groups[course]
-          }
-          if (colors[course]) {
-            courseDict.color = colors[course]
-          }
-        }
-      }
-    }
-
-    setDibIt({ ...result })
-    legacyKeys.forEach(key => localStorage.removeItem(key))
-    notifications.show({
-      title: "עדכון ה-Dib It בוצע בהצלחה",
-      message:
-        "המערכת שלכם שודרגה לפורמט חדש ותתאים לפיצ׳רים חדשים שאנחנו עובדים עליהם!",
-      style: { direction: "rtl" },
-      icon: <i className="fa-solid fa-check" />,
-      color: "green",
-    })
-  }
-}
-
-let migrationError: unknown
-try { handleDeprecation() } catch (error) { migrationError = error }
+// Only obsolete fetched caches are disposable at startup. Workspace migration is read-only
+// until an actual save commits the version and preserves its original source.
+let startupError: unknown
+try {
+  Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+    .filter((key): key is string => key !== null && key.startsWith("Cached Courses for"))
+    .forEach(key => localStorage.removeItem(key))
+} catch (error) { startupError = error }
 const InitializedApp = () => {
-  if (migrationError) throw migrationError
+  if (startupError) throw startupError
   return <App />
 }
 
 const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
   const colorScheme = useColorScheme()
+  const [actionError, setActionError] = useState("")
   // An optional legacy-data notice must not hide recovery when storage is denied.
   const hasLegacyData = (() => {
-    try { return legacyWorkspaceKeys().length > 0 }
+    try { return legacyWorkspaceKeys().length > 0 || localStorage.getItem(MIGRATION_RECOVERY_KEY) !== null }
     catch { return false }
   })()
 
@@ -163,17 +65,26 @@ const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
           לצערנו אירעה שגיאה באתר. נסו לטעון מחדש. לפני איפוס, הורידו עותק של הנתונים לשחזור.
         </p>
         <Button my={10} onClick={() => window.location.reload()}>טעינה מחדש</Button>
-        <Button variant="default" onClick={() => downloadBlob("dibit-recovery.json", new Blob([
-          recoveryData(),
-        ], { type: "application/json" }))}>הורדת הנתונים לפני איפוס</Button>
+        <Button variant="default" onClick={() => {
+          try {
+            downloadBlob("dibit-recovery.json", new Blob([recoveryData()], { type: "application/json" }))
+            setActionError("")
+          } catch {
+            setActionError("לא ניתן להוריד את נתוני השחזור כרגע. בדקו שהדפדפן מאפשר גישה לנתוני האתר ונסו שוב לפני איפוס.")
+          }
+        }}>הורדת הנתונים לפני איפוס</Button>
+        {actionError && <p role="alert" style={{ color: "var(--mantine-color-red-text)" }}>{actionError}</p>}
         {hasLegacyData && <p style={{ fontSize: 14 }}>
-          נמצאו נתונים מהגרסה הישנה. קובץ השחזור שומר את כל ערכי מערכות השעות המקוריים לצורך תיקון,
+          נמצאו נתונים מהגרסה הישנה או עותק שנשמר לפני שדרוג. קובץ השחזור כולל את ערכי המקור לצורך תיקון,
           ואינו גיבוי רגיל לשחזור אוטומטי.
         </p>}
         <Button
           my={10}
           leftSection={<i className="fa-solid fa-wrench" aria-hidden="true" />}
-          onClick={() => { resetPreferences(); window.location.reload() }}
+          onClick={() => {
+            if (resetPreferences()) window.location.reload()
+            else setActionError("איפוס העדפות התצוגה לא הושלם. חלק מההעדפות עשויות כבר להיות מאופסות. בדקו שהדפדפן מאפשר גישה לנתוני האתר ונסו שוב.")
+          }}
         >
           איפוס העדפות התצוגה
         </Button>
@@ -186,9 +97,13 @@ const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
           variant="light"
           leftSection={<i className="fa-solid fa-trash" aria-hidden="true" />}
           onClick={() => {
-            if (!window.confirm("למחוק את מערכות השעות מהמכשיר? הורידו קודם עותק של הנתונים. הפעולה אינה מוחקת את הגיבוי בגוגל.")) return
-            resetWorkspace()
-            window.location.reload()
+            if (!window.confirm("למחוק את מערכות השעות מהמכשיר? הורידו קודם עותק של הנתונים. הסנכרון האוטומטי יכובה; הגיבוי בגוגל לא יימחק.")) return
+            try {
+              resetWorkspace()
+              window.location.reload()
+            } catch {
+              setActionError("איפוס המערכות לא הושלם. ייתכן שחלק מהנתונים כבר נמחקו. הורידו את הנתונים שנותרו לפני ניסיון נוסף.")
+            }
           }}
         >
           איפוס המערכות במכשיר

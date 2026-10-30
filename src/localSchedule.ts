@@ -10,8 +10,9 @@ export class StaleWorkspaceError extends Error {
 }
 export const readLocalCopy = (): LocalCopy => {
   const workspace = getWorkspace()
-  const sync = (() => { try { return receiptSchema.parse(JSON.parse(localStorage.getItem("Dib It Sync") ?? "null")) } catch { return undefined } })()
-  return { workspace, sync, version: JSON.stringify([workspace, sync]), time: workspaceTime(workspace) }
+  const raw = localStorage.getItem("Dib It Sync")
+  const sync = (() => { try { return receiptSchema.parse(JSON.parse(raw ?? "null")) } catch { return undefined } })()
+  return { workspace, sync, historyUnavailable: raw !== null && !sync, version: JSON.stringify([workspace, raw]), time: workspaceTime(workspace) }
 }
 /** ponytail: best-effort recheck after the network response; concurrent local-tab guarantees need transactional storage. */
 export const acceptGoogleCopy = (expected: LocalCopy, uid: string, copy: CloudCopy, apply: "download" | "merge" | false, active: () => boolean) => {
@@ -19,7 +20,7 @@ export const acceptGoogleCopy = (expected: LocalCopy, uid: string, copy: CloudCo
   const current = readLocalCopy()
   if (current.version !== expected.version) return false
   if (apply) {
-    setWorkspace(withLocalNavigation(copy.workspace, current.workspace))
+    setWorkspace(withLocalNavigation(copy.workspace, current.workspace), copy.source)
     if (scheduleKey(getWorkspace()) === scheduleKey(copy.workspace))
       rememberWorkspaceTime(copy.workspace, apply === "merge" ? Date.now() : copy.savedAt, apply === "merge" ? "device" : "google")
   }

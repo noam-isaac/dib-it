@@ -14,6 +14,14 @@ const legacy = {
 }
 
 describe("saved schedule plans", () => {
+  test("a delayed duplicate stays bound to its originating plan after another plan becomes active", () => {
+    const first = normalizePlans(legacy)
+    const switched = addPlan(first, "ריקה")
+    const copy = addPlan(switched, "המקור — עותק", true, first.activePlanId)
+    expect(copy.plans[2].courses).toEqual(first.plans[0].courses)
+    expect(copy.plans[2].courses).not.toEqual(switched.plans[1].courses)
+    expect(() => addPlan(deletePlan(switched, first.activePlanId), "עותק", true, first.activePlanId)).toThrow("כבר אינה קיימת")
+  })
   test("a user can keep the former default name through normalization", () => {
     const renamed = renamePlan(normalizePlans(legacy), "default", "התוכנית שלי")
     expect(normalizePlans(renamed).plans[0].name).toBe("התוכנית שלי")

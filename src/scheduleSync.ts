@@ -1,6 +1,7 @@
-import { workspaceSchema } from "./schemas"
 import { normalizePlans, type PlanWorkspace } from "./plans"
-import { isScheduleBackup } from "./scheduleBackup"
+import { readScheduleBackup } from "./scheduleBackup"
+import { decodeWorkspace, workspaceContent } from "./workspaceFormat"
+import { Bytes, DocumentReference, GeoPoint, Timestamp, VectorValue } from "firebase/firestore"
 
 export class CloudScheduleError extends Error {}
 export class LocalSyncSaveError extends Error {
@@ -11,64 +12,85 @@ export class LocalSyncSaveError extends Error {
   }
 }
 
-/** Size rules: https://firebase.google.com/docs/firestore/storage-size */
-export const cloudScheduleData = (workspace: PlanWorkspace, uid: string, overhead = 0): PlanWorkspace => {
-  const bytes = (text: string) => new TextEncoder().encode(text).length + 1
-  const invalid = () => { throw new CloudScheduleError("מבנה הנתונים אינו מתאים לגיבוי בגוגל. הנתונים נשמרו במכשיר ואפשר להוריד גיבוי לקובץ.") }
-  const tooLarge = () => { throw new CloudScheduleError("הנתונים חורגים ממגבלת הגיבוי בגוגל (1 MiB). הנתונים נשמרו במכשיר ואפשר להוריד גיבוי לקובץ. הקטינו קטלוגים אישיים או מערכות שמורות לפני ניסיון נוסף.") }
-  let data: PlanWorkspace
-  try { data = workspaceSchema.parse(JSON.parse(JSON.stringify(workspace)) as unknown) }
-  catch { return invalid() }
-  const size = (value: unknown, depth = 0): number => {
+const bytes = (text: string) => new TextEncoder().encode(text).length + 1
+const invalidCloudData = () => { throw new CloudScheduleError("מבנה הנתונים אינו מתאים לגיבוי בגוגל. הנתונים נשמרו במכשיר ואפשר להוריד גיבוי לקובץ.") }
+const cloudTooLarge = () => { throw new CloudScheduleError("הנתונים והעותק המקורי לשחזור חורגים ממגבלת הגיבוי בגוגל (1 MiB). העותק בגוגל לא הוחלף. הורידו גיבויים והקטינו קטלוגים אישיים או מערכות שמורות לפני ניסיון נוסף.") }
+/** Includes native values in the untouched migration original: https://firebase.google.com/docs/firestore/storage-size */
+const cloudValueSize = (value: unknown, depth = 0): number => {
     if (value === null || typeof value === "boolean") return 1
     if (typeof value === "number") return 8
+    if (value instanceof Timestamp || value instanceof Date) return 8
+    if (value instanceof GeoPoint) return 16
+    if (value instanceof Bytes) {
+      const length = value.toUint8Array().byteLength
+      return length > 1048487 ? cloudTooLarge() : length
+    }
+    if (value instanceof VectorValue) return value.toArray().length * 8
+    if (value instanceof DocumentReference) return value.path.split("/").reduce((total, item) => total + bytes(item), 16)
     if (typeof value === "string") {
-      if (bytes(value) > 1048487) return tooLarge()
+      if (bytes(value) > 1048487) return cloudTooLarge()
       return bytes(value)
     }
-    if (depth > 20) return invalid()
+    if (depth > 20) return invalidCloudData()
     if (Array.isArray(value)) return (value as unknown[]).reduce<number>((total, item) => {
-      if (Array.isArray(item)) invalid()
-      return total + size(item, depth + 1)
+      if (Array.isArray(item)) invalidCloudData()
+      return total + cloudValueSize(item, depth + 1)
     }, 0)
-    if (!value || typeof value !== "object") return invalid()
+    if (!value || typeof value !== "object") return invalidCloudData()
     return 32 + Object.entries(value).reduce((total, [key, item]) => {
-      if (bytes(key) - 1 > 1500 || /^__.*__$/.test(key)) invalid()
-      return total + bytes(key) + size(item, depth + 1)
+      if (bytes(key) - 1 > 1500 || /^__.*__$/.test(key)) invalidCloudData()
+      return total + bytes(key) + cloudValueSize(item, depth + 1)
     }, 0)
-  }
-  if (size(data) + bytes("users") + bytes(uid) + 16 + overhead > 1048576)
-    tooLarge()
+}
+export const assertCloudDocumentSize = (data: unknown, uid: string, overhead = 0) => {
+  if (cloudValueSize(data) + bytes("users") + bytes(uid) + 16 + overhead > 1048576) cloudTooLarge()
+}
+export const cloudScheduleData = (workspace: PlanWorkspace, uid: string, overhead = 0): PlanWorkspace => {
+  let data: PlanWorkspace
+  try { data = decodeWorkspace(JSON.parse(JSON.stringify(workspace)) as unknown) }
+  catch { return invalidCloudData() }
+  assertCloudDocumentSize(data, uid, overhead)
   return data
 }
 
 export const readCloudSchedule = (data: unknown): PlanWorkspace | null => {
   if (data === undefined) return null
-  if (!isScheduleBackup(data)) throw new Error("הגיבוי בגוגל אינו תקין. המערכות המקומיות לא השתנו.")
-  return normalizePlans(data)
+  return readScheduleBackup(data)
 }
 
-// Firestore does not preserve object-key order. Navigation stays on each device.
-export const scheduleKey = (workspace: PlanWorkspace | null): string | null => {
-  if (!workspace) return null
-  const { tab: _tab, semester: _semester, activePlanId: _active, ...data } = workspace
-  return JSON.stringify(data, (_key, value: unknown) => value && typeof value === "object" && !Array.isArray(value)
+// Firestore does not preserve object-key order. Only authoritative content participates in sync.
+const serialized = (data: unknown) => JSON.stringify(data, (_key, value: unknown) => value && typeof value === "object" && !Array.isArray(value)
     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, (value as Record<string, unknown>)[key]])) : value)
+export const scheduleKey = (workspace: PlanWorkspace | null): string | null =>
+  workspace ? serialized(workspaceContent(decodeWorkspace(workspace))) : null
+
+export const UNAVAILABLE_SYNC_HISTORY = "history-unavailable"
+/** Old keys omitted active navigation. No substantive migration may depend on that missing identity. */
+export const readSyncBase = (key: string | null | undefined): PlanWorkspace | undefined => {
+  if (!key) return undefined
+  try {
+    const value = JSON.parse(key) as Record<string, unknown>
+    const plans = value?.plans
+    const activePlanId = Array.isArray(plans) ? (plans[0] as { id?: unknown } | undefined)?.id : undefined
+    return readScheduleBackup(Array.isArray(plans) ? { ...value, activePlanId } : value)
+  } catch { return undefined }
 }
+const interpretedBase = (key: string | null | undefined) => key == null ? key
+  : scheduleKey(readSyncBase(key) ?? null) ?? UNAVAILABLE_SYNC_HISTORY
 
 export type SyncDecision = "equal" | "upload" | "download" | "conflict"
 export const syncDecision = (local: PlanWorkspace, remote: PlanWorkspace | null, base: string | null | undefined): SyncDecision => {
   const localKey = scheduleKey(local)
   const remoteKey = scheduleKey(remote)
   if (localKey === remoteKey) return "equal"
+  base = interpretedBase(base)
   if (base !== undefined) {
     if (localKey === base && remote) return "download"
     if (remoteKey === base) return "upload"
     return "conflict"
   }
   if (!remote) return "upload"
-  const empty = normalizePlans({})
-  empty.plans[0]!.courses = local.plans[0]?.courses && {}
+  const empty = normalizePlans(local.plans[0]?.courses ? { courses: {} } : {})
   if (localKey === scheduleKey(empty)) return "download"
   return "conflict"
 }
@@ -80,16 +102,23 @@ export const withLocalNavigation = (remote: PlanWorkspace, local: PlanWorkspace)
   activePlanId: remote.plans.some(plan => plan.id === local.activePlanId) ? local.activePlanId : remote.activePlanId,
 })
 
-export type CloudCopy = { workspace: PlanWorkspace; revision: number; savedAt: number | null }
+export type CloudCopy = {
+  workspace: PlanWorkspace; revision: number; savedAt: number | null
+  source?: { kind: "google"; raw: string } | undefined
+  migrationOriginal?: unknown
+}
 export type LocalCopy = {
   workspace: PlanWorkspace; version: string; time: { at: number; source: "device" | "google" } | null
   sync?: { uid: string; base?: string | null | undefined; revision?: number | undefined; savedAt?: number | null | undefined } | undefined
+  historyUnavailable?: boolean | undefined
 }
 export type SyncReview = { local: LocalCopy; remote: CloudCopy | null }
 export type SyncStatus = "connecting" | "syncing" | "synced" | "conflict" | "pending" | "error"
 export type SyncChoice = "upload" | "download" | "merge"
-export const cloudCopyKey = (copy: CloudCopy | null) => JSON.stringify([copy?.revision ?? null, scheduleKey(copy?.workspace ?? null)])
-export const baseForAccount = (record: LocalCopy, uid: string) => record.sync && record.sync.uid !== uid ? "different-account" : record.sync?.base
+// A reviewed replacement observes the whole copy, including archived fields and legacy revision-zero copies.
+export const cloudCopyKey = (copy: CloudCopy | null) => serialized([copy?.revision ?? null, copy?.workspace ?? null])
+export const baseForAccount = (record: LocalCopy, uid: string) => record.historyUnavailable ? UNAVAILABLE_SYNC_HISTORY
+  : record.sync && record.sync.uid !== uid ? "different-account" : interpretedBase(record.sync?.base)
 export type SyncOptions = {
   uid: string
   read: () => LocalCopy

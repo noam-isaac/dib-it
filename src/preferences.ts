@@ -8,7 +8,8 @@
  * while leaving the app unusable costs them everything. Keys outside these selections
  * belong to something else on this origin and are never touched.
  */
-export const WORKSPACE_KEYS = ["Dib It", "Dib It Sync", "Dib It Updated"] as const
+export const MIGRATION_RECOVERY_KEY = "Dib It Migration Recovery"
+export const WORKSPACE_KEYS = ["Dib It", "Dib It Sync", "Dib It Updated", MIGRATION_RECOVERY_KEY] as const
 
 /** The two historical layouts: shared keys, or course/group/color keys per semester. */
 export const legacyWorkspaceKeys = () => Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
@@ -21,16 +22,20 @@ export const legacyWorkspaceKeys = () => Array.from({ length: localStorage.lengt
 export const recoveryData = () => {
   const modern = localStorage.getItem("Dib It")
   const legacy = legacyWorkspaceKeys()
-  return legacy.length ? JSON.stringify({
+  const migration = localStorage.getItem(MIGRATION_RECOVERY_KEY)
+  return legacy.length || migration !== null ? JSON.stringify({
     format: "dibit-storage-recovery", version: 1,
-    storage: Object.fromEntries([...(modern === null ? [] : ["Dib It"]), ...legacy]
+    storage: Object.fromEntries([...(modern === null ? [] : ["Dib It"]), ...legacy, ...(migration === null ? [] : [MIGRATION_RECOVERY_KEY])]
       .map(key => [key, localStorage.getItem(key)])),
   }) : modern ?? "{}"
 }
 
 /** Called only after the user confirms deleting local schedules. */
-export const resetWorkspace = () =>
-  [...WORKSPACE_KEYS, "Hidden Tabs", ...legacyWorkspaceKeys()].forEach(key => localStorage.removeItem(key))
+export const resetWorkspace = () => {
+  // Fail before deleting any workspace data if automatic downloads cannot be disabled.
+  localStorage.removeItem("Automatic Google Sync")
+  ;[...legacyWorkspaceKeys(), ...WORKSPACE_KEYS.filter(key => key !== "Dib It"), "Hidden Tabs", "Dib It"].forEach(key => localStorage.removeItem(key))
+}
 
 export const PREFERENCE_KEYS = [
   "Hidden Tabs",
@@ -45,10 +50,8 @@ export const PREFERENCE_KEYS = [
 ] as const
 
 /** Clear display preferences and caches only. Schedules and unrelated storage are kept. */
-export const resetPreferences = () => {
-  for (const key of PREFERENCE_KEYS) {
-    // Storage can be unavailable or full; a key that cannot be cleared must not
-    // abort clearing the rest.
-    try { localStorage.removeItem(key) } catch { /* Continue with the remaining keys. */ }
-  }
-}
+export const resetPreferences = () => PREFERENCE_KEYS.map(key => {
+  // Attempt every preference, but let recovery report a partial failure.
+  try { localStorage.removeItem(key); return true }
+  catch { return false }
+}).every(Boolean)

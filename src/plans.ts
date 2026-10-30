@@ -4,39 +4,33 @@ import { annualChanges, applyAnnualChanges, reconcileAnnualCourses } from "./ann
 
 import { z } from "zod"
 import { schedulePlanSchema, workspaceSchema } from "./schemas"
+import { decodeWorkspace, navigationFields, planFields, sharedFields } from "./workspaceFormat"
 export type SchedulePlan = Pick<z.infer<typeof schedulePlanSchema>, keyof typeof schedulePlanSchema.shape>
 export type PlanWorkspace = Pick<z.infer<typeof workspaceSchema>, keyof typeof workspaceSchema.shape>
 
-/** Legacy schedules become the first plan without losing any semesters. */
-export const normalizePlans = (data: DibIt | PlanWorkspace): PlanWorkspace => {
-  if ("plans" in data) return data
-  const { courses, school, studyPlan, savedStudyPlans, degreeStartYear, activePlanId: _, ...shared } = data
-  return {
-    ...shared,
-    activePlanId: "default",
-    plans: [{ id: "default", name: "מערכת השעות שלי", courses, school, studyPlan, savedStudyPlans, degreeStartYear }],
-  }
-}
+/** All historical layouts use the same versioned, side-effect-free decoder. */
+export const normalizePlans = (data: DibIt | PlanWorkspace): PlanWorkspace => decodeWorkspace(data)
 
 export const activePlanView = (workspace: PlanWorkspace): DibIt => {
-  const { plans, ...shared } = workspace
-  const { id, name: _, pendingAnnualChanges: _pending, ...data } = plans.find(plan => plan.id === workspace.activePlanId)!
-  return { ...shared, ...data, activePlanId: id }
+  const plan = workspace.plans.find(plan => plan.id === workspace.activePlanId)!
+  const pick = (source: object, fields: readonly string[]) => Object.fromEntries(Object.entries(source).filter(([key]) => fields.includes(key)))
+  return { ...pick(workspace, [...navigationFields, ...sharedFields]), ...pick(plan, planFields), activePlanId: plan.id }
 }
 
 export const updateActivePlan = (workspace: PlanWorkspace, view: DibIt, catalogs: Record<string, CatalogCourses> = {}, editSemester = view.semester): PlanWorkspace => {
   // A callback from a plan that was switched away from must not overwrite the new plan.
   if (view.activePlanId && view.activePlanId !== workspace.activePlanId) return workspace
-  const { courses, school, studyPlan, savedStudyPlans, degreeStartYear, activePlanId: _, ...shared } = view
+  const shared = Object.fromEntries(Object.entries(view).filter(([key]) => [...navigationFields, ...sharedFields].includes(key as typeof navigationFields[number] | typeof sharedFields[number])))
+  const data = Object.fromEntries(planFields.map(key => [key, view[key]]))
   const previous = workspace.plans.find(plan => plan.id === workspace.activePlanId)!
   // A stale control can edit its rendered semester while navigation has moved on.
   const changes = annualChanges(previous.courses, { ...view, semester: editSemester })
+  const pendingAnnualChanges = [...previous.pendingAnnualChanges ?? [], ...changes]
   return reconcileActivePlan({
     ...workspace,
     ...shared,
     plans: workspace.plans.map(plan => plan.id === workspace.activePlanId
-      ? { ...plan, courses, school, studyPlan, savedStudyPlans, degreeStartYear,
-          pendingAnnualChanges: [...plan.pendingAnnualChanges ?? [], ...changes] } : plan),
+      ? { ...plan, ...data, ...(pendingAnnualChanges.length ? { pendingAnnualChanges } : {}) } : plan),
   }, catalogs)
 }
 
@@ -45,14 +39,17 @@ export const reconcileActivePlan = (workspace: PlanWorkspace, catalogs: Record<s
   const view = activePlanView(workspace)
   const { courses, pending } = applyAnnualChanges(view, plan.pendingAnnualChanges ?? [], catalogs)
   const reconciled = reconcileAnnualCourses({ ...view, courses }, catalogs, pending)
+  if (JSON.stringify(plan.courses ?? {}) === JSON.stringify(reconciled) &&
+    JSON.stringify(plan.pendingAnnualChanges ?? []) === JSON.stringify(pending)) return workspace
   const { pendingAnnualChanges: _, ...rest } = plan
   return { ...workspace, plans: workspace.plans.map(item => item.id === plan.id
     ? { ...rest, courses: reconciled, ...(pending.length ? { pendingAnnualChanges: pending } : {}) } : item) }
 }
 
-export const addPlan = (workspace: PlanWorkspace, name: string, duplicate = false): PlanWorkspace => {
+export const addPlan = (workspace: PlanWorkspace, name: string, duplicate = false, sourcePlanId = workspace.activePlanId): PlanWorkspace => {
   if (!name.trim()) return workspace
-  const source = workspace.plans.find(plan => plan.id === workspace.activePlanId)!
+  const source = workspace.plans.find(plan => plan.id === sourcePlanId)
+  if (!source) throw new Error("מערכת השעות שממנה נפתחה הפעולה כבר אינה קיימת. פתחו מחדש את בחירת המערכות.")
   const plan: SchedulePlan = {
     ...(duplicate ? structuredClone(source) : {
       courses: {}, school: source.school, studyPlan: source.studyPlan,
