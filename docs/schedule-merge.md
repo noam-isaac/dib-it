@@ -71,7 +71,11 @@ After a network response, local contents are checked again before applying the
 download/merge. A newer observed local edit survives; the unaccepted copy cannot
 become its shared baseline. The sync receipt is written after the workspace.
 A receipt failure may leave a successfully downloaded copy with the old baseline;
-the UI reports incomplete sync and requires another comparison. It never claims
+the UI reports incomplete sync. For a manual choice, refresh the comparison before
+retrying. During automatic sync, the workspace write can schedule a retry: if the
+copies still match, it can repair the receipt without another comparison. When the
+copies differ from each other and both differ from the recorded baseline, automatic
+sync pauses and requires a choice. The error never claims
 that the earlier local contents necessarily remain. Google and browser storage
 are not a single transaction. Requests already committed by Google cannot be
 undone by switching off sync afterward.

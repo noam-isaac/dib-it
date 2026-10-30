@@ -49,7 +49,12 @@ export const decodeWorkspace = (value: unknown): PlanWorkspace => {
   const shared = Object.fromEntries(sharedFields.flatMap(key => {
     const effective = parsed.plans.map(plan => owns(plan, key) ? plan[key] : source[key])
     const candidates = owns(source, key) ? [source[key], ...effective] : effective
-    if (new Set(candidates.map(fingerprint)).size > 1)
+    // Catalog source order controls which overlapping course wins; inner field order does not.
+    const fingerprints = candidates.map(value => {
+      const checked = sharedSettingsSchema.shape[key].parse(value)
+      return fingerprint(key === "customCourses" && checked !== undefined ? Object.entries(checked) : checked)
+    })
+    if (new Set(fingerprints).size > 1)
       throw new Error(`הגיבוי מכיל ערכים שונים עבור ${sharedNames[key]} במערכות השעות. הנתונים המקוריים נשמרו; נדרש תיקון לפני המרה.`)
     const agreed = sharedSettingsSchema.shape[key].parse(candidates[0])
     return agreed === undefined ? [] : [[key, agreed]]

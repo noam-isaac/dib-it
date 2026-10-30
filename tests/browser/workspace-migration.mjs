@@ -188,9 +188,14 @@ try {
     console.log(`PASS ${engine}: real file import cancel/confirm, exact incoming archive and future-version refusal`)
   }
 
+  const alternativeCatalog = { ...catalog, "12345678": { ...catalog["12345678"], name: "מקור אישי אחר" } }
   for (const data of [
     { ...initial, schemaVersion: 99 },
     { ...initial, customCourses: {}, plans: [...initial.plans, { id: "second", name: "אחרת", customCourses: { private: catalog } }] },
+    { ...initial, plans: [
+      { ...initial.plans[0], customCourses: { original: catalog, alternative: alternativeCatalog } },
+      { ...initial.plans[0], id: "second", customCourses: { alternative: alternativeCatalog, original: catalog } },
+    ] },
   ]) {
     const original = JSON.stringify(data, null, 2)
     const { page, context, errors } = await open({ "Dib It": original })

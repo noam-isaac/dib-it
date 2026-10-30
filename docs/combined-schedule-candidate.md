@@ -38,6 +38,9 @@ before implementation. Their findings changed the design in these ways:
 - Shared substantive values must agree across the effective legacy views. Conflicts
   produce a recoverable error rather than silently discarding data or expanding a
   custom catalog's effect to another plan.
+  Custom-catalog source order must also agree: the last source defining a course
+  controls its details and annual classification. Different source orders are
+  conservatively rejected, even when the sources do not overlap.
 - Preserve usable old merge baselines. Their missing active-plan identity is safe
   only because all substantive conversions are independent of that identity.
   Unusable history is distinct from first connection and cannot authorize overwrite.
@@ -71,6 +74,7 @@ Fresh reviewers found gaps not covered by the first passing tests:
 | Confirmed local reset was immediately undone by automatic cloud download | Disable automatic sync before deleting local data, keep the primary workspace until last, leave Google untouched |
 | Recovery controls failed silently when browser storage was denied | Visible Hebrew errors, truthful partial-reset feedback and retry checks |
 | An unfamiliar cloud envelope with extra fields was misclassified as a legacy workspace | Recognize the reserved envelope fields before strict protocol/shape validation, in both client and server rules |
+| Opposite custom-catalog source orders were considered equal during migration | Preserve source precedence when comparing shared values; refuse ambiguity and retain downloadable originals |
 
 Two independent reviewers compared cloud preflight/local staging with an atomic
 Firestore archive. The latter avoids coordinating a remote commit with local
@@ -118,7 +122,7 @@ No live account data is used for automated testing. Before a separately authoriz
 release, publish compatible Firestore rules before the new client and verify real
 sign-in/cloud round trips. Existing previews do not prove this candidate works.
 
-## Validation recorded on 2026-10-30
+## Validation recorded on 2026-10-30 at `058dff2`
 
 | Check | Result and scope |
 | --- | --- |
@@ -144,3 +148,19 @@ The original PR heads in the input table were rechecked and remain open and
 unchanged. The main checkout and original #38 worktree remain clean. A future
 release still requires separate authorization, the compatible server rules first,
 refreshed old clients, and a real-account sign-in/sync check.
+
+## Custom-catalog and receipt-documentation follow-up
+
+Regression tests reproduced the lost source precedence before the decoder fix.
+The fix validates every candidate before comparing catalog source order; malformed
+array candidates also have a failing-before/passing-after check. Equal precedence
+with reordered inner fields still migrates successfully. Rejected copies retain
+their exact original bytes and remain downloadable from recovery.
+
+Validation: 204 unit tests / 12,686 assertions, type checking, lint and production
+build passed. The migration browser suite passed in Chromium, Firefox and WebKit,
+including the new conflicting-order recovery fixture. Two independent reviewers
+rechecked the fixes and closed their findings. The receipt documentation now
+accurately distinguishes manual review from automatic retry; runtime sync behavior
+is unchanged. Earlier broad validation above remains attributed to its original
+commit rather than claimed as a fresh local run.

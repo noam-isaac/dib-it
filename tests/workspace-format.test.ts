@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test"
 import { activePlanView, normalizePlans, updateActivePlan } from "../src/plans"
 import { decodeWorkspace, UnsupportedWorkspaceVersionError, workspaceContent, workspaceVersion } from "../src/workspaceFormat"
+import { resolveCatalog } from "../src/catalog"
+import { annualGroupIds } from "../src/annualCourses"
 
 const plan = (id = "one") => ({ id, name: id, courses: { "2026a": [{ id: "course", groups: ["01"], note: "course metadata" }] } })
 const legacy = () => ({ activePlanId: "one", semester: "2026b", tab: "exams", plans: [plan()] })
@@ -57,6 +59,60 @@ test("current-version archived values stay inactive even when malformed or contr
   const decoded = decodeWorkspace(current)
   expect(activePlanView(decoded)).toMatchObject({ theme: "apple", customCourses: {}, courses: plan().courses, semester: "2026b" })
   expect(decoded).toEqual(current)
+})
+
+test("legacy custom catalogs with different source precedence require repair", () => {
+  const annual = { course: { name: "Annual source", groups: [{ group: "01", lessons: [{ type: "שנתי" }] }] } }
+  const semester = { course: { name: "Semester source", groups: [{ group: "01", lessons: [{ type: "סמסטריאלי" }] }] } }
+  const annualLast = { "semester.json": semester, "annual.json": annual }
+  const semesterLast = { "annual.json": annual, "semester.json": semester }
+  expect(resolveCatalog("2026a", {}, undefined, annualLast).course?.name).toBe("Annual source")
+  expect(resolveCatalog("2026a", {}, undefined, semesterLast).course?.name).toBe("Semester source")
+  expect(annualGroupIds({ customCourses: annualLast }, "2026a", "course")).toEqual(["01"])
+  expect(annualGroupIds({ customCourses: semesterLast }, "2026a", "course")).toEqual([])
+
+  for (const activePlanId of ["one", "two"]) {
+    for (const shared of [{}, { customCourses: annualLast }]) {
+      const input = freeze({ ...legacy(), ...shared, activePlanId, plans: [
+        { ...plan(), customCourses: annualLast }, { ...plan("two"), customCourses: semesterLast },
+      ] })
+      const original = JSON.stringify(input)
+      expect(() => decodeWorkspace(input)).toThrow("הקורסים האישיים")
+      expect(JSON.stringify(input)).toBe(original)
+    }
+  }
+})
+
+test("legacy catalog comparison rejects malformed later candidates", () => {
+  const catalog = { course: { name: "Custom", groups: [] } }
+  const inputs = [
+    { ...legacy(), customCourses: {}, plans: [{ ...plan(), customCourses: [] }] },
+    { ...legacy(), plans: [
+      { ...plan(), customCourses: { "0": catalog } }, { ...plan("two"), customCourses: [catalog] },
+    ] },
+  ]
+  for (const input of inputs) {
+    const original = JSON.stringify(input)
+    expect(() => decodeWorkspace(freeze(input))).toThrow()
+    expect(JSON.stringify(input)).toBe(original)
+  }
+})
+
+test("agreeing custom-catalog precedence survives promotion and round trips", () => {
+  const earlier = { course: { name: "Earlier", groups: [] } }
+  const winner = { name: "Annual winner", groups: [{ group: "01", lessons: [{ type: "שנתי" }] }] }
+  const customCourses = { "earlier.json": earlier, "winner.json": { course: winner } }
+  const samePrecedence = { "earlier.json": earlier, "winner.json": { course: { groups: winner.groups, name: winner.name } } }
+  const migrated = decodeWorkspace(freeze({ ...legacy(), customCourses, plans: [
+    { ...plan(), customCourses }, { ...plan("two"), customCourses: samePrecedence },
+  ] }))
+  const reloaded = decodeWorkspace(JSON.parse(JSON.stringify(migrated)))
+  expect(Object.keys(reloaded.customCourses!)).toEqual(["earlier.json", "winner.json"])
+  for (const activePlanId of ["one", "two"]) {
+    const view = activePlanView({ ...reloaded, activePlanId })
+    expect(resolveCatalog("2026a", {}, undefined, view.customCourses).course?.name).toBe("Annual winner")
+    expect(annualGroupIds(view, "2026a", "course")).toEqual(["01"])
+  }
 })
 
 test("explicit edit ownership preserves unfamiliar metadata without moving it between owners", () => {

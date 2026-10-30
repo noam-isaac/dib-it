@@ -42,6 +42,21 @@ const withStorage = (initial: Record<string, string>, run: (state: {
 }
 
 describe("versioned workspace storage", () => {
+  test("conflicting custom-catalog precedence leaves the saved original recoverable", () => {
+    const first = { course: { name: "First", groups: [] } }, second = { course: { name: "Second", groups: [] } }
+    const original = JSON.stringify({ activePlanId: "two", plans: [
+      { id: "one", name: "One", customCourses: { first, second } },
+      { id: "two", name: "Two", customCourses: { second, first } },
+    ] }, null, 2)
+    withStorage({ "Dib It": original }, ({ data, writes }) => {
+      expect(() => getWorkspace()).toThrow("הקורסים האישיים")
+      expect(() => updateDibIt(current => ({ ...current, theme: "google" }))).toThrow("הקורסים האישיים")
+      expect(data.get("Dib It")).toBe(original)
+      expect(recoveryData()).toBe(original)
+      expect(writes).toEqual([])
+    })
+  })
+
   test("reads, no-op edits and unchanged catalog reconciliation leave original bytes alone", () => {
     withStorage({ "Dib It": raw }, ({ data, writes }) => {
       expect(getWorkspace().schemaVersion).toBe(1)
