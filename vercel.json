@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "git": { "deploymentEnabled": { "codex/reviewed-schedule-merge": false } },
+  "git": { "deploymentEnabled": { "codex/reviewed-schedule-merge": false, "codex/combined-schedule-migration": false } },
   "framework": "vite",
   "installCommand": "bun install --frozen-lockfile",
   "buildCommand": "bun run build",

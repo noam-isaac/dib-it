@@ -15,7 +15,7 @@ import "@mantine/dropzone/styles.css"
 
 import { notifications } from "@mantine/notifications"
 import { getLocalStorage } from "./hooks.ts"
-import { resetPreferences } from "./preferences.ts"
+import { legacyWorkspaceKeys, recoveryData, resetPreferences, resetWorkspace } from "./preferences.ts"
 import { DibIt, DibItCourse, setDibIt } from "./models.ts"
 import { downloadBlob } from "./utilities.ts"
 
@@ -37,22 +37,12 @@ const handleDeprecation = () => {
     localStorage.removeItem(key)
   }
 
-  if (localStorage.getItem("Dib It")) return
+  if (localStorage.getItem("Dib It") !== null) return
 
-  const data: Record<string, unknown> = {}
-
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i)!
-    if (
-      k.startsWith("Courses") ||
-      k.startsWith("Groups") ||
-      k.startsWith("Colors") ||
-      k.includes("Dib It Serialize") ||
-      k === "Semester"
-    ) {
-      data[k] = getLocalStorage(k, z.unknown(), undefined)
-    }
-  }
+  const legacyKeys = legacyWorkspaceKeys()
+  const data: Record<string, unknown> = Object.fromEntries(legacyKeys.map(key =>
+    [key, getLocalStorage(key, z.unknown(), undefined)],
+  ))
 
   if (Object.keys(data).some((x) => x.startsWith("Courses"))) {
     const result: DibIt = {}
@@ -118,8 +108,7 @@ const handleDeprecation = () => {
     }
 
     setDibIt({ ...result })
-    for (const key of Object.keys(data)) localStorage.removeItem(key)
-    for (const key of ["Semester", "Courses", "Groups", "Colors"]) localStorage.removeItem(key)
+    legacyKeys.forEach(key => localStorage.removeItem(key))
     notifications.show({
       title: "עדכון ה-Dib It בוצע בהצלחה",
       message:
@@ -140,6 +129,11 @@ const InitializedApp = () => {
 
 const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
   const colorScheme = useColorScheme()
+  // An optional legacy-data notice must not hide recovery when storage is denied.
+  const hasLegacyData = (() => {
+    try { return legacyWorkspaceKeys().length > 0 }
+    catch { return false }
+  })()
 
   return (
     <MantineProvider
@@ -170,8 +164,12 @@ const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
         </p>
         <Button my={10} onClick={() => window.location.reload()}>טעינה מחדש</Button>
         <Button variant="default" onClick={() => downloadBlob("dibit-recovery.json", new Blob([
-          localStorage.getItem("Dib It") ?? "{}",
+          recoveryData(),
         ], { type: "application/json" }))}>הורדת הנתונים לפני איפוס</Button>
+        {hasLegacyData && <p style={{ fontSize: 14 }}>
+          נמצאו נתונים מהגרסה הישנה. קובץ השחזור שומר את כל ערכי מערכות השעות המקוריים לצורך תיקון,
+          ואינו גיבוי רגיל לשחזור אוטומטי.
+        </p>}
         <Button
           my={10}
           leftSection={<i className="fa-solid fa-wrench" aria-hidden="true" />}
@@ -189,9 +187,7 @@ const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
           leftSection={<i className="fa-solid fa-trash" aria-hidden="true" />}
           onClick={() => {
             if (!window.confirm("למחוק את מערכות השעות מהמכשיר? הורידו קודם עותק של הנתונים. הפעולה אינה מוחקת את הגיבוי בגוגל.")) return
-            localStorage.removeItem("Dib It")
-            localStorage.removeItem("Dib It Sync")
-            localStorage.removeItem("Hidden Tabs")
+            resetWorkspace()
             window.location.reload()
           }}
         >

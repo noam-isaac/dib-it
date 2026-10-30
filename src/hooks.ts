@@ -86,16 +86,19 @@ export const cachedFetch = <T>(url: string, schema: z.ZodType<T>, validate?: (va
   if (!cache) { cache = new Map(); fetchCaches.set(schema, cache) }
   let promise = cache.get(url)
   if (!promise) {
-    promise = fetch(url).then(async response => {
+    // The shared request owns its deadline, including reading the response body.
+    const controller = new AbortController()
+    const deadline = setTimeout(() => controller.abort(), 15000)
+    promise = fetch(url, { signal: controller.signal }).then(async response => {
       if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`)
       const value: unknown = await response.json()
       return schema.parse(value)
-    })
+    }).finally(() => clearTimeout(deadline))
     cache.set(url, promise)
   }
   const currentCache = cache
   return (promise as Promise<T>).then(value => { validate?.(value); return value }).catch(error => {
-    currentCache.delete(url)
+    if (currentCache.get(url) === promise) currentCache.delete(url)
     throw error
   })
 }

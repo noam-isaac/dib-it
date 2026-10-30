@@ -3,9 +3,11 @@ import { Autocomplete, Button, Loader, MantineProvider, Select } from "@mantine/
 import { useColorScheme } from "@mantine/hooks"
 import { ModalsProvider } from "@mantine/modals"
 import { Notifications } from "@mantine/notifications"
-import { useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import CourseInfoContext from "./CourseInfoContext"
+import { CourseFocusProvider } from "./CourseFocusContext"
 import Exams from "./components/Exams"
+import ExportModal from "./components/ExportModal"
 import Footer from "./components/Footer"
 import Guide from "./components/Guide"
 import Header from "./components/Header"
@@ -37,6 +39,11 @@ const App = () => {
 
   const shownTabs = visibleTabs(hiddenTabs)
   const tab = shownTabs.find(({ id }) => id === dibIt.tab)?.id ?? shownTabs[0]!.id
+  const exportTarget = useRef<HTMLDivElement>(null)
+  const [exportContext, setExportContext] = useState<string | null>(null)
+  const viewContext = JSON.stringify([dibIt.activePlanId, dibIt.semester, tab, catalogReady, retry])
+
+  useEffect(() => setExportContext(null), [viewContext])
 
   useEffect(() => {
     if (dibIt.tab && dibIt.tab !== tab) setDibIt(current => current.tab === dibIt.tab ? { ...current, tab } : current)
@@ -69,6 +76,8 @@ const App = () => {
           >
             <Header />
             <GoogleScheduleSync />
+            <CourseFocusProvider scope={`${dibIt.activePlanId}:${dibIt.semester}:${tab}`}
+              courseIds={(dibIt.courses?.[dibIt.semester ?? ""] ?? []).map(course => course.id)}>
             <div
                 id="main"
                 style={{
@@ -78,7 +87,8 @@ const App = () => {
                   width: "calc(100% - 20px)",
                 }}
               >
-                <Sidebar key={`${dibIt.activePlanId}:${dibIt.semester}:${retry}`} catalogReady={catalogReady} />
+                <Sidebar key={`${dibIt.activePlanId}:${dibIt.semester}:${retry}`} catalogReady={catalogReady}
+                  onExport={() => setExportContext(viewContext)} />
                 <div id="content">
                   <div
                     className="adaptive-flex"
@@ -113,8 +123,8 @@ const App = () => {
                       <p>{loadError ? "לא ניתן לטעון את נתוני הסמסטר. המערכות שלכם נשמרו במכשיר." : "טוען את הקורסים של הסמסטר..."}</p>
                       {loadError ? <Button mt="sm" onClick={retryCatalog}>ניסיון נוסף</Button> : <Loader mt="sm" />}
                     </div>
-                  ) : <div id="export-content" key={dibIt.activePlanId}>
-                    {tab === "schedule" && <Schedule />}
+                  ) : <div id="export-content" key={dibIt.activePlanId} ref={tab === "schedule" ? undefined : exportTarget}>
+                    {tab === "schedule" && <Schedule exportRef={exportTarget} />}
                     {tab === "exams" && <Exams key={dibIt.semester} />}
                     {tab === "study-plan" && <StudyPlan />}
                     {tab === "settings" && (
@@ -125,9 +135,13 @@ const App = () => {
                   </div>}
                 </div>
             </div>
+            </CourseFocusProvider>
 
             <Footer />
           </div>
+          {catalogReady && exportContext === viewContext && <ExportModal
+            semester={dibIt.semester ?? ""} target={exportTarget} timetable={tab === "schedule"}
+            onClose={() => setExportContext(null)} />}
         </ModalsProvider>
       </CourseInfoContext.Provider>
     </MantineProvider>

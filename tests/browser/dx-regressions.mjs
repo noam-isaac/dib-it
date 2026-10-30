@@ -57,6 +57,7 @@ try {
     assert.equal(await page.getByRole("textbox", { name: "סמסטר:" }).inputValue() !== "", true)
     await page.getByPlaceholder("חיפוש קורסים להוספה", { exact: true }).fill("ללא מידע על מבחן (12345678)")
     assert.equal(await page.locator("#course-12345678").count(), 1, "pasting an existing course must not duplicate it")
+    await page.keyboard.press("Escape")
     const card = page.locator("#course-12345678")
     await card.getByText("ללא שעות במערכת", { exact: true }).waitFor()
     assert.equal(await card.evaluate(el => getComputedStyle(el).borderTopStyle), "dashed")
@@ -183,6 +184,93 @@ try {
     assert.deepEqual(errors, [])
     await page.close()
     console.log(`PASS ${failedResource}: retry, backup access, shared state, missing exams, year race, recovery`)
+  }
+  // Storage denial must not make the recovery screen fail while enumerating old keys.
+  for (const denied of ["storage", "enumeration"]) {
+    const page = await browser.newPage()
+    const errors = []
+    page.on("pageerror", error => errors.push(error.message))
+    await page.addInitScript(denied => {
+      if (denied === "storage") Object.defineProperty(window, "localStorage", {
+        get() { throw new DOMException("Storage denied", "SecurityError") },
+      })
+      else Object.defineProperty(Storage.prototype, "length", {
+        get() { throw new DOMException("Enumeration denied", "SecurityError") },
+      })
+    }, denied)
+    await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
+    await page.getByRole("heading", { name: "לא ניתן להציג את המערכת", exact: true }).waitFor()
+    assert.equal(await page.getByRole("button", { name: "טעינה מחדש", exact: true }).isEnabled(), true)
+    if (denied === "enumeration") {
+      assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), null)
+      assert.equal(await page.evaluate(async () => {
+        try { (await import("/src/preferences.ts")).legacyWorkspaceKeys(); return false }
+        catch { return true }
+      }), true, "migration, backup and reset must not treat failed enumeration as empty storage")
+    }
+    assert.deepEqual(errors, [], "the fallback must not throw its own storage error")
+    await page.close()
+    console.log(`PASS denied ${denied}: recovery remains visible`)
+  }
+  // Legacy recovery must survive reloads; never re-seed the failed data after reset.
+  for (const mode of ["valid", "legacy", "mixed"]) {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
+    page.setDefaultTimeout(10000)
+    const malformed = mode !== "valid"
+    const legacy = malformed ? {
+      "Courses 2026a": '["12345678"]', "Groups 2026a": '{broken\n',
+      "Colors 2026a": '{"12345678":"#001122"}',
+      "School (Dib It Serialize)": '"פקולטה"',
+    } : {
+      Semester: '"2026a"', Courses: '["12345678"]', Groups: '{"12345678":["02"]}',
+      Colors: '{"12345678":"#001122"}',
+    }
+    const unrelated = { "unrelated-setting": "keep", "Courses wishlist": "keep", "Groups notes": "keep" }
+    await page.route("**/*", route => {
+      const url = new URL(route.request().url())
+      if (url.hostname !== "127.0.0.1") return route.abort()
+      if (!url.pathname.startsWith("/data/")) return route.continue()
+      return route.fulfill({ json: url.pathname.endsWith("info.json") ? info
+        : url.pathname.includes("courses-") ? catalog : {} })
+    })
+    const modern = mode === "mixed" ? { "Dib It": '{"plans":[],"activePlanId":"invalid"}' } : {}
+    const original = { ...modern, ...legacy }
+    await page.addInitScript(({ legacy, unrelated, modern }) => {
+      if (sessionStorage.getItem("legacy-seeded")) return
+      sessionStorage.setItem("legacy-seeded", "true")
+      Object.entries({ ...legacy, ...modern, ...unrelated, "Dib It Fork Intro Seen": "true" })
+        .forEach(([key, value]) => localStorage.setItem(key, value))
+    }, { legacy, unrelated, modern })
+    await prepareAnnualFeed(page)
+    await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
+    if (malformed) {
+      const failure = page.getByRole("heading", { name: "לא ניתן להציג את המערכת", exact: true })
+      await failure.waitFor()
+      const pending = page.waitForEvent("download")
+      await page.getByRole("button", { name: "הורדת הנתונים לפני איפוס", exact: true }).click()
+      const chunks = []
+      for await (const chunk of await (await pending).createReadStream()) chunks.push(chunk)
+      assert.deepEqual(JSON.parse(Buffer.concat(chunks).toString()), {
+        format: "dibit-storage-recovery", version: 1, storage: original,
+      }, "legacy recovery preserves every original string, including invalid JSON")
+      await page.getByRole("button", { name: "איפוס העדפות התצוגה", exact: true }).click()
+      await failure.waitFor()
+      assert.deepEqual(await page.evaluate(keys => Object.fromEntries(keys.map(key => [key, localStorage.getItem(key)])), Object.keys(original)), original)
+      page.once("dialog", dialog => dialog.dismiss())
+      await page.getByRole("button", { name: "איפוס המערכות במכשיר", exact: true }).click()
+      assert.deepEqual(await page.evaluate(keys => Object.fromEntries(keys.map(key => [key, localStorage.getItem(key)])), Object.keys(original)), original, "cancellation keeps both storage formats")
+      page.once("dialog", dialog => dialog.accept())
+      await page.getByRole("button", { name: "איפוס המערכות במכשיר", exact: true }).click()
+    }
+    await page.locator("#schedule-container").waitFor()
+    assert.equal(await page.getByRole("heading", { name: "לא ניתן להציג את המערכת", exact: true }).count(), 0)
+    assert.deepEqual(await page.evaluate(keys => keys.map(key => localStorage.getItem(key)), Object.keys(legacy)), Object.keys(legacy).map(() => null))
+    assert.deepEqual(await page.evaluate(keys => Object.fromEntries(keys.map(key => [key, localStorage.getItem(key)])), Object.keys(unrelated)), unrelated)
+    if (!malformed) assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).plans[0].courses["2026a"]), [
+      { id: "12345678", groups: ["02"], color: "#001122" },
+    ], "valid legacy migration retains selections and colours")
+    await page.close()
+    console.log(`PASS ${mode} storage: ${malformed ? "raw recovery, preference reset, cancellation and confirmed reset" : "migration"}; unrelated storage retained`)
   }
 } finally {
   await browser?.close()
