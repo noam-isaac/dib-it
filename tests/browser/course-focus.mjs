@@ -1,8 +1,9 @@
 import assert from "node:assert/strict"
-import { chromium } from "playwright"
+import { chromium, firefox, webkit } from "playwright"
 import { createServer } from "vite"
 import { prepareAnnualFeed } from "./annual-fixture.mjs"
 
+const engine = process.env.DIBIT_BROWSER ?? "chromium"
 const id = "11111111"
 const catalog = { [id]: {
   name: "Focus course", groups: [{ group: "01", lessons: [{ day: "א", time: "10:00-12:00" }] }],
@@ -16,10 +17,10 @@ const server = await createServer({
 let browser
 try {
   await server.listen()
-  browser = await chromium.launch()
+  browser = await { chromium, firefox, webkit }[engine].launch()
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`
   const errors = []
-  const open = async () => {
+  const open = async (keyboard = false) => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } })
     const page = await context.newPage()
     page.setDefaultTimeout(10000)
@@ -47,7 +48,9 @@ try {
     await prepareAnnualFeed(page)
     await page.goto(origin)
     await page.getByRole("button", { name: "חיפוש קורסים לפי תאריך בחינה", exact: true }).click()
-    await page.getByRole("button", { name: "הוספת קורס", exact: true }).click()
+    const add = page.getByRole("button", { name: "הוספת קורס", exact: true })
+    if (keyboard) { await add.focus(); await page.keyboard.press("Enter") }
+    else await add.click()
     await page.getByRole("status", { name: "טוען פרטי קורס", exact: true }).waitFor()
     // The old implementation already spent its only frame while the card was a loader.
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
@@ -80,6 +83,41 @@ try {
     await page.keyboard.press("Escape")
     await page.getByRole("dialog").waitFor({ state: "hidden" })
     assert.equal(await page.locator("#course-11111111").getByRole("checkbox").evaluate(node => node === document.activeElement), false)
+    await context.close()
+  }
+  // A later interaction cancels permanently, even when focus returns to its origin.
+  for (const interaction of ["dialog", "text", "focus", "keyboard"]) {
+    const { page, context, releaseGrades } = await open()
+    if (interaction === "dialog") {
+      await page.getByRole("button", { name: "פעולות", exact: true }).click()
+      await page.getByRole("menuitem", { name: "ייצוא ל־PDF או לתמונה", exact: true }).click()
+      await page.getByRole("dialog").waitFor()
+      await page.keyboard.press("Escape")
+      await page.getByRole("dialog").waitFor({ state: "hidden" })
+    } else if (interaction === "text") {
+      // Safari leaves BODY focused for both the original button and this text click.
+      await page.locator(".exam-search").getByRole("status").first().click()
+    } else if (interaction === "focus") {
+      await page.evaluate(() => {
+        const origin = document.activeElement
+        document.querySelector('#sidebar input')?.focus()
+        if (origin instanceof HTMLElement) origin.focus()
+      })
+    } else {
+      await page.keyboard.press("Escape")
+    }
+    releaseGrades()
+    await page.locator("#course-11111111").waitFor()
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    assert.equal(await page.locator("#course-11111111").getByRole("checkbox").evaluate(node => node === document.activeElement), false,
+      `${interaction} permanently cancels pending focus`)
+    await context.close()
+  }
+  // The key that creates a request must not cancel that same request.
+  {
+    const { page, context, releaseGrades } = await open(true)
+    releaseGrades()
+    await page.waitForFunction(() => document.activeElement?.matches('#course-11111111 input[type="checkbox"]'))
     await context.close()
   }
   // Removing a course abandons its pending request, even if a sync later restores it.
@@ -121,7 +159,7 @@ try {
     await context.close()
   }
   assert.deepEqual(errors, [])
-  console.log("Course focus: delayed metadata, existing cards, schedule highlighting, dialog, removal and context cancellation passed")
+  console.log(`Course focus ${engine}: delayed pointer/keyboard requests, existing cards, highlighting, interaction cancellation, removal and context cancellation passed`)
 } finally {
   await browser?.close()
   await server.close()

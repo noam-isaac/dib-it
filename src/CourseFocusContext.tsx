@@ -13,6 +13,14 @@ export const CourseFocusProvider = ({ scope, courseIds, children }: { scope: str
     setRequest(current => current && (current.scope !== scope || !courseIds.includes(current.courseId)) ? null : current)
   }, [scope, courseIds])
 
+  useEffect(() => {
+    if (!request) return
+    const cancel = () => setRequest(current => current === request ? null : current)
+    const events = ["focusin", "pointerdown", "keydown"]
+    events.forEach(event => document.addEventListener(event, cancel, true))
+    return () => events.forEach(event => document.removeEventListener(event, cancel, true))
+  }, [request])
+
   return <CourseFocusContext.Provider value={{
     request: request?.scope === scope ? request : null,
     revealCourse: (courseId, highlight = false) => setRequest({ courseId, highlight, origin: document.activeElement, scope }),
