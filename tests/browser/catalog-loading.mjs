@@ -80,7 +80,7 @@ try {
     await page.getByText("שעות: 2", { exact: true }).waitFor()
     await page.locator(`#course-${id}`).getByText(`קורס 2026a (${id})`, { exact: true }).waitFor()
     assert.equal(await page.getByPlaceholder("חיפוש קורסים להוספה").isEnabled(), true)
-    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).plans[0].courses)
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.plans[0].courses)
     assert.deepEqual(saved, Object.fromEntries(semesters.map(s => [s, [{ id, groups: ["01"] }]])))
     assert.deepEqual(errors, [])
     await page.close()

@@ -36,14 +36,14 @@ try {
   const card = page.locator("#course-12345678")
   await card.waitFor()
   await card.getByRole("button", { name: /הסרת/ }).click()
-  const plan = () => page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).plans[0])
+  const plan = () => page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.plans[0])
   assert.equal((await plan()).pendingAnnualChanges[0].awaitingClassification, true)
   await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.includes("courses-2026b")))
   assert.ok(pendingFeed)
   await pendingFeed.fulfill({ json: { version: 1, years: { "2026": {
     source: "https://www.ims.tau.ac.il/Tal/KR/Search_P.aspx", filter: "ckSem=0", verifiedAt: "2026-09-09", groups: { "12345678": ["01"] },
   } } } })
-  await page.waitForFunction(() => !JSON.parse(localStorage.getItem("Dib It")).plans[0].pendingAnnualChanges)
+  await page.waitForFunction(() => !JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.plans[0].pendingAnnualChanges)
   assert.deepEqual((await plan()).courses, { "2026a": [], "2026b": [] })
   const cached = await page.evaluate(() => localStorage.getItem("Annual Course Registry"))
   failFeed = true

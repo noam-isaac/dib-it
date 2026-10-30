@@ -18,38 +18,7 @@ const legacy = () => ({
   userMetadata: { note: "retain" },
 })
 
-// Exercise the real storage/schema/event boundary; module mocks would bypass the contract.
-const withStorage = (initial: unknown, check: (storage: {
-  raw: () => string | null; writes: () => number; events: () => number; fail: () => void
-}) => void) => {
-  const keys = ["localStorage", "window", "StorageEvent"] as const
-  const descriptors = keys.map(key => Object.getOwnPropertyDescriptor(globalThis, key))
-  let raw = initial === undefined ? null : JSON.stringify(initial)
-  let writes = 0, events = 0, failed = false
-  class TestStorageEvent extends Event {
-    constructor(type: string, readonly init: { key: string; newValue: string }) { super(type) }
-  }
-  Object.defineProperties(globalThis, {
-    localStorage: { configurable: true, value: {
-      getItem: () => raw,
-      setItem: (_key: string, value: string) => {
-        if (failed) throw new Error("Quota exceeded")
-        raw = value
-        writes += 1
-      },
-    } },
-    window: { configurable: true, value: { dispatchEvent: () => { events += 1 } } },
-    StorageEvent: { configurable: true, value: TestStorageEvent },
-  })
-  try { check({ raw: () => raw, writes: () => writes, events: () => events, fail: () => { failed = true } }) }
-  finally {
-    keys.forEach((key, index) => {
-      const descriptor = descriptors[index]
-      if (descriptor) Object.defineProperty(globalThis, key, descriptor)
-      else Reflect.deleteProperty(globalThis, key)
-    })
-  }
-}
+import { withWorkspaceStorage as withStorage } from "./workspace-fixture"
 
 const freeze = <T>(value: T): T => {
   if (value && typeof value === "object") Object.values(value).forEach(freeze)
@@ -57,7 +26,7 @@ const freeze = <T>(value: T): T => {
 }
 
 describe("atomic workspace persistence", () => {
-  test("callbacks created together apply to the latest state, preserving unrelated plan and shared data", () => {
+  test("callbacks created together apply to the latest state, preserving unrelated plan and shared data", async () => {
     const initial = addPlan(normalizePlans(legacy()), "Second", true)
     const expectedId = initial.activePlanId
     const addCourse = () => updateDibIt(current => ({ ...current, courses: {
@@ -66,10 +35,10 @@ describe("atomic workspace persistence", () => {
     const recolor = () => updateDibIt(current => ({ ...current, courses: {
       ...current.courses, "2026a": current.courses!["2026a"]!.map(course => course.id === "regular" ? { ...course, color: "blue" } : course),
     } }), expectedId, "2026a")
-    withStorage(initial, storage => {
-      addCourse()
-      updateDibIt(current => ({ ...current, tab: "exams", theme: "google" }), expectedId)
-      recolor()
+    await withStorage(initial, async storage => {
+      await addCourse()
+      await updateDibIt(current => ({ ...current, tab: "exams", theme: "google" }), expectedId)
+      await recolor()
       const saved = getWorkspace()
       expect(saved.plans[0]).toEqual(initial.plans[0])
       expect(saved.plans[1]).toEqual({ ...initial.plans[1], courses: {
@@ -82,63 +51,63 @@ describe("atomic workspace persistence", () => {
     })
   })
 
-  test("a stale switched-plan callback is rejected before evaluating its updater", () => {
+  test("a stale switched-plan callback is rejected before evaluating its updater", async () => {
     const original = normalizePlans(legacy())
     const switched = addPlan(original, "Other")
-    withStorage(switched, storage => {
-      updateDibIt(() => { throw new Error("must not run") }, original.activePlanId, "2026a")
+    await withStorage(switched, async storage => {
+      await updateDibIt(() => { throw new Error("must not run") }, original.activePlanId, "2026a")
       expect(getWorkspace()).toEqual(clone(switched))
       expect(storage.writes()).toBe(0)
       expect(storage.events()).toBe(0)
     })
   })
 
-  test("deleted and recreated plans get a different identity and reject the deleted plan callback", () => {
+  test("deleted and recreated plans get a different identity and reject the deleted plan callback", async () => {
     const original = addPlan(normalizePlans(legacy()), "Transient")
     const recreated = addPlan(deletePlan(original, original.activePlanId), "Transient")
     expect(recreated.activePlanId).not.toBe(original.activePlanId)
-    withStorage(recreated, storage => {
-      updateDibIt(() => { throw new Error("must not run") }, original.activePlanId)
+    await withStorage(recreated, async storage => {
+      await updateDibIt(() => { throw new Error("must not run") }, original.activePlanId)
       expect(getWorkspace()).toEqual(clone(recreated))
       expect(storage.writes()).toBe(0)
     })
   })
 
-  test("returning to the same plan accepts its callback without discarding edits to another plan", () => {
+  test("returning to the same plan accepts its callback without discarding edits to another plan", async () => {
     const original = addPlan(normalizePlans(legacy()), "Second")
-    withStorage(original, () => {
+    await withStorage(original, async () => {
       const staleId = original.activePlanId
-      setWorkspace({ ...getWorkspace(), activePlanId: "default" })
-      updateDibIt(current => ({ ...current, school: "Changed first" }), "default")
-      setWorkspace({ ...getWorkspace(), activePlanId: staleId })
-      updateDibIt(current => ({ ...current, studyPlan: "Changed second" }), staleId)
+      await setWorkspace({ ...getWorkspace(), activePlanId: "default" })
+      await updateDibIt(current => ({ ...current, school: "Changed first" }), "default")
+      await setWorkspace({ ...getWorkspace(), activePlanId: staleId })
+      await updateDibIt(current => ({ ...current, studyPlan: "Changed second" }), staleId)
       expect(getWorkspace().plans[0]!.school).toBe("Changed first")
       expect(getDibIt().studyPlan).toBe("Changed second")
     })
   })
 
-  test("a same-reference no-op does not write, emit, or migrate legacy bytes", () => {
-    withStorage(legacy(), storage => {
+  test("a same-reference no-op does not write, emit, or migrate legacy bytes", async () => {
+    await withStorage(legacy(), async storage => {
       const before = storage.raw()
-      updateDibIt(current => current, "default")
+      await updateDibIt(current => current, "default")
       expect(storage.raw()).toBe(before)
       expect(storage.writes()).toBe(0)
       expect(storage.events()).toBe(0)
     })
   })
 
-  test("an empty store can be initialized and then updated without losing the first edit", () => {
-    withStorage(undefined, storage => {
-      updateDibIt(current => ({ ...current, semester: "2026a", courses: { "2026a": [{ id: "first" }] } }))
-      updateDibIt(current => ({ ...current, school: "Faculty" }))
+  test("an empty store can be initialized and then updated without losing the first edit", async () => {
+    await withStorage(undefined, async storage => {
+      await updateDibIt(current => ({ ...current, semester: "2026a", courses: { "2026a": [{ id: "first" }] } }))
+      await updateDibIt(current => ({ ...current, school: "Faculty" }))
       expect(getDibIt()).toMatchObject({ semester: "2026a", courses: { "2026a": [{ id: "first" }] }, school: "Faculty" })
       expect(storage.writes()).toBe(2)
     })
   })
 
-  test("legacy data migrates on edit and preserves all old semesters and passthrough metadata", () => {
-    withStorage(legacy(), storage => {
-      updateDibIt(current => ({ ...current, semester: "2026b" }), "default")
+  test("legacy data migrates on edit and preserves all old semesters and passthrough metadata", async () => {
+    await withStorage(legacy(), async storage => {
+      await updateDibIt(current => ({ ...current, semester: "2026b" }), "default")
       const saved = JSON.parse(storage.raw()!)
       expect(saved.plans).toHaveLength(1)
       expect(getDibIt()).toEqual({ ...legacy(), semester: "2026b", activePlanId: "default" })
@@ -150,23 +119,23 @@ describe("atomic workspace persistence", () => {
     undefined, null, { semester: "bad" }, { courses: { "2026a": [{ id: "" }] } },
     { courses: { "2026a": [{ id: "bad", groups: [1] }] } }, { theme: "purple" },
     { savedStudyPlans: [{ school: "Faculty", studyPlan: "" }] },
-  ])("invalid updater result %# leaves exact persisted bytes and event count intact", result => {
-    withStorage(legacy(), storage => {
+  ])("invalid updater result %# leaves exact persisted bytes and event count intact", async result => {
+    await withStorage(legacy(), async storage => {
       const before = storage.raw()
-      expect(() => updateDibIt(() => result as unknown as DibIt)).toThrow()
+      await expect(updateDibIt(() => result as unknown as DibIt)).rejects.toThrow()
       expect(storage.raw()).toBe(before)
       expect(storage.writes()).toBe(0)
       expect(storage.events()).toBe(0)
     })
   })
 
-  test("an updater exception and quota failure preserve the last successfully saved workspace", () => {
-    withStorage(legacy(), storage => {
-      updateDibIt(current => ({ ...current, tab: "exams" }))
+  test("an updater exception and quota failure preserve the last successfully saved workspace", async () => {
+    await withStorage(legacy(), async storage => {
+      await updateDibIt(current => ({ ...current, tab: "exams" }))
       const before = storage.raw()
-      expect(() => updateDibIt(() => { throw new Error("edit failed") })).toThrow("edit failed")
+      await expect(updateDibIt(() => { throw new Error("edit failed") })).rejects.toThrow("edit failed")
       storage.fail()
-      expect(() => updateDibIt(current => ({ ...current, courses: {} }))).toThrow("Quota exceeded")
+      await expect(updateDibIt(current => ({ ...current, courses: {} }))).rejects.toThrow("Quota exceeded")
       expect(storage.raw()).toBe(before)
       expect(getDibIt()).toEqual({ ...legacy(), tab: "exams", activePlanId: "default" })
       expect(storage.writes()).toBe(1)
@@ -174,11 +143,11 @@ describe("atomic workspace persistence", () => {
     })
   })
 
-  test("malformed stored data surfaces without invoking an updater or replacing the recoverable bytes", () => {
+  test("malformed stored data surfaces without invoking an updater or replacing the recoverable bytes", async () => {
     for (const invalid of [{ plans: [] }, { activePlanId: "missing", plans: [{ id: "a", name: "A" }] }]) {
-      withStorage(invalid, storage => {
+      await withStorage(invalid, async storage => {
         const before = storage.raw()
-        expect(() => updateDibIt(() => { throw new Error("must not run") })).toThrow()
+        await expect(updateDibIt(() => { throw new Error("must not run") })).rejects.toThrow()
         expect(storage.raw()).toBe(before)
         expect(storage.writes()).toBe(0)
       })
@@ -247,30 +216,30 @@ describe("atomic annual workspace edits", () => {
     expect(reconcileActivePlan(completed, importCatalogs(annualCatalogs))).toEqual(completed)
   })
 
-  test("actual storage-backed annual edits use the captured semester after navigation and replay after catalogs arrive", () => {
+  test("actual storage-backed annual edits use the captured semester after navigation and replay after catalogs arrive", async () => {
     const year = "2078", first = `${year}a`, second = `${year}b`, id = "98765432"
     const catalogs = { [id]: { groups: [{ group: "01", lessons: [] }] } }
     acceptAnnualFeed({ version: 1, years: { [year]: { source: "https://www.ims.tau.ac.il/Tal/KR/Search_P.aspx", filter: "ckSem=0", verifiedAt: "2026-10-28", groups: { [id]: ["01"] } } } })
-    withStorage({ semester: first, courses: { [first]: [{ id, groups: ["01"] }], [second]: [{ id, groups: ["01"], color: "blue" }] } }, storage => {
-      updateDibIt(current => ({ ...current, semester: "2079a" }), "default")
-      updateDibIt(current => ({ ...current, courses: { ...current.courses, [first]: [] } }), "default", first)
+    await withStorage({ semester: first, courses: { [first]: [{ id, groups: ["01"] }], [second]: [{ id, groups: ["01"], color: "blue" }] } }, async storage => {
+      await updateDibIt(current => ({ ...current, semester: "2079a" }), "default")
+      await updateDibIt(current => ({ ...current, courses: { ...current.courses, [first]: [] } }), "default", first)
       expect(getDibIt().semester).toBe("2079a")
       expect(getWorkspace().plans[0]!.pendingAnnualChanges).toHaveLength(1)
       cacheSemesterCourses(first, catalogs)
-      reconcileCatalogs()
+      await reconcileCatalogs()
       expect(getWorkspace().plans[0]!.pendingAnnualChanges).toHaveLength(1)
       cacheSemesterCourses(second, catalogs)
-      reconcileCatalogs()
+      await reconcileCatalogs()
       expect(getDibIt().courses).toEqual({ [first]: [], [second]: [] })
       expect(getDibIt().semester).toBe("2079a")
       expect(getWorkspace().plans[0]!.pendingAnnualChanges).toBeUndefined()
       const writes = storage.writes()
-      reconcileCatalogs()
+      await reconcileCatalogs()
       expect(storage.writes()).toBe(writes)
     })
   })
 
-  test("pure stale-plan guard preserves a frozen workspace and its queued annual intent", () => {
+  test("pure stale-plan guard preserves a frozen workspace and its queued annual intent", async () => {
     const first = normalizePlans({ semester: "2026a", courses: { "2026a": [course], "2026b": [course] } })
     const queued = updateActivePlan(first, { ...activePlanView(first), courses: { "2026a": [], "2026b": [course] } })
     const workspace = freeze(addPlan(queued, "Other"))

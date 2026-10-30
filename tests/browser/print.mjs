@@ -69,7 +69,7 @@ try {
     }
     await assertTimeOnRight()
     const screenHeight = await page.locator("#schedule-container").evaluate(el => el.clientHeight)
-    const before = await page.evaluate(() => localStorage.getItem("Dib It"))
+    const before = await page.evaluate(() => localStorage.getItem("Dib It Workspace v2"))
     await page.getByRole("button", { name: "פעולות", exact: true }).click()
     assert.equal(await page.getByRole("menuitem", { name: /PNG/ }).count(), 0, "no separate image menu item")
     await page.getByRole("menuitem", { name: "ייצוא ל־PDF או לתמונה", exact: true }).click()
@@ -120,7 +120,7 @@ try {
     const png = await readFile(filename)
     assert.equal(png.readUInt32BE(16), 2800, "image is reflowed at readable width even on mobile")
     assert.ok(png.readUInt32BE(20) > 2400, "dense overlapping text expands the time grid")
-    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), before, "export never changes the workspace")
+    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It Workspace v2")), before, "export never changes the workspace")
     if (engine === "chromium") {
       await page.evaluate(() => { navigator.clipboard.write = async () => { throw new DOMException("denied", "NotAllowedError") } })
       await dialog.getByRole("button", { name: "העתקת תמונה", exact: true }).click()
@@ -159,7 +159,7 @@ try {
     await page.keyboard.press("Escape")
     if (theme === "apple") {
       await page.getByRole("button", { name: "מבחנים", exact: true }).click()
-      const examsBefore = await page.evaluate(() => localStorage.getItem("Dib It"))
+      const examsBefore = await page.evaluate(() => localStorage.getItem("Dib It Workspace v2"))
       await page.evaluate(() => {
         HTMLCanvasElement.prototype.toBlob = function (...args) {
           const copy = document.querySelector('[inert] #export-content')
@@ -196,7 +196,7 @@ try {
       assert.equal(examPng.subarray(0, 8).toString("hex"), "89504e470d0a1a0a")
       assert.equal(examPng.readUInt32BE(16), 2800)
       assert.equal(await page.locator("#export-content").count(), 1, "exam export removes its DOM copy")
-      assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), examsBefore, "exam export preserves workspace")
+      assert.equal(await page.evaluate(() => localStorage.getItem("Dib It Workspace v2")), examsBefore, "exam export preserves workspace")
       await page.emulateMedia({ media: "print" })
       assert.equal(await page.locator(".mantine-Modal-root:visible").count(), 0)
       if (engine === "chromium") await page.pdf({ path: `${output}/exams-${width}.pdf`, format: "A4", printBackground: true, preferCSSPageSize: true })

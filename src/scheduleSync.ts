@@ -1,11 +1,19 @@
 import { workspaceSchema } from "./schemas"
 import { normalizePlans, type PlanWorkspace } from "./plans"
 import { isScheduleBackup } from "./scheduleBackup"
+import type { WorkspaceRecord } from "./workspaceStore"
 
 export class CloudScheduleError extends Error {}
+export class LocalSyncSaveError extends Error {
+  constructor(uploaded: boolean, readonly cause: unknown) {
+    super(uploaded
+      ? "העותק נשמר בגוגל, אך השמירה במכשיר נכשלה. העותק המקומי הקודם נשמר; רעננו את ההשוואה לפני ניסיון נוסף."
+      : "השמירה במכשיר נכשלה. העותק המקומי הקודם נשמר; רעננו את ההשוואה לפני ניסיון נוסף.")
+  }
+}
 
 /** Size rules: https://firebase.google.com/docs/firestore/storage-size */
-export const cloudScheduleData = (workspace: PlanWorkspace, uid: string): PlanWorkspace => {
+export const cloudScheduleData = (workspace: PlanWorkspace, uid: string, overhead = 0): PlanWorkspace => {
   const bytes = (text: string) => new TextEncoder().encode(text).length + 1
   const invalid = () => { throw new CloudScheduleError("מבנה הנתונים אינו מתאים לגיבוי בגוגל. הנתונים נשמרו במכשיר ואפשר להוריד גיבוי לקובץ.") }
   const tooLarge = () => { throw new CloudScheduleError("הנתונים חורגים ממגבלת הגיבוי בגוגל (1 MiB). הנתונים נשמרו במכשיר ואפשר להוריד גיבוי לקובץ. הקטינו קטלוגים אישיים או מערכות שמורות לפני ניסיון נוסף.") }
@@ -30,7 +38,7 @@ export const cloudScheduleData = (workspace: PlanWorkspace, uid: string): PlanWo
       return total + bytes(key) + size(item, depth + 1)
     }, 0)
   }
-  if (size(data) + bytes("users") + bytes(uid) + 16 > 1048576)
+  if (size(data) + bytes("users") + bytes(uid) + 16 + overhead > 1048576)
     tooLarge()
   return data
 }
@@ -73,23 +81,29 @@ export const withLocalNavigation = (remote: PlanWorkspace, local: PlanWorkspace)
   activePlanId: remote.plans.some(plan => plan.id === local.activePlanId) ? local.activePlanId : remote.activePlanId,
 })
 
-export type SyncStatus = "connecting" | "syncing" | "synced" | "conflict" | "error"
+export type CloudCopy = { workspace: PlanWorkspace; revision: number; savedAt: number | null }
+export type SyncReview = { local: WorkspaceRecord; remote: CloudCopy | null }
+export type SyncStatus = "connecting" | "syncing" | "synced" | "conflict" | "pending" | "error"
+export type SyncChoice = "upload" | "download" | "merge"
+export const cloudCopyKey = (copy: CloudCopy | null) => JSON.stringify([copy?.revision ?? null, scheduleKey(copy?.workspace ?? null)])
+export const baseForAccount = (record: WorkspaceRecord, uid: string) => record.sync && record.sync.uid !== uid ? "different-account" : record.sync?.base
+export type SyncOptions = {
+  uid: string
+  read: () => WorkspaceRecord
+  accept: (expected: WorkspaceRecord, copy: CloudCopy, apply: "download" | "merge" | false, active: () => boolean) => Promise<boolean>
+  exchange: (decide: (remote: CloudCopy | null) => PlanWorkspace | undefined) => Promise<{ before: CloudCopy | null; after: CloudCopy | null }>
+  prepare: (workspace: PlanWorkspace) => PlanWorkspace
+  status: (status: SyncStatus, review?: SyncReview, error?: unknown) => void
+}
 
-/** One serial queue for reads/writes; transactions protect against other devices. */
-export const startScheduleSync = (options: {
-  read: () => PlanWorkspace
-  apply: (workspace: PlanWorkspace) => void
-  base: () => string | null | undefined
-  remember: (key: string | null) => void
-  exchange: (decide: (remote: PlanWorkspace | null) => PlanWorkspace | undefined) => Promise<PlanWorkspace | null>
-  status: (status: SyncStatus, remote?: PlanWorkspace | null, error?: unknown) => void
-}) => {
+/** Each tab has a queue; cloud revisions and the local store's lock protect the shared boundaries. */
+export const startScheduleSync = (options: SyncOptions) => {
   let stopped = false
   let busy = false
   let queued = false
   let timer: ReturnType<typeof setTimeout> | undefined
-  let resolution: { choice: "upload" | "download"; remoteKey: string | null } | undefined
-  let blockedKey: string | null | undefined
+  let resolution: { review: SyncReview; choice: SyncChoice; merged?: PlanWorkspace } | undefined
+  let blockedVersion: string | undefined
 
   const schedule = (delay = 1000) => {
     if (stopped) return
@@ -101,43 +115,45 @@ export const startScheduleSync = (options: {
     if (busy) { queued = true; return }
     busy = true
     queued = false
-    const choice = resolution
+    const chosen = resolution
     resolution = undefined
-    let attemptedKey: string | null | undefined
+    let attempted: string | undefined
     try {
       const local = options.read()
-      const localKey = scheduleKey(local)
-      if (blockedKey !== undefined && blockedKey === localKey && !choice) return
-      attemptedKey = localKey
-      blockedKey = undefined
-      const base = options.base()
+      if (blockedVersion === local.version && !chosen) return
+      attempted = local.version
+      blockedVersion = undefined
       let decision = "equal" as SyncDecision
       options.status("syncing")
-      const remote = await options.exchange(remote => {
+      const exchange = await options.exchange(remote => {
         if (stopped) throw new Error("Sync stopped")
-        decision = choice && choice.remoteKey === scheduleKey(remote)
-          ? choice.choice : syncDecision(local, remote, base)
-        return decision === "upload" ? local : undefined
+        const stale = chosen && (local.version !== chosen.review.local.version ||
+          options.read().version !== local.version || cloudCopyKey(remote) !== cloudCopyKey(chosen.review.remote))
+        decision = stale ? "conflict" : chosen ? chosen.choice === "download" ? "download" : "upload"
+          : syncDecision(local.workspace, remote?.workspace ?? null, baseForAccount(local, options.uid))
+        const replacement = chosen?.choice === "merge" ? chosen.merged : local.workspace
+        // A newly arrived catalog must not silently change an approved merge.
+        if (decision === "upload" && chosen?.choice === "merge" && (!replacement ||
+          scheduleKey(options.prepare(replacement)) !== scheduleKey(replacement))) decision = "conflict"
+        return decision === "upload" ? replacement : undefined
       })
       if (stopped) return
-      // A user can keep editing while the server responds. Never replace those edits.
-      if (decision === "upload" || decision === "equal") options.remember(localKey)
-      if (scheduleKey(options.read()) !== localKey) {
-        queued = true
+      if (decision === "conflict") {
+        options.status("conflict", { local: options.read(), remote: exchange.before })
         return
       }
-      if (decision === "download" && remote) {
-        options.apply(withLocalNavigation(remote, options.read()))
-        options.remember(scheduleKey(remote))
-        queued = scheduleKey(options.read()) !== scheduleKey(remote)
-      }
-      options.status(decision === "conflict" ? "conflict" : "synced", remote)
+      const copy = decision === "download" ? exchange.before : exchange.after
+      if (!copy) throw new Error("לא נמצא עותק בגוגל. פתחו השוואה מעודכנת.")
+      const accepted = await options.accept(local, copy, decision === "download" ? "download" : chosen?.choice === "merge" ? "merge" : false, () => !stopped)
+        .catch((error: unknown) => { throw new LocalSyncSaveError(decision === "upload", error) })
+      if (stopped) return
+      if (!accepted) { options.status("pending"); queued = true }
+      else options.status("synced")
     } catch (error) {
       if (!stopped) {
+        if (error instanceof CloudScheduleError || error instanceof LocalSyncSaveError || (error as { code?: string })?.code === "invalid-argument") blockedVersion = attempted
         options.status("error", undefined, error)
-        // Local storage retains pending changes across offline periods and reloads.
-        if (error instanceof CloudScheduleError || (error as { code?: string })?.code === "invalid-argument") blockedKey = attemptedKey
-        else schedule(30000)
+        if (blockedVersion === undefined) schedule(30000)
       }
     } finally {
       busy = false
@@ -146,8 +162,8 @@ export const startScheduleSync = (options: {
   }
   return {
     schedule,
-    resolve: (choice: "upload" | "download", remote: PlanWorkspace | null) => {
-      resolution = { choice, remoteKey: scheduleKey(remote) }
+    resolve: (review: SyncReview, choice: SyncChoice, merged?: PlanWorkspace) => {
+      resolution = { review, choice, ...(merged ? { merged } : {}) }
       schedule(0)
     },
     stop: () => { stopped = true; clearTimeout(timer) },

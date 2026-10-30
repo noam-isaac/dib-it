@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import { test } from "node:test"
 import { initializeTestEnvironment } from "@firebase/rules-unit-testing"
-import { doc, onSnapshot, runTransaction, setDoc, disableNetwork, enableNetwork } from "firebase/firestore"
+import { doc, onSnapshot, runTransaction, setDoc, disableNetwork, enableNetwork, serverTimestamp } from "firebase/firestore"
 import { createServer } from "vite"
 
 assert.equal(process.env.FIRESTORE_EMULATOR_HOST, "127.0.0.1:8086")
@@ -22,22 +22,28 @@ test("real Firestore clients sync, reconnect, and preserve competing edits", { t
   })
   const clients = []
   try {
-    const { startScheduleSync, readCloudSchedule, scheduleKey } = await server.ssrLoadModule("/src/scheduleSync.ts")
+    const { startScheduleSync, readCloudSchedule, scheduleKey, withLocalNavigation } = await server.ssrLoadModule("/src/scheduleSync.ts")
     const { normalizePlans } = await server.ssrLoadModule("/src/plans.ts")
     const createClient = (local = normalizePlans({})) => {
       const database = environment.authenticatedContext("sync-emulator").firestore()
       const reference = doc(database, "users", "sync-emulator")
       const client = { local, base: undefined, status: "connecting", database, reference }
+      const read = () => ({ format: 2, version: JSON.stringify(client.local), epoch: "session", workspace: structuredClone(client.local), time: null, legacy: null, sync: { uid: "sync-emulator", base: client.base } })
       const sync = startScheduleSync({
-        read: () => structuredClone(client.local),
-        apply: value => { client.local = value },
-        base: () => client.base,
-        remember: value => { client.base = value },
+        uid: "sync-emulator", read, prepare: value => value,
+        accept: async (expected, copy, apply, active) => {
+          if (!active() || expected.version !== read().version) return false
+          if (apply) client.local = withLocalNavigation(copy.workspace, client.local)
+          client.base = scheduleKey(copy.workspace)
+          return true
+        },
         exchange: decide => runTransaction(database, async transaction => {
-          const remote = readCloudSchedule((await transaction.get(reference)).data())
-          const upload = decide(remote)
-          if (upload) transaction.set(reference, JSON.parse(JSON.stringify(upload)))
-          return remote
+          const raw = (await transaction.get(reference)).data()
+          const before = raw ? { workspace: readCloudSchedule(raw.workspace), revision: raw.revision, savedAt: raw.savedAt.toMillis() } : null
+          const upload = decide(before)
+          const after = upload ? { workspace: upload, revision: (before?.revision ?? 0) + 1, savedAt: null } : before
+          if (upload) transaction.set(reference, { protocol: 2, revision: after.revision, savedAt: serverTimestamp(), workspace: JSON.parse(JSON.stringify(upload)) })
+          return { before, after }
         }),
         status: status => { client.status = status },
       })
@@ -81,7 +87,7 @@ test("real Firestore clients sync, reconnect, and preserve competing edits", { t
     assert.equal(second.local.plans[0].name, "Concurrent B")
 
     const before = clients.map(client => structuredClone(client.local))
-    await setDoc(first.reference, { plans: [] })
+    await environment.withSecurityRulesDisabled(async context => setDoc(doc(context.firestore(), "users", "sync-emulator"), { protocol: 2, revision: 100, savedAt: serverTimestamp(), workspace: { plans: [] } }))
     await until(() => clients.every(client => client.status === "error"))
     assert.deepEqual(clients.map(client => client.local), before)
   } finally {

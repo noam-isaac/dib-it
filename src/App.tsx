@@ -14,6 +14,7 @@ import Schedule from "./components/Schedule"
 import Settings from "./components/Settings"
 import Sidebar from "./components/Sidebar"
 import GoogleScheduleSync from "./components/GoogleScheduleSync"
+import WorkspaceNotice from "./components/WorkspaceNotice"
 import StudyPlan from "./components/StudyPlan"
 import { useLocalStorage } from "./hooks"
 import { visibleTabs } from "./tabs"
@@ -55,10 +56,9 @@ const App = () => {
           'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif',
       }}
     >
-      <ModalsProvider>
-        <Notifications zIndex={100001} />
-
-        <CourseInfoContext.Provider value={courses}>
+      <CourseInfoContext.Provider value={courses}>
+        <ModalsProvider>
+          <Notifications zIndex={100001} />
           <div
             style={{
               display: "flex",
@@ -69,6 +69,7 @@ const App = () => {
             }}
           >
             <Header />
+            <WorkspaceNotice />
             <GoogleScheduleSync />
             <div
                 id="main"
@@ -129,8 +130,8 @@ const App = () => {
 
             <Footer />
           </div>
-        </CourseInfoContext.Provider>
-      </ModalsProvider>
+        </ModalsProvider>
+      </CourseInfoContext.Provider>
     </MantineProvider>
   )
 }

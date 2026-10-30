@@ -3,8 +3,20 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // A user may access one private backup, never another user's data.
     match /users/{userId} {
-      allow get, create, update, delete:
-        if request.auth != null && request.auth.uid == userId;
+      function owner() { return request.auth != null && request.auth.uid == userId; }
+      function coordinated() {
+        return request.resource.data.keys().hasOnly(['protocol', 'revision', 'savedAt', 'workspace'])
+          && request.resource.data.protocol == 2
+          && request.resource.data.revision is int
+          && request.resource.data.workspace is map
+          && request.resource.data.savedAt == request.time;
+      }
+      allow get: if owner();
+      allow create: if owner() && coordinated() && request.resource.data.revision == 1;
+      allow update: if owner() && coordinated()
+        && request.resource.data.revision == (resource.data.keys().hasOnly(['protocol', 'revision', 'savedAt', 'workspace']) && resource.data.get('protocol', 0) == 2 ? resource.data.revision + 1 : 1);
+      // Local recovery never deletes the cloud backup. Reject obsolete deletes and unversioned writes.
+      allow delete: if false;
     }
     // All other documents, subcollections and collection queries are denied.
   }

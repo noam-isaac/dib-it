@@ -1,14 +1,14 @@
 import { booleanSchema } from "../schemas"
 import { Group, Menu, Text, Tooltip } from "@mantine/core"
 import { notifications } from "@mantine/notifications"
-import { doc, getDoc, setDoc } from "firebase/firestore"
 import { useAuthState } from "react-firebase-hooks/auth"
 import { useState } from "react"
 import { auth, firestore } from "../firebase"
-import { getWorkspace } from "../models"
 import { useLocalStorage } from "../hooks"
-import { cloudScheduleData, scheduleKey } from "../scheduleSync"
-import { openScheduleRestore } from "./RestoreScheduleModal"
+import { modals } from "@mantine/modals"
+import { loadSyncReview } from "../googleWorkspace"
+import { coordinationAvailable } from "../workspaceStore"
+import ScheduleConflict from "./ScheduleConflict"
 
 const EnabledGoogleSaveButtons = () => {
   const [currentUser] = useAuthState(auth!)
@@ -19,13 +19,14 @@ const EnabledGoogleSaveButtons = () => {
   const restore = async () => {
     setBusy(true)
     try {
-      const snapshot = await getDoc(doc(firestore!, "users", currentUser.uid))
+      const review = await loadSyncReview(currentUser.uid)
       if (auth!.currentUser?.uid !== currentUser.uid) return
-      if (!snapshot.exists()) {
+      if (!review.remote) {
         notifications.show({ title: "לא נמצא גיבוי בגוגל", message: "המערכות המקומיות נשארו כפי שהן.", color: "yellow" })
         return
       }
-      openScheduleRestore(snapshot.data(), "google")
+      modals.open({ title: "השוואה לפני שחזור מגוגל", size: "xl", centered: true,
+        children: <ScheduleConflict uid={currentUser.uid} initial={review} initialChoice="download" onClose={() => modals.closeAll()} /> })
     } catch (error) {
       notifications.show({
         title: "שגיאה בעדכון מגוגל",
@@ -40,11 +41,10 @@ const EnabledGoogleSaveButtons = () => {
   const save = async () => {
     setBusy(true)
     try {
-      const workspace = getWorkspace()
-      await setDoc(doc(firestore!, "users", currentUser.uid), cloudScheduleData(workspace, currentUser.uid))
+      const review = await loadSyncReview(currentUser.uid)
       if (auth!.currentUser?.uid !== currentUser.uid) return
-      localStorage.setItem("Dib It Sync", JSON.stringify({ uid: currentUser.uid, base: scheduleKey(workspace) }))
-      notifications.show({ title: "השמירה בגוגל בוצעה בהצלחה", message: "כל מערכות השעות נשמרו בגוגל.", color: "green" })
+      modals.open({ title: "השוואה לפני גיבוי בגוגל", size: "xl", centered: true,
+        children: <ScheduleConflict uid={currentUser.uid} initial={review} initialChoice="upload" onClose={() => modals.closeAll()} /> })
     } catch (error) {
       notifications.show({ title: "שגיאה בשמירה בגוגל", message: error instanceof Error ? error.message : "נסו שוב מאוחר יותר.", color: "red" })
     } finally {
@@ -56,7 +56,7 @@ const EnabledGoogleSaveButtons = () => {
       <Tooltip label={automatic
         ? "כל שינוי במערכות נשמר בגוגל ומתעדכן במכשירים המחוברים. לחצו כדי לכבות."
         : "לחצו כדי להפעיל שמירה ועדכון אוטומטיים של המערכות בגוגל."}>
-        <Menu.Item renderRoot={props => <button {...props} role="menuitemcheckbox" aria-checked={automatic} />} closeMenuOnClick={false}
+        <Menu.Item disabled={!coordinationAvailable()} renderRoot={props => <button {...props} role="menuitemcheckbox" aria-checked={automatic} />} closeMenuOnClick={false}
           leftSection={<i className="fa-solid fa-cloud" aria-hidden="true" />}
           rightSection={
             // The state is spelled out as well as drawn: the switch alone read as decoration.
@@ -71,11 +71,11 @@ const EnabledGoogleSaveButtons = () => {
         </Menu.Item>
       </Tooltip>
       <Tooltip label="פעולה זו תחליף את כל מערכות השעות ששמורות בגוגל">
-        <Menu.Item disabled={busy} leftSection={<i className="fa-solid fa-save" aria-hidden="true" />} onClick={save}>
+        <Menu.Item disabled={busy || !coordinationAvailable()} leftSection={<i className="fa-solid fa-save" aria-hidden="true" />} onClick={save}>
           גיבוי בגוגל
         </Menu.Item>
       </Tooltip>
-      <Menu.Item disabled={busy} leftSection={<i className="fa-solid fa-sync" aria-hidden="true" />} onClick={restore}>
+      <Menu.Item disabled={busy || !coordinationAvailable()} leftSection={<i className="fa-solid fa-sync" aria-hidden="true" />} onClick={restore}>
         שחזור מגוגל
       </Menu.Item>
     </>

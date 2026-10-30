@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { normalizePlans } from "../src/plans"
-import { CloudScheduleError, cloudScheduleData, readCloudSchedule, scheduleKey, startScheduleSync, syncDecision, withLocalNavigation, type SyncStatus } from "../src/scheduleSync"
+import { CloudScheduleError, cloudScheduleData, readCloudSchedule, scheduleKey, startScheduleSync, syncDecision, withLocalNavigation, LocalSyncSaveError, type SyncStatus } from "../src/scheduleSync"
 import { isScheduleBackup } from "../src/scheduleBackup"
 
 const workspace = (id = "one") => normalizePlans({ semester: "2026a", courses: { "2026a": [{ id, groups: ["01"] }] } })
@@ -20,22 +20,31 @@ const setup = (persisted?: { local: ReturnType<typeof workspace>; remote: Return
     hold: undefined as Promise<void> | undefined,
     ...persisted,
   }
+  const read = () => ({
+    format: 2 as const, version: JSON.stringify(state.local), epoch: "session",
+    workspace: structuredClone(state.local), time: null, legacy: null,
+    sync: { uid: "test", base: state.base },
+  })
+  const review = () => ({ local: read(), remote: { workspace: structuredClone(state.remote), revision: state.writes, savedAt: null } })
   const sync = startScheduleSync({
-    read: () => structuredClone(state.local),
-    apply: value => { state.local = value },
-    base: () => state.base,
-    remember: value => { state.base = value },
+    uid: "test", read, prepare: value => value,
+    accept: async (expected, copy, apply, active) => {
+      if (!active() || read().version !== expected.version) return false
+      if (apply) state.local = withLocalNavigation(copy.workspace, state.local)
+      state.base = scheduleKey(copy.workspace)
+      return true
+    },
     exchange: async decide => {
       if (state.offline) throw new Error("offline")
       if (state.hold) await state.hold
-      const remote = structuredClone(state.remote)
-      const upload = decide(remote)
+      const before = review().remote
+      const upload = decide(before)
       if (upload) { state.remote = upload; state.writes++ }
-      return remote
+      return { before, after: review().remote }
     },
     status: value => { state.status = value },
   })
-  return { state, sync }
+  return { state, sync, review }
 }
 
 test("first connection, offline divergence, deletions, account changes and navigation", () => {
@@ -103,20 +112,20 @@ test("offline edits survive a new session and retry without losing local data", 
 })
 
 test("concurrent edits pause; a choice cannot overwrite a newer cloud copy", async () => {
-  const { state, sync } = setup()
+  const { state, sync, review } = setup()
   try {
     state.local = workspace("local-edit")
     state.remote = workspace("remote-edit")
     sync.schedule(0)
     await until(() => state.status === "conflict")
     expect(state.writes).toBe(0)
-    const seen = state.remote
+    const seen = review()
     state.remote = workspace("newer-remote-edit")
     state.status = "connecting"
-    sync.resolve("upload", seen)
+    sync.resolve(seen, "upload")
     await until(() => state.status === "conflict")
     expect(state.writes).toBe(0)
-    sync.resolve("upload", state.remote)
+    sync.resolve(review(), "upload")
     await until(() => state.status === "synced")
     expect(state.remote).toEqual(workspace("local-edit"))
   } finally { sync.stop() }
@@ -170,7 +179,8 @@ test("permanent upload failures stop retries until the local data changes", asyn
   let calls = 0
   let status: SyncStatus = "connecting"
   const sync = startScheduleSync({
-    read: () => local, apply: () => {}, base: () => undefined, remember: () => {},
+    uid: "test", prepare: value => value, accept: async () => true,
+    read: () => ({ format: 2, version: JSON.stringify(local), epoch: "test", workspace: local, time: null, legacy: null }),
     exchange: async () => { calls++; throw new CloudScheduleError("Too large") },
     status: next => { status = next },
   })
@@ -184,5 +194,41 @@ test("permanent upload failures stop retries until the local data changes", asyn
     local = workspace("smaller")
     sync.schedule(0)
     await until(() => calls === 2)
+  } finally { sync.stop() }
+})
+
+test("a reviewed choice cannot overwrite a newer local copy", async () => {
+  const { state, sync, review } = setup()
+  try {
+    const seen = review()
+    state.local = workspace("later-local-edit")
+    sync.resolve(seen, "upload")
+    await until(() => state.status === "conflict")
+    expect(state.writes).toBe(0)
+    expect(state.local).toEqual(workspace("later-local-edit"))
+  } finally { sync.stop() }
+})
+
+test("cloud success followed by local failure reports partial completion and does not auto-retry", async () => {
+  let status: SyncStatus = "connecting", failure: unknown, writes = 0
+  const local = { format: 2 as const, version: "v1", epoch: "test", workspace: workspace(), time: null, legacy: null }
+  const sync = startScheduleSync({
+    uid: "test", read: () => local, prepare: value => value,
+    accept: async () => { throw new Error("Quota exceeded") },
+    exchange: async decide => {
+      const upload = decide(null)!
+      writes++
+      return { before: null, after: { workspace: upload, revision: writes, savedAt: null } }
+    },
+    status: (next, _review, error) => { status = next; failure = error },
+  })
+  try {
+    sync.schedule(0)
+    await until(() => status === "error")
+    expect(failure).toBeInstanceOf(LocalSyncSaveError)
+    expect((failure as Error).message).toContain("נשמר בגוגל")
+    sync.schedule(0)
+    await pause()
+    expect(writes).toBe(1)
   } finally { sync.stop() }
 })
