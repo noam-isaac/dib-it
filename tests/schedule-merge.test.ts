@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test"
-import { normalizePlans } from "../src/plans"
+import { activePlanView, normalizePlans, updateActivePlan } from "../src/plans"
+import { annualGroupIds } from "../src/annualCourses"
 import { compareSchedules, sharedMergeBase } from "../src/scheduleMerge"
 import { scheduleKey } from "../src/scheduleSync"
 
@@ -81,4 +82,83 @@ test("first-upgrade merge still combines independent edits with a safe legacy ba
   expect(base).toBeDefined()
   expect(ids(compareSchedules(base, workspace("a", "b"), workspace("a", "c")))).toEqual(["a", "b", "c"])
   expect(sharedMergeBase(JSON.stringify({ schemaVersion: 2, plans: workspace("a").plans }))).toBeUndefined()
+})
+
+
+test("reimported catalog precedence cannot merge another copy's semester selection", () => {
+  const annual = { custom: { name: "Annual", groups: [{ group: "01", lessons: [{ type: "שנתי" }] }] } }
+  const semester = { custom: { name: "Semester", groups: [{ group: "01", lessons: [{ type: "סמסטריאלי" }] }] } }
+  const baseline = { ...workspace(), customCourses: { "a-annual.json": annual, "z-semester.json": semester } }
+  // Settings removes a source and appends the reimported file, changing the winner.
+  const removed = updateActivePlan(baseline, { ...activePlanView(baseline), customCourses: { "z-semester.json": semester } })
+  const local = updateActivePlan(removed, { ...activePlanView(removed), theme: "google",
+    customCourses: { ...removed.customCourses, "a-annual.json": annual } })
+  const remote = updateActivePlan(baseline, { ...activePlanView(baseline), courses: { "2026a": [{ id: "custom", groups: ["01"] }] } })
+  const original = JSON.stringify([baseline, local, remote])
+  expect(annualGroupIds(activePlanView(local), "2026a", "custom")).toEqual(["01"])
+  expect(annualGroupIds(activePlanView(remote), "2026a", "custom")).toEqual([])
+  expect(remote.plans[0]!.courses?.["2026b"]).toBeUndefined()
+  const base = sharedMergeBase(scheduleKey(baseline))!
+  const key = JSON.stringify(["setting", "customCourses"])
+  for (const [left, right] of [[local, remote], [remote, local]] as const) {
+    const result = compareSchedules(base, left, right)
+    expect(result.reason).toContain("קורסים האישיים")
+    expect(result.workspace).toBeUndefined()
+    expect(result.changes.find(change => change.key === key)).toMatchObject({ local: left.customCourses, remote: right.customCourses })
+    expect(compareSchedules(base, left, right, { [key]: "local" }).workspace).toBeUndefined()
+    expect(compareSchedules(base, left, right, { [key]: "remote" }).workspace).toBeUndefined()
+  }
+  expect(JSON.stringify([baseline, local, remote])).toBe(original)
+})
+
+test("source reordering is visible without history and never inferred from a sorted baseline", () => {
+  const first = { custom: { name: "First" } }, second = { custom: { name: "Second" } }
+  const baseline = { ...workspace(), customCourses: { first, second } }
+  const reordered = { ...baseline, customCourses: { second, first } }
+  const base = sharedMergeBase(scheduleKey(reordered))!
+  expect(Object.keys(base.customCourses!)).toEqual(["first", "second"])
+  const key = JSON.stringify(["setting", "customCourses"])
+  expect(compareSchedules(undefined, baseline, reordered).changes.some(change => change.key === key)).toBe(true)
+  for (const extra of [{}, { extra: { other: { name: "Another course" } } }]) {
+    const local = { ...reordered, customCourses: { ...reordered.customCourses, ...extra } }
+    expect(compareSchedules(base, local, baseline).workspace).toBeUndefined()
+    expect(compareSchedules(base, local, baseline).reason).toContain("קורסים האישיים")
+  }
+  // Agreeing current copies need no inferred choice about historical source order.
+  expect(compareSchedules(base, reordered, reordered).workspace?.customCourses).toEqual(reordered.customCourses)
+  expect(Object.keys(compareSchedules(base, reordered, reordered).workspace!.customCourses!)).toEqual(["second", "first"])
+})
+
+test("catalog comparison ignores inner field order and permits independent source additions", () => {
+  const course = { name: "Custom", groups: [{ group: "01", lessons: [] }] }
+  const baseline = { ...workspace(), customCourses: { first: { custom: course } } }
+  const local = { ...baseline, theme: "google" as const, customCourses: { first: { custom: { groups: course.groups, name: course.name } } } }
+  const result = compareSchedules(sharedMergeBase(scheduleKey(baseline)), local, baseline)
+  expect(result.reason).toBeUndefined()
+  expect(result.changes.map(change => change.key)).toEqual([JSON.stringify(["setting", "theme"])])
+  const remote = { ...baseline, customCourses: { ...baseline.customCourses, second: { extra: { name: "Extra" } } } }
+  const merged = compareSchedules(sharedMergeBase(scheduleKey(baseline)), local, remote)
+  expect(merged.reason).toBeUndefined()
+  expect(merged.workspace).toMatchObject({ theme: "google", customCourses: remote.customCourses })
+  expect(Object.keys(merged.workspace!.customCourses!)).toEqual(["first", "second"])
+})
+
+
+test("sorted baselines do not invent catalog changes or source-removal conflicts", () => {
+  const z = { first: { name: "First" } }, a = { second: { name: "Second" } }
+  const baseline = { ...workspace(), customCourses: { z, a } }
+  const base = sharedMergeBase(scheduleKey(baseline))!
+  const local = { ...baseline, theme: "google" as const }
+  const selected = { ...workspace("unrelated"), customCourses: baseline.customCourses }
+  const result = compareSchedules(base, local, selected)
+  expect(result.reason).toBeUndefined()
+  expect(result.changes.some(change => change.key === JSON.stringify(["setting", "customCourses"]))).toBe(false)
+  expect(result.workspace).toMatchObject({ theme: "google", plans: selected.plans })
+  for (const customCourses of [{ z }, { z, a, extra: { third: { name: "Third" } } }]) {
+    const merged = compareSchedules(base, local, { ...baseline, customCourses })
+    expect(merged.reason).toBeUndefined()
+    expect(merged.unresolved).toHaveLength(0)
+    expect(merged.workspace).toMatchObject({ theme: "google", customCourses })
+    expect(Object.keys(merged.workspace!.customCourses!)).toEqual(Object.keys(customCourses))
+  }
 })

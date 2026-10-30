@@ -13,7 +13,9 @@ type Part<T> = { value: T | undefined; changes: ScheduleChange[] }
 type Bundle = { courses: Record<string, unknown>; pending: NonNullable<SchedulePlan["pendingAnnualChanges"]> }
 const keyOf = (value: unknown) => JSON.stringify(value, (_key, item: unknown) => item && typeof item === "object" && !Array.isArray(item)
   ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item)
-const same = (a: unknown, b: unknown) => keyOf(a) === keyOf(b)
+const catalogKey = JSON.stringify(["setting", "customCourses"])
+const same = (a: unknown, b: unknown, key?: string) => keyOf(key === catalogKey && a ? Object.entries(a) : a)
+  === keyOf(key === catalogKey && b ? Object.entries(b) : b)
 const union = <T>(...values: T[][]) => [...new Set(values.flat())]
 const without = (value: object, names: string[]) => Object.fromEntries(Object.entries(value).filter(([key]) => !names.includes(key)))
 const picked = (value: object, names: string[]) => Object.fromEntries(Object.entries(value).filter(([key]) => names.includes(key)))
@@ -42,11 +44,14 @@ export const compareSchedules = (baseInput: PlanWorkspace | undefined, localInpu
   const base = baseInput ? semantic(decodeWorkspace(baseInput)) : undefined
   const local = semantic(originalLocal), remote = semantic(originalRemote)
   const choose = <T>(before: T | undefined, left: T | undefined, right: T | undefined, context: Omit<ScheduleChange, "base" | "local" | "remote" | "conflict">): Part<T> => {
-    if (same(before, left) && same(before, right)) return { value: left, changes: [] }
-    const conflict = !same(left, right) && !same(left, before) && !same(right, before)
+    // Baseline object order is unavailable; only current copies can supply source precedence.
+    const unchangedLeft = same(before, left), unchangedRight = same(before, right)
+    const equalCopies = same(left, right, context.key)
+    if (unchangedLeft && unchangedRight && equalCopies) return { value: left, changes: [] }
+    const conflict = !equalCopies && !unchangedLeft && !unchangedRight
     const choice = choices[context.key]
     return {
-      value: conflict ? choice === "local" ? left : choice === "remote" ? right : undefined : same(left, before) ? right : left,
+      value: conflict ? choice === "local" ? left : choice === "remote" ? right : undefined : unchangedLeft ? right : left,
       changes: [{ ...context, base: before, local: left, remote: right, conflict }],
     }
   }
@@ -97,7 +102,7 @@ export const compareSchedules = (baseInput: PlanWorkspace | undefined, localInpu
   const shared = [baseline, local, remote].map(value => without(value, ["plans", "activePlanId", "semester", "tab"]))
   const settings = union(...shared.map(value => Object.keys(value))).map(key => ({ key, result: choose(shared[0]![key], shared[1]![key], shared[2]![key], { key: JSON.stringify(["setting", key]), label: fieldNames[key] ?? `נתונים נוספים: ${key}`, kind: "setting" }) }))
   const changes = [...plans.flatMap(part => part.changes), ...planOrder.changes, ...settings.flatMap(item => item.result.changes)]
-    .filter(change => base || !same(change.local, change.remote))
+    .filter(change => base || !same(change.local, change.remote, change.key))
   const unresolved = changes.filter(change => change.conflict && !choices[change.key])
   const list = (planOrder.value ?? keptPlans.map(plan => plan.id)).map(id => keptPlans.find(plan => plan.id === id)!)
   const parsed = workspaceSchema.safeParse({
@@ -111,8 +116,11 @@ export const compareSchedules = (baseInput: PlanWorkspace | undefined, localInpu
     ...(local.semester !== undefined ? { semester: local.semester } : {}), ...(local.tab !== undefined ? { tab: local.tab } : {}),
   })
   const selections = (workspace: PlanWorkspace) => workspace.plans.map(plan => ({ id: plan.id, courses: plan.courses, pending: plan.pendingAnnualChanges }))
+  // Baselines discard source order, so never infer which copy reordered shared sources.
+  const localSources = Object.keys(local.customCourses ?? {}), remoteSources = Object.keys(remote.customCourses ?? {})
+  const reordered = !same(localSources.filter(name => remoteSources.includes(name)), remoteSources.filter(name => localSources.includes(name)))
   // ponytail: conservative across custom catalogs; narrow to affected course IDs only if this blocks real use.
-  const coupled = base && ((!same(base.customCourses, local.customCourses) && !same(selections(base), selections(remote))) ||
+  const coupled = reordered || base && ((!same(base.customCourses, local.customCourses) && !same(selections(base), selections(remote))) ||
     (!same(base.customCourses, remote.customCourses) && !same(selections(base), selections(local))))
   const reason = !base ? "אין עותק משותף קודם להשוואה בטוחה. מוצגים ההבדלים בין העותקים בלבד."
     : [base, local, remote].some(duplicateCourses) ? "קורס מופיע יותר מפעם אחת באותו סמסטר. יש לתקן את העותק לפני מיזוג."

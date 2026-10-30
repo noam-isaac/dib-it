@@ -55,7 +55,14 @@ available catalogs; saving checks that reconciliation still agrees.
 
 Without a valid common baseline, merging is disabled and whole-copy choices remain.
 Duplicate course identities and potentially coupled custom-catalog changes also
-disable merging. A merge does not establish timetable validity or eligibility.
+disable merging. Catalog comparison preserves source order because the last source
+for a course controls its details and annual classification. Different relative
+orders of sources present in both copies require a whole-copy choice, even without
+selection changes: saved baselines and Firestore maps do not retain that order.
+Inner field order remains irrelevant, and adding or removing a source does not by
+itself count as reordering the remaining sources. This does not change automatic
+sync's existing order-insensitive keys or Firestore's map representation.
+A merge does not establish timetable validity or eligibility.
 
 ## Cloud and local boundaries
 

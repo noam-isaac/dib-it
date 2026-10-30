@@ -148,7 +148,7 @@ try {
   await dialog.getByRole("button", { name: "בדיקת מיזוג", exact: true }).click()
   await dialog.getByText("תוצאת המיזוג לשמירה", { exact: true }).waitFor()
   await page.evaluate(async () => (await import("/src/models.ts")).updateDibIt(w => ({ ...w, theme: "google" })))
-  assert.equal(await dialog.getByRole("button", { name: "שמירת המיזוג", exact: true }).isDisabled(), true)
+  await dialog.getByRole("button", { name: "שמירת המיזוג", exact: true, disabled: true }).waitFor()
   await dialog.getByRole("button", { name: "רענון ההשוואה", exact: true }).click()
   await dialog.getByText("ההשוואה עודכנה. בדקו מחדש את הבחירות.", { exact: true }).waitFor()
   await dialog.locator("details").last().locator("summary").click()
@@ -354,6 +354,39 @@ try {
   assert.equal(await resetPage.evaluate(() => window.syncTest.transactions), 0)
   assert.deepEqual(await resetPage.evaluate(() => window.syncTest.cloud), resetCloud, "local reset leaves Google untouched")
   assert.deepEqual(resetErrors, [])
+  // Reimporting an overlapping source must not reinterpret the other copy's semester selection.
+  const beforeCatalogReview = await resetPage.evaluate(async () => {
+    const { getWorkspace, setWorkspace, updateDibIt } = await import("/src/models.ts")
+    const { scheduleKey } = await import("/src/scheduleSync.ts")
+    const annual = { "12345678": { name: "מקור שנתי", groups: [{ group: "01", lessons: [{ type: "שנתי" }] }] } }
+    const semester = { "12345678": { name: "מקור סמסטריאלי", groups: [{ group: "01", lessons: [{ type: "סמסטריאלי" }] }] } }
+    setWorkspace({ schemaVersion: 1, semester: "2026a", tab: "schedule", activePlanId: "first",
+      plans: [{ id: "first", name: "סדר קבצים", courses: {} }],
+      customCourses: { "a-annual.json": annual, "z-semester.json": semester } })
+    const baseline = getWorkspace()
+    localStorage.setItem("Dib It Sync", JSON.stringify({ uid: "test-user", base: scheduleKey(baseline), revision: 11 }))
+    updateDibIt(current => ({ ...current, customCourses: { "z-semester.json": semester } }))
+    updateDibIt(current => ({ ...current, theme: "google", customCourses: { ...current.customCourses, "a-annual.json": annual } }))
+    window.syncTest.remote({ protocol: 2, revision: 12, savedAt: 1700000000000, workspace: { ...baseline,
+      plans: baseline.plans.map(plan => ({ ...plan, courses: { "2026a": [{ id: "12345678", groups: ["01"] }] } })) } })
+    return { raw: localStorage.getItem("Dib It"), cloud: window.syncTest.cloud, writes: window.syncTest.writes }
+  })
+  await resetPage.getByRole("button", { name: "פעולות", exact: true }).click()
+  await resetPage.getByRole("menuitem", { name: "שחזור מגוגל", exact: true }).click()
+  const catalogDialog = resetPage.getByRole("dialog")
+  await catalogDialog.getByText("קורסים אישיים", { exact: true }).waitFor()
+  assert.equal(await catalogDialog.getByRole("button", { name: "בדיקת מיזוג", exact: true }).isDisabled(), true)
+  await catalogDialog.getByText(/שינוי בקורסים האישיים עשוי להשפיע/).waitFor()
+  assert.deepEqual(await resetPage.evaluate(() => ({ raw: localStorage.getItem("Dib It"), cloud: window.syncTest.cloud, writes: window.syncTest.writes })), beforeCatalogReview)
+  // The deliberate whole-copy download remains available and keeps the semester definition.
+  await catalogDialog.getByRole("button", { name: "אישור החלפת המערכות במכשיר", exact: true }).click()
+  await catalogDialog.waitFor({ state: "hidden" })
+  const acceptedCatalogCopy = await resetPage.evaluate(() => JSON.parse(localStorage.getItem("Dib It")))
+  assert.deepEqual(acceptedCatalogCopy.plans[0].courses, { "2026a": [{ id: "12345678", groups: ["01"] }] })
+  assert.deepEqual(Object.keys(acceptedCatalogCopy.customCourses), ["a-annual.json", "z-semester.json"])
+  assert.equal(await resetPage.evaluate(() => window.syncTest.writes), beforeCatalogReview.writes)
+  assert.deepEqual(resetErrors, [])
+  console.log("PASS: catalog source reordering is visible, unsafe merge is disabled, and whole-copy download preserves semester intent")
   await resetPage.close()
   console.log("PASS: reviewed merges and copy times/details, archived cloud original download, automatic conflict popup and pause, explicit resume/cancel, stale cloud/local choices, delayed completion, offline recovery and sign-out without Web Locks (synthetic Firebase)")
 } catch (error) {
