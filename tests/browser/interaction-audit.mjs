@@ -9,7 +9,7 @@ const server = await createServer({
     enforce: "pre",
     transform(code, id) {
       const replacement = id.endsWith("/src/models.ts")
-        ? ["return [activePlanView(workspace), update] as const", "return [freezeSnapshot(activePlanView(workspace)), update] as const"]
+        ? ["return [view, update] as const", "return [freezeSnapshot(view), update] as const"]
         : id.endsWith("/src/hooks.ts")
           ? ["return [value, userSetValue] as const", "return [freezeSnapshot(value), userSetValue] as const"]
           : id.endsWith("/src/components/AutoBidModal.tsx")
