@@ -1,4 +1,3 @@
-import { setChecked } from "./async-checkbox.mjs"
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import { chromium } from "playwright"
@@ -79,10 +78,10 @@ try {
     await page.getByText("1 קורסים · 1 מבחנים", { exact: true }).waitFor()
     await page.getByRole("button", { name: "חזרה למבחנים שלי", exact: true }).click()
     const card = page.locator("#course-21721600")
-    await setChecked(card.getByRole("checkbox", { name: /^קבוצה 01/ }), false)
-    await setChecked(card.getByRole("checkbox", { name: /^קבוצה 02/ }), false)
+    await card.getByRole("checkbox", { name: /^קבוצה 01/ }).uncheck()
+    await card.getByRole("checkbox", { name: /^קבוצה 02/ }).uncheck()
     await page.getByText("אין מבחנים להצגה.", { exact: false }).waitFor()
-    await setChecked(card.getByRole("checkbox", { name: /^קבוצה 01/ }))
+    await card.getByRole("checkbox", { name: /^קבוצה 01/ }).check()
     await examRows.first().waitFor()
     await page.locator("#semester-selector").click()
     await page.getByRole("option").nth(0).click()
@@ -118,9 +117,9 @@ try {
     await page.getByRole("button", { name: "חיפוש קורסים לפי תאריך בחינה", exact: true }).click()
     await page.getByLabel("תאריך / מתאריך", { exact: true }).fill("2027-07-29")
     await page.getByText("1 קורסים · 1 מבחנים", { exact: true }).waitFor()
-    await setChecked(card.getByRole("checkbox", { name: /^קבוצה 01/ }), false)
+    await card.getByRole("checkbox", { name: /^קבוצה 01/ }).uncheck()
     await page.getByText("1 קורסים · 1 מבחנים", { exact: true }).waitFor()
-    await setChecked(card.getByRole("checkbox", { name: /^קבוצה 01/ }))
+    await card.getByRole("checkbox", { name: /^קבוצה 01/ }).check()
     await page.getByRole("button", { name: "חזרה למבחנים שלי", exact: true }).click()
     currentAnnual = { ...annual, exams: { "21721600": {
       verifiedAt: "2099-01-04T00:00:00Z", groups: { "01": [], "02": [] },

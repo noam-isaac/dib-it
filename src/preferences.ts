@@ -8,7 +8,7 @@
  * everything. Keys outside both lists belong to something else on this origin and are
  * never touched.
  */
-export const WORKSPACE_KEYS = ["Dib It", "Dib It Sync", "Dib It Workspace v2"] as const
+export const WORKSPACE_KEYS = ["Dib It", "Dib It Sync", "Dib It Updated"] as const
 
 export const PREFERENCE_KEYS = [
   "Hidden Tabs",

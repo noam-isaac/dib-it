@@ -1,4 +1,3 @@
-import { setChecked } from "./async-checkbox.mjs"
 import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
@@ -55,14 +54,14 @@ try {
     await page.reload()
     await page.getByText("שעות: 4 (חלקי)", { exact: true }).waitFor()
     assert.equal(await card.getByRole("checkbox", { name: new RegExp(`^קבוצה ${group}`) }).isChecked(), true)
-    await setChecked(card.getByRole("checkbox", { name: new RegExp(`^קבוצה ${group}`) }), false)
+    await card.getByRole("checkbox", { name: new RegExp(`^קבוצה ${group}`) }).uncheck()
     await page.getByText("שעות: 4", { exact: true }).waitFor()
     assert.equal(await card.getByRole("checkbox", { name: new RegExp(`^קבוצה ${group}`) }).isDisabled(), false)
     await page.getByRole("button", { name: "פעולות", exact: true }).click()
     assert.equal(await page.getByRole("menuitem", { name: "ייצוא ל-Apple/Google Calendar", exact: true }).isDisabled(), false)
     await page.keyboard.press("Escape")
     // Selection stays under the user's control even while its timing is unresolved.
-    await setChecked(card.getByRole("checkbox", { name: new RegExp(`^קבוצה ${group}`) }))
+    await card.getByRole("checkbox", { name: new RegExp(`^קבוצה ${group}`) }).check()
     await page.getByText("שעות: 4 (חלקי)", { exact: true }).waitFor()
     // A corrected source restores the selected group's schedule without rewriting selections.
     const correctedHours = 4 + record.lessons.reduce((hours, lesson) => {
@@ -70,12 +69,12 @@ try {
       const match = /^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/.exec(lesson.time)
       return match ? hours + (Number(match[3]) * 60 + Number(match[4]) - Number(match[1]) * 60 - Number(match[2])) / 60 : hours
     }, 0)
-    const saved = await page.evaluate(() => localStorage.getItem("Dib It Workspace v2"))
+    const saved = await page.evaluate(() => localStorage.getItem("Dib It"))
     corrected = true
     await page.reload()
     await page.getByText(`שעות: ${correctedHours}`, { exact: true }).waitFor()
     assert.equal(await card.getByRole("checkbox", { name: new RegExp(`^קבוצה ${group}`) }).isDisabled(), false)
-    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It Workspace v2")), saved)
+    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), saved)
     assert.equal(await card.getByRole("checkbox", { name: new RegExp(`^קבוצה ${group}`) }).isChecked(), true)
     assert.equal(await card.getByText(/נתונים סותרים/).count(), 0)
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)

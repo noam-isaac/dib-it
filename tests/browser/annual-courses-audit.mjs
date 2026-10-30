@@ -1,4 +1,3 @@
-import { setChecked } from "./async-checkbox.mjs"
 import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
@@ -52,7 +51,7 @@ try {
       await page.goto(process.env.DIBIT_TEST_URL ?? `http://127.0.0.1:${server.httpServer.address().port}`)
       await page.locator("#course-10313103").getByRole("checkbox").waitFor()
       if (scenario === "delayed deselection") {
-        await setChecked(page.locator("#course-10313103").getByRole("checkbox"), false)
+        await page.locator("#course-10313103").getByRole("checkbox").uncheck()
       } else if (["delayed removal", "offline reload", "restore while pending", "switch while pending"].includes(scenario)) {
         await page.locator("#course-10313103 .fa-trash").click()
       }
@@ -81,7 +80,7 @@ try {
       if (scenario === "offline reload") {
         recovered = true
         await page.getByRole("button", { name: "ניסיון נוסף", exact: true }).click()
-        await page.waitForFunction(() => !JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.plans[0].pendingAnnualChanges)
+        await page.waitForFunction(() => !JSON.parse(localStorage.getItem("Dib It")).plans[0].pendingAnnualChanges)
       }
       if (scenario === "retry failed catalog") {
         recovered = true
@@ -90,7 +89,7 @@ try {
         await page.locator("#course-10313103").getByRole("checkbox").waitFor()
       }
       if (scenario === "switch while pending") {
-        const first = await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.plans[0])
+        const first = await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).plans[0])
         assert.equal(first.pendingAnnualChanges.length, 1, "inactive plan's pending edit was lost")
         await page.getByRole("button", { name: "פעולות", exact: true }).click()
         await page.getByRole("menuitem", { name: "מערכות שעות", exact: true }).click()
@@ -103,7 +102,7 @@ try {
         await page.getByRole("textbox", { name: "מערכת שעות", exact: true }).click()
         await page.getByRole("option", { name: "Second", exact: true }).click()
       }
-      const actual = await page.evaluate(async () => (await (await import("/src/workspaceStore.ts")).captureWorkspace()).workspace)
+      const actual = await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")))
       const active = actual.plans.find(plan => plan.id === actual.activePlanId)
       if (scenario === "delayed deselection") {
         assert.deepEqual(active.courses["2026a"][0].groups, [], "deselected group was selected again after catalog arrival")

@@ -4,7 +4,9 @@ import { commitSyncReview, loadSyncReview } from "../googleWorkspace"
 import { prepareWorkspace, useWorkspace } from "../models"
 import { baseForAccount, cloudScheduleData, type SyncChoice, type SyncReview } from "../scheduleSync"
 import { compareSchedules, sharedMergeBase, workspaceSummary, type MergeChoice, type ScheduleChange } from "../scheduleMerge"
-import { readWorkspaceRecord } from "../workspaceStore"
+import { readLocalCopy } from "../localSchedule"
+import { setLocalStorage } from "../hooks"
+import { booleanSchema } from "../schemas"
 import { useCourseInfo } from "../CourseInfoContext"
 import type { CatalogCourses } from "../catalog"
 import { downloadBlob } from "../utilities"
@@ -59,8 +61,8 @@ const CopyContents = ({ title, time, workspace, names }: { title: string; time: 
   </details>}
 </Paper>
 
-export default function ScheduleConflict({ uid, initial, initialChoice, onClose }: {
-  uid: string; initial: SyncReview; initialChoice?: SyncChoice; onClose: () => void
+export default function ScheduleConflict({ uid, initial, initialChoice, resumeAutomatic = false, onClose }: {
+  uid: string; initial: SyncReview; initialChoice?: SyncChoice | undefined; resumeAutomatic?: boolean; onClose: () => void
 }) {
   useWorkspace()
   const catalog = useCourseInfo()
@@ -78,7 +80,7 @@ export default function ScheduleConflict({ uid, initial, initialChoice, onClose 
     try { return { workspace: cloudScheduleData(prepareWorkspace(comparison.workspace), uid, 92), error: "" } }
     catch (error) { return { workspace: undefined, error: error instanceof Error ? error.message : "לא ניתן לשמור את התוצאה." } }
   })()
-  const stale = readWorkspaceRecord().version !== review.local.version
+  const stale = readLocalCopy().version !== review.local.version
   const names = (id: string) => courseName(id, remote ? [local, remote] : [local], catalog)
   const changes = [...comparison?.changes ?? []].sort((a, b) => Number(b.conflict) - Number(a.conflict) || Number(b.local === undefined || b.remote === undefined) - Number(a.local === undefined || a.remote === undefined))
   const download = (workspace: PlanWorkspace, filename: string) => {
@@ -102,6 +104,7 @@ export default function ScheduleConflict({ uid, initial, initialChoice, onClose 
     </Radio.Group>}
   </Paper>
   return <Stack dir="rtl">
+    {resumeAutomatic && <Alert color="yellow">הסנכרון האוטומטי נשאר כבוי עד שתאשרו את התוצאה. בחירת עותק מלא יכולה להחליף בחירות בקורסים המפורטים בהשוואה.</Alert>}
     <Text>השוו את כל המערכות וההגדרות בשני העותקים לפני בחירה. זמן מאוחר יותר אינו מעיד שהעותק שלם יותר.</Text>
     <Text size="sm">זמן העדכון המקומי תלוי בשעון המכשיר. שמות הקורסים מוצגים לפי המידע הזמין במכשיר.</Text>
     <SimpleGrid cols={{ base: 1, sm: 2 }}>
@@ -144,11 +147,14 @@ export default function ScheduleConflict({ uid, initial, initialChoice, onClose 
         setBusy(true); setMessage("")
         try {
           const status = await commitSyncReview(uid, review, choice, prepared.workspace)
-          if (status === "synced") onClose()
+          if (status === "synced") {
+            if (resumeAutomatic) setLocalStorage("Automatic Google Sync", true, booleanSchema)
+            onClose()
+          }
           else setMessage("הפעולה בגוגל הושלמה, אך במכשיר יש שינויים נוספים שטרם סונכרנו. הם נשמרו; רעננו את ההשוואה.")
         } catch (error) { setMessage(error instanceof Error ? error.message : "השמירה לא הושלמה. העותק המקומי נשמר.") }
         finally { setBusy(false) }
-      }}>{choice === "merge" ? "שמירת המיזוג" : choice === "download" ? "אישור החלפת המערכות במכשיר" : "אישור החלפת העותק בגוגל"}</Button>
+      }}>{resumeAutomatic ? "אישור התוצאה והפעלת סנכרון אוטומטי" : choice === "merge" ? "שמירת המיזוג" : choice === "download" ? "אישור החלפת המערכות במכשיר" : "אישור החלפת העותק בגוגל"}</Button>
     </Group>
   </Stack>
 }

@@ -1,4 +1,3 @@
-import { setChecked } from "./async-checkbox.mjs"
 import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { chromium } from "playwright"
@@ -85,19 +84,19 @@ try {
     const { getWorkspace } = await import("/src/models.ts")
     const workspace = getWorkspace()
     workspace.openedPracticeCourses = [firstId]
-    localStorage.setItem("Dib It Workspace v2", JSON.stringify({ ...JSON.parse(localStorage.getItem("Dib It Workspace v2")), workspace, version: crypto.randomUUID() }))
+    localStorage.setItem("Dib It", JSON.stringify(workspace))
     button.click()
   }, ids[0])
-  assert.deepEqual(await page.evaluate(async () => (await (await import("/src/workspaceStore.ts")).captureWorkspace()).workspace.openedPracticeCourses), ids,
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).openedPracticeCourses), ids,
     "opening a stale practice panel preserves panels opened by another writer")
   await page.getByText("2024א'", { exact: true }).last().waitFor()
   assert.equal(historyRequests.length, 1)
-  await setChecked(page.getByRole("region", { name: `קורס 2 (${ids[1]})`, exact: true }).getByRole("checkbox", { name: "מועד א׳", exact: true }))
+  await page.getByRole("region", { name: `קורס 2 (${ids[1]})`, exact: true }).getByRole("checkbox", { name: "מועד א׳", exact: true }).check()
   await page.evaluate(async () => {
     const { getDibIt, setDibIt } = await import("/src/models.ts")
     const view = getDibIt()
     view.courses[view.semester].shift()
-    await setDibIt(view)
+    setDibIt(view)
   })
   assert.equal(await second.getAttribute("aria-expanded"), "true", "removing an earlier exam must not change the expanded course")
   assert.equal(await page.getByRole("checkbox", { name: "מועד א׳", exact: true }).isChecked(), true)
@@ -112,9 +111,9 @@ try {
   failBidding = false
   await calculate.click()
   await page.getByText(/לא חושבה המלצה לקורסים/).waitFor()
-  await setChecked(page.getByRole("checkbox", { name: "A", exact: true }), false)
+  await page.getByRole("checkbox", { name: "A", exact: true }).uncheck()
   assert.equal(await page.getByRole("heading", { name: "מסלול: A", exact: true }).count(), 0, "editing mappings clears stale results")
-  await setChecked(page.getByRole("checkbox", { name: "A", exact: true }))
+  await page.getByRole("checkbox", { name: "A", exact: true }).check()
   await page.getByRole("textbox", { name: "מסלול בבידינג", exact: true }).first().fill("A updated")
   await page.getByRole("textbox", { name: "מסלול בבידינג", exact: true }).first().fill("A")
   await page.getByLabel("נקודות בבידינג", { exact: true }).first().fill("101")
@@ -127,14 +126,14 @@ try {
     const { getDibIt, setDibIt } = await import("/src/models.ts")
     const view = getDibIt()
     view.courses[view.semester][0].groups = []
-    await setDibIt(view)
+    setDibIt(view)
   })
   await page.getByText(/אין מבחנים לתרגול בקורסים שנבחרו/).waitFor()
   await page.evaluate(async () => {
     const { getDibIt, setDibIt } = await import("/src/models.ts")
     const view = getDibIt()
     view.courses[view.semester][0].groups = ["01"]
-    await setDibIt(view)
+    setDibIt(view)
   })
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole("button", { name: "מבחנים", exact: true }).click()
@@ -147,19 +146,6 @@ try {
   await page.getByRole("button", { name: "הוספת קורס", exact: true }).click()
   await page.waitForFunction(() => document.activeElement?.matches('#course-11111111 input[type="checkbox"]'))
   assert.equal(await page.locator("#course-list").isVisible(), true)
-
-  // Moving on while an edit waits for the local lock must not steal focus on completion.
-  await page.locator("#course-11111111").getByRole("button", { name: "הסרת הקורס", exact: true }).click()
-  await page.locator("#course-11111111").waitFor({ state: "hidden" })
-  await page.evaluate(() => { void navigator.locks.request("dibit:workspace", () => new Promise(resolve => { window.releaseFocusSave = resolve })) })
-  await page.waitForFunction(() => !!window.releaseFocusSave)
-  await page.getByRole("button", { name: "הוספת קורס", exact: true }).click()
-  await page.waitForFunction(async () => (await navigator.locks.query()).pending.length > 0)
-  await page.getByLabel("תאריך / מתאריך").click()
-  await page.evaluate(() => window.releaseFocusSave())
-  await page.locator('#course-11111111 input[type="checkbox"]').waitFor()
-  await page.evaluate(() => new Promise(requestAnimationFrame))
-  assert.equal(await page.getByLabel("תאריך / מתאריך").evaluate(input => document.activeElement === input), true)
 
   // Course selection changes the results, never the dataset being indexed.
   await page.evaluate(async catalog => {
@@ -188,23 +174,19 @@ try {
   await option.click()
   const card = page.locator(`#course-${ids[0]}`)
   await card.getByRole("button", { name: "הזזת הקורס למעלה", exact: true }).click()
-  await page.waitForFunction(id => document.querySelector("#course-list > .card")?.id === `course-${id}`, ids[0])
   assert.deepEqual(await page.locator("#course-list > .card").evaluateAll(cards => cards.map(card => card.id)), ids.map(id => `course-${id}`))
   await card.getByRole("button", { name: "הזזת הקורס למטה", exact: true }).click()
   await card.getByRole("textbox").fill("#123456")
-  await page.evaluate(async () => (await import("/src/workspaceStore.ts")).captureWorkspace())
-  assert.equal(await page.evaluate(id => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.plans[0].courses["2026a"].find(course => course.id === id).color, ids[0]), "#123456")
+  assert.equal(await page.evaluate(id => JSON.parse(localStorage.getItem("Dib It")).plans[0].courses["2026a"].find(course => course.id === id).color, ids[0]), "#123456")
   await page.getByRole("button", { name: "הגדרות", exact: true }).click()
   await page.getByRole("textbox", { name: "עיצוב", exact: true }).click()
   await page.getByRole("option", { name: "גוגל", exact: true }).click()
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.theme === "google")
-  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.theme), "google")
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).theme), "google")
   await page.locator("#semester-selector").click()
   await page.getByRole("option", { name: "תשפ״ו ב'", exact: true }).click()
   await page.getByRole("button", { name: "תוכנית", exact: true }).click()
   await page.getByRole("button", { name: /הוספה$/ }).click()
-  await page.evaluate(async () => (await import("/src/workspaceStore.ts")).captureWorkspace())
-  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.plans[0].courses["2026b"].map(course => course.id)), [ids[0]])
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).plans[0].courses["2026b"].map(course => course.id)), [ids[0]])
   assert.deepEqual(errors, [])
   console.log("PASS frozen React snapshots: metadata ordering, search, focus, practice, bidding, course reorder/color/remove, theme, semester and study-plan edits")
 } finally {

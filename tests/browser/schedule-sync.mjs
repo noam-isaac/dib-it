@@ -1,6 +1,6 @@
 import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
-import { chromium } from "playwright"
+import { chromium, firefox, webkit } from "playwright"
 import { createServer } from "vite"
 
 // Browser wiring check with synthetic auth/cloud data only; never contacts Firebase.
@@ -67,7 +67,7 @@ let browser
 let page
 try {
   await server.listen()
-  browser = await chromium.launch()
+  browser = await ({ chromium, firefox, webkit })[process.env.DIBIT_BROWSER ?? "chromium"].launch()
   page = await browser.newPage({ viewport: { width: 390, height: 844 } })
   page.setDefaultTimeout(10000)
   const errors = []
@@ -81,7 +81,10 @@ try {
       : url.pathname.includes("courses-") ? { "12345678": { name: "קורס בדיקה", faculty: "פקולטה/חוג", groups: ["01", "02", "03"].map(group => ({ group, lessons: [] })), exams: [] }, "22222222": { name: "קורס נוסף במכשיר", groups: [{ group: "01", lessons: [] }] }, "33333333": { name: "קורס נוסף בגוגל", groups: [{ group: "01", lessons: [] }] } } : {} })
     return route.abort()
   })
-  await page.addInitScript(state => localStorage.setItem("Dib It", JSON.stringify(state)), initial)
+  await page.addInitScript(state => {
+    localStorage.setItem("Dib It", JSON.stringify(state))
+    Object.defineProperty(navigator, "locks", { value: undefined })
+  }, initial)
   await prepareAnnualFeed(page)
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
   await page.getByRole("button", { name: "למערכת השעות", exact: true }).click()
@@ -95,6 +98,7 @@ try {
   assert.equal(await toggle().getByText("כבוי", { exact: true }).isVisible(), true)
   assert.equal(await toggle().locator("i.fa-toggle-off").count(), 1)
   await page.getByRole("menuitem", { name: "גיבוי בגוגל", exact: true }).click()
+  await page.getByRole("dialog").getByText("עדכון מקומי: זמן לא זמין", { exact: true }).waitFor()
   await page.getByRole("button", { name: "אישור החלפת העותק בגוגל", exact: true }).click()
   await page.getByRole("dialog").waitFor({ state: "hidden" })
   assert.equal(await page.evaluate(() => window.syncTest.cloud.workspace.plans[0].name), "בדיקה")
@@ -110,17 +114,18 @@ try {
   await menu()
   await page.getByRole("menuitem", { name: "שחזור מגוגל", exact: true }).click()
   await page.getByRole("dialog").getByRole("button", { name: "ביטול", exact: true }).click()
-  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.plans[0].name), "שינוי ידני")
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).plans[0].name), "שינוי ידני")
   await menu()
   await page.getByRole("menuitem", { name: "שחזור מגוגל", exact: true }).click()
   await page.getByRole("button", { name: "אישור החלפת המערכות במכשיר", exact: true }).click()
   await page.getByRole("dialog").waitFor({ state: "hidden" })
-  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.plans[0].name), "בדיקה")
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).plans[0].name), "בדיקה")
 
   // Conservative merge: independent additions, contents, timestamps, and stale preview.
   await page.evaluate(async () => {
-    const { updateWorkspace } = await import("/src/models.ts")
-    await updateWorkspace(w => ({ ...w, plans: w.plans.map(p => ({ ...p, courses: { ...p.courses, "2026a": [...p.courses["2026a"], { id: "22222222", groups: ["01"] }] } })) }))
+    const { getWorkspace, setWorkspace } = await import("/src/models.ts")
+    const w = getWorkspace()
+    setWorkspace({ ...w, plans: w.plans.map(p => ({ ...p, courses: { ...p.courses, "2026a": [...p.courses["2026a"], { id: "22222222", groups: ["01"] }] } })) })
     const remote = structuredClone(window.syncTest.cloud)
     remote.workspace.plans[0].courses["2026a"].push({ id: "33333333", groups: ["01"] })
     remote.revision++
@@ -132,10 +137,17 @@ try {
   let dialog = page.getByRole("dialog")
   await dialog.getByText("קורס נוסף במכשיר (22222222) · בדיקה · 2026", { exact: true }).waitFor()
   await dialog.getByText("קורס נוסף בגוגל (33333333) · בדיקה · 2026", { exact: true }).waitFor()
-  await dialog.getByText(/נשמר בגוגל:/).waitFor()
+  await dialog.getByText(/נשמר בגוגל:.*2026/).waitFor()
+  assert.equal(await dialog.getByText("עדכון מקומי: זמן לא זמין", { exact: true }).count(), 0)
+  if (process.env.DIBIT_SCREENSHOT_DIR) {
+    await dialog.screenshot({ path: `${process.env.DIBIT_SCREENSHOT_DIR}/dibit-copy-comparison-${process.env.DIBIT_BROWSER ?? "chromium"}.png` })
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await dialog.screenshot({ path: `${process.env.DIBIT_SCREENSHOT_DIR}/dibit-copy-comparison-desktop-${process.env.DIBIT_BROWSER ?? "chromium"}.png` })
+    await page.setViewportSize({ width: 390, height: 844 })
+  }
   await dialog.getByRole("button", { name: "בדיקת מיזוג", exact: true }).click()
   await dialog.getByText("תוצאת המיזוג לשמירה", { exact: true }).waitFor()
-  await page.evaluate(async () => (await import("/src/models.ts")).updateWorkspace(w => ({ ...w, theme: "google" })))
+  await page.evaluate(async () => (await import("/src/models.ts")).updateDibIt(w => ({ ...w, theme: "google" })))
   assert.equal(await dialog.getByRole("button", { name: "שמירת המיזוג", exact: true }).isDisabled(), true)
   await dialog.getByRole("button", { name: "רענון ההשוואה", exact: true }).click()
   await dialog.getByText("ההשוואה עודכנה. בדקו מחדש את הבחירות.", { exact: true }).waitFor()
@@ -149,7 +161,9 @@ try {
 
   // Same-course choices require an explicit answer; a post-commit edit cannot be erased.
   await page.evaluate(async () => {
-    await (await import("/src/models.ts")).updateWorkspace(w => ({ ...w, plans: w.plans.map(p => ({ ...p, courses: { ...p.courses, "2026a": p.courses["2026a"].map(c => c.id === "12345678" ? { ...c, groups: ["02"] } : c) } })) }))
+    const { getWorkspace, setWorkspace } = await import("/src/models.ts")
+    const w = getWorkspace()
+    setWorkspace({ ...w, plans: w.plans.map(p => ({ ...p, courses: { ...p.courses, "2026a": p.courses["2026a"].map(c => c.id === "12345678" ? { ...c, groups: ["02"] } : c) } })) })
     const remote = structuredClone(window.syncTest.cloud)
     remote.workspace.plans[0].courses["2026a"][0].groups = ["03"]
     remote.revision++
@@ -162,18 +176,18 @@ try {
   assert.equal(await dialog.getByRole("button", { name: "שמירת המיזוג", exact: true }).isDisabled(), true)
   await dialog.getByRole("radio", { name: "הבחירה במכשיר", exact: true }).click()
   await page.evaluate(() => window.syncTest.holdApplication())
-  const baseline = await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).sync.base)
+  const baseline = await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Sync")).base)
   await dialog.getByRole("button", { name: "שמירת המיזוג", exact: true }).click()
   await page.waitForFunction(() => window.syncTest.committed)
-  assert.equal(await page.evaluate(async () => (await navigator.locks.query()).held.length), 0, "network completion never holds a local lock")
+  assert.equal(await page.evaluate(() => typeof navigator.locks), "undefined", "reviewed sync does not require Web Locks")
   assert.equal(await dialog.getByRole("button", { name: "שימוש בעותק מהמכשיר", exact: true }).isDisabled(), true, "a confirmed save keeps the reviewed choice fixed until it completes")
   await page.evaluate(async () => {
-    await (await import("/src/models.ts")).updateWorkspace(w => ({ ...w, theme: "apple" }))
+    ;(await import("/src/models.ts")).updateDibIt(w => ({ ...w, theme: "apple" }))
     window.syncTest.releaseApplication()
   })
   await dialog.getByText(/הנתונים במכשיר השתנו/).waitFor()
-  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.theme), "apple")
-  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).sync.base), baseline, "a merge not applied locally must not become its baseline")
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).theme), "apple")
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Sync")).base), baseline, "a merge not applied locally must not become its baseline")
   assert.deepEqual(await page.evaluate(() => window.syncTest.cloud.workspace.plans[0].courses["2026a"][0].groups), ["02"])
   await dialog.getByRole("button", { name: "ביטול", exact: true }).click()
   await menu()
@@ -188,6 +202,10 @@ try {
   await page.evaluate(() => window.syncTest.offline(false))
   await menu()
   await toggle().click()
+  assert.equal(await page.evaluate(() => localStorage.getItem("Automatic Google Sync")), null, "opening a comparison does not enable sync")
+  await page.getByRole("button", { name: "אישור התוצאה והפעלת סנכרון אוטומטי", exact: true }).click()
+  await page.getByRole("dialog").waitFor({ state: "hidden" })
+  await menu()
   assert.equal(await toggle().getAttribute("aria-checked"), "true")
   assert.equal(await toggle().getByText("מופעל", { exact: true }).isVisible(), true)
   assert.equal(await toggle().locator("i.fa-toggle-on").count(), 1)
@@ -206,7 +224,7 @@ try {
     remote.workspace.plans[0].name = "מכשיר אחר"
     window.syncTest.remote(remote)
   })
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.plans[0].name === "מכשיר אחר")
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("Dib It")).plans[0].name === "מכשיר אחר")
   await page.evaluate(() => window.syncTest.failListener())
   await edit("עריכה אחרי כשל בהאזנה")
   await page.waitForFunction(() => window.syncTest.cloud.workspace.plans[0].name === "עריכה אחרי כשל בהאזנה")
@@ -220,7 +238,7 @@ try {
     remote.workspace.plans[0].name = "עדכון אחרי חיבור מחדש"
     window.syncTest.remote(remote)
   })
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.plans[0].name === "עדכון אחרי חיבור מחדש")
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("Dib It")).plans[0].name === "עדכון אחרי חיבור מחדש")
   await page.evaluate(() => window.syncTest.offline(true))
   await edit("עריכה ללא רשת")
   await page.getByText("הסנכרון לגוגל לא הושלם. הנתונים במכשיר נשמרו.", { exact: true }).waitFor()
@@ -230,12 +248,40 @@ try {
     window.syncTest.remote(remote)
     window.syncTest.offline(false)
   })
-  await page.getByRole("button", { name: "השוואה ומיזוג מערכות", exact: true }).click()
   await page.getByRole("dialog").getByText("במכשיר: עריכה ללא רשת", { exact: true }).waitFor()
+  assert.equal(await page.evaluate(() => localStorage.getItem("Automatic Google Sync")), "false", "conflict disables automatic sync")
+  const paused = await page.evaluate(() => window.syncTest.transactions)
+  await page.waitForTimeout(1200)
+  assert.equal(await page.evaluate(() => window.syncTest.transactions), paused, "conflict stops background retries")
   await page.getByRole("button", { name: "שימוש בעותק מגוגל", exact: true }).click()
   await page.getByRole("button", { name: "אישור החלפת המערכות במכשיר", exact: true }).click()
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.plans[0].name === "עריכה מרוחקת")
-  await page.waitForTimeout(100)
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("Dib It")).plans[0].name === "עריכה מרוחקת")
+  await page.getByRole("dialog").waitFor({ state: "hidden" })
+  await menu()
+  assert.equal(await toggle().getAttribute("aria-checked"), "false", "manual resolution leaves sync off")
+  await toggle().click()
+  await page.getByRole("dialog").getByRole("button", { name: "ביטול", exact: true }).click()
+  assert.equal(await page.evaluate(() => localStorage.getItem("Automatic Google Sync")), "false", "canceling resume leaves sync off")
+  await menu()
+  await toggle().click()
+  const beforeStaleResume = await page.evaluate(() => ({ local: localStorage.getItem("Dib It"), writes: window.syncTest.writes }))
+  await page.evaluate(() => {
+    const remote = structuredClone(window.syncTest.cloud)
+    remote.workspace.plans[0].name = "עדכון בזמן ההשוואה"
+    remote.revision++
+    window.syncTest.remote(remote)
+  })
+  await page.getByRole("button", { name: "אישור התוצאה והפעלת סנכרון אוטומטי", exact: true }).click()
+  await page.getByRole("dialog").getByText(/הנתונים השתנו מאז שההשוואה נפתחה/).waitFor()
+  assert.deepEqual(await page.evaluate(() => ({ local: localStorage.getItem("Dib It"), writes: window.syncTest.writes })), beforeStaleResume)
+  assert.equal(await page.evaluate(() => localStorage.getItem("Automatic Google Sync")), "false", "a stale cloud copy cannot authorize resuming")
+  await page.getByRole("dialog").getByRole("button", { name: "ביטול", exact: true }).click()
+  await menu()
+  await toggle().click()
+  assert.equal(await page.getByRole("button", { name: "אישור התוצאה והפעלת סנכרון אוטומטי", exact: true }).isDisabled(), true)
+  await page.getByRole("button", { name: "שימוש בעותק מהמכשיר", exact: true }).click()
+  await page.getByRole("button", { name: "אישור התוצאה והפעלת סנכרון אוטומטי", exact: true }).click()
+  await page.getByRole("dialog").waitFor({ state: "hidden" })
   await menu()
   assert.equal(await toggle().getAttribute("aria-checked"), "true")
   await edit("שינוי לפני כיבוי")
@@ -251,14 +297,15 @@ try {
   assert.equal(await toggle().getAttribute("aria-checked"), "false", "toggle choice survives reload")
   assert.equal(await page.evaluate(() => window.syncTest.transactions), 0)
   await toggle().click()
-  await page.keyboard.press("Escape")
+  await page.getByRole("button", { name: "אישור התוצאה והפעלת סנכרון אוטומטי", exact: true }).click()
+  await page.getByRole("dialog").waitFor({ state: "hidden" })
   await page.getByRole("button", { name: /התנתק\/י/ }).click()
   const writes = await page.evaluate(() => window.syncTest.writes)
   await edit("אחרי התנתקות")
   await page.waitForTimeout(1200)
   assert.equal(await page.evaluate(() => window.syncTest.writes), writes)
   assert.deepEqual(errors, [])
-  console.log("PASS: reviewed merges and copy details, stale previews, conflicting choices, delayed completion, manual backup/restore, automatic sync, offline recovery and sign-out (synthetic Firebase)")
+  console.log("PASS: reviewed merges and copy times/details, automatic conflict popup and pause, explicit resume/cancel, stale cloud/local choices, delayed completion, offline recovery and sign-out without Web Locks (synthetic Firebase)")
 } catch (error) {
   console.error(await page?.locator("body").innerText())
   console.error(await page?.locator("#header").ariaSnapshot())

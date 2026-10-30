@@ -1,4 +1,3 @@
-import { setChecked } from "./async-checkbox.mjs"
 import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { chromium, firefox, webkit } from "playwright"
@@ -40,7 +39,7 @@ try {
     return page
   }
   const assertSelections = async page => assert.deepEqual(await page.evaluate(() => {
-    const workspace = JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace
+    const workspace = JSON.parse(localStorage.getItem("Dib It"))
     return workspace.plans?.find(plan => plan.id === workspace.activePlanId)?.courses ?? workspace.courses
   }), selections)
   const openPractice = async page => {
@@ -76,14 +75,14 @@ try {
         await assertSelections(page)
         // The main schedule and its selected group remain usable while history has failed.
         assert.equal(await page.locator(`#course-${id}`).getByRole("checkbox", { name: /^קבוצה 01/ }).isChecked(), true)
-        await setChecked(page.getByRole("checkbox", { name: "מועד א׳", exact: true }))
+        await page.getByRole("checkbox", { name: "מועד א׳", exact: true }).check()
         assert.equal(await page.getByRole("checkbox", { name: "מועד א׳", exact: true }).isChecked(), true)
         await retry.click()
         await page.getByText(/\(מרצה היסטורי\)/).waitFor()
         assert.equal(requests, 2)
         assert.equal(await retry.count(), 0)
         await assertSelections(page)
-        const practiced = await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.practicedExams)
+        const practiced = await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).practicedExams)
         assert.deepEqual(practiced, { [id]: ["2024aa"] })
         assert.deepEqual(errors, [])
       } finally { await page.close() }

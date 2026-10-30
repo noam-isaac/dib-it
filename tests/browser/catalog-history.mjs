@@ -1,4 +1,3 @@
-import { setChecked } from "./async-checkbox.mjs"
 import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
@@ -49,16 +48,15 @@ try {
     const card = page.locator("#course-21721600")
     await card.waitFor()
     assert.equal(await card.getByRole("checkbox").count(), 2)
-    await setChecked(card.getByRole("checkbox", { name: /^קבוצה 01/ }))
+    await card.getByRole("checkbox", { name: /^קבוצה 01/ }).check()
     await page.getByText("שעות: 4", { exact: true }).waitFor()
     assert.equal(await page.locator("#schedule-container").getByText("צרפתית למתחילים (שיעור ותרגיל)", { exact: true }).count(), 2)
     const other = semester.slice(0, 4) + (semester.endsWith("a") ? "b" : "a")
-    await page.waitForFunction(other => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.plans[0].courses[other]?.[0]?.groups?.includes("01"), other)
-    const readCourses = () => page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.plans[0].courses)
+    await page.waitForFunction(other => JSON.parse(localStorage.getItem("Dib It")).plans[0].courses[other]?.[0]?.groups?.includes("01"), other)
+    const readCourses = () => page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).plans[0].courses)
     assert.deepEqual(Object.keys(await readCourses()).sort(), [semester, other].sort())
     await page.locator("#semester-selector").click()
     await page.getByRole("option").nth(semesters.indexOf(other)).click()
-    await page.waitForFunction(other => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.semester === other, other)
     await page.getByText("שעות: 4", { exact: true }).waitFor()
     await page.reload()
     await page.getByText("שעות: 4", { exact: true }).waitFor()
@@ -83,7 +81,7 @@ try {
     assert.equal(slot(bytes, "rows.0.semesterCode"), other.endsWith("a") ? "1" : "2")
     assert.equal(slot(bytes, "rows.1.name"), "")
     await page.keyboard.press("Escape")
-    await setChecked(card.getByRole("checkbox", { name: /^קבוצה 01/ }), false)
+    await card.getByRole("checkbox", { name: /^קבוצה 01/ }).uncheck()
     await page.getByText("שעות: 0", { exact: true }).waitFor()
     assert.deepEqual((await readCourses())[semester][0].groups, [])
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)

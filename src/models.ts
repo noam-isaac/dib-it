@@ -1,45 +1,49 @@
-import { useCallback, useSyncExternalStore } from "react"
+import { useCallback } from "react"
 import { storedWorkspaceSchema, type DibIt } from "./schemas"
 import { getSemesterCatalogs, refreshAnnualData } from "./catalogData"
-import { changeWorkspace, readWorkspaceRecord, WORKSPACE_KEY, LEGACY_KEY } from "./workspaceStore"
+import { getLocalStorage, setLocalStorage, useLocalStorage } from "./hooks"
 import { activePlanView, normalizePlans, updateActivePlan, reconcileActivePlan, PlanWorkspace } from "./plans"
+import { rememberWorkspaceTime } from "./workspaceTime"
+import { scheduleKey } from "./scheduleSync"
 
-export const prepareWorkspace = (workspace: DibIt | PlanWorkspace) => reconcileActivePlan(normalizePlans(storedWorkspaceSchema.parse(workspace)), getSemesterCatalogs())
-export const reconcileCatalogs = () => changeWorkspace(prepareWorkspace)
+const saveWorkspace = (workspace: PlanWorkspace) => {
+  const previous = (() => { try { return scheduleKey(getWorkspace()) } catch { return undefined } })()
+  setLocalStorage("Dib It", workspace, storedWorkspaceSchema)
+  if (previous !== scheduleKey(workspace)) rememberWorkspaceTime(workspace, Date.now(), "device")
+}
+export const prepareWorkspace = (workspace: DibIt | PlanWorkspace) => reconcileActivePlan(normalizePlans(workspace), getSemesterCatalogs())
+
+export const reconcileCatalogs = () => {
+  const workspace = getWorkspace()
+  const updated = reconcileActivePlan(workspace, getSemesterCatalogs())
+  if (JSON.stringify(updated) !== JSON.stringify(workspace)) saveWorkspace(updated)
+}
 export const refreshAnnualClassification = async () => {
   await refreshAnnualData()
-  await reconcileCatalogs()
+  reconcileCatalogs()
 }
 
-export const getWorkspace = () => readWorkspaceRecord().workspace
+export const getWorkspace = () => normalizePlans(getLocalStorage("Dib It", storedWorkspaceSchema, {}))
 /** Explicit replacement boundary for restores, synchronization, and plan management. */
 export const setWorkspace = (workspace: DibIt | PlanWorkspace) =>
-  changeWorkspace(() => prepareWorkspace(workspace), true)
-export const replaceWorkspace = (replacement: (workspace: PlanWorkspace) => DibIt | PlanWorkspace) => changeWorkspace(current => prepareWorkspace(replacement(current)), true)
-export const updateWorkspace = (update: (workspace: PlanWorkspace) => PlanWorkspace) => changeWorkspace(current => prepareWorkspace(update(current)))
+  saveWorkspace(prepareWorkspace(workspace))
 export const getDibIt = () => activePlanView(getWorkspace())
 /** Explicit active-view replacement for legacy migration; UI edits use updateDibIt. */
 export const setDibIt = (dibIt: DibIt) =>
-  changeWorkspace(workspace => updateActivePlan(workspace, dibIt, getSemesterCatalogs()), true)
+  saveWorkspace(updateActivePlan(getWorkspace(), dibIt, getSemesterCatalogs()))
 /** Apply a synchronous edit to the latest workspace, optionally bound to its originating plan. */
-export const updateDibIt = (update: (current: DibIt) => DibIt, expectedPlanId?: string, editSemester?: string) => changeWorkspace(workspace => {
-  if (expectedPlanId && workspace.activePlanId !== expectedPlanId) return workspace
+export const updateDibIt = (update: (current: DibIt) => DibIt, expectedPlanId?: string, editSemester?: string) => {
+  const workspace = getWorkspace()
+  if (expectedPlanId && workspace.activePlanId !== expectedPlanId) return
   const current = activePlanView(workspace)
   const updated = update(current)
-  if (updated === current) return workspace
-  return updateActivePlan(workspace, storedWorkspaceSchema.parse(updated) as DibIt, getSemesterCatalogs(), editSemester)
-})
-
-const subscribeWorkspace = (changed: () => void) => {
-  const listener = (event: StorageEvent) => { if (event.key === WORKSPACE_KEY || event.key === LEGACY_KEY || event.key === null) changed() }
-  window.addEventListener("storage", listener)
-  return () => window.removeEventListener("storage", listener)
+  if (updated === current) return
+  saveWorkspace(updateActivePlan(workspace, updated, getSemesterCatalogs(), editSemester))
 }
-// Subscribe to stable serialized bytes; schema validation happens at the read boundary.
-const workspaceSnapshot = () => localStorage.getItem(WORKSPACE_KEY) ?? localStorage.getItem(LEGACY_KEY)
+
 export const useWorkspace = () => {
-  useSyncExternalStore(subscribeWorkspace, workspaceSnapshot)
-  return getWorkspace()
+  const [stored] = useLocalStorage({ key: "Dib It", schema: storedWorkspaceSchema, defaultValue: {}, essential: true })
+  return normalizePlans(stored)
 }
 export const useDibIt = () => {
   const workspace = useWorkspace()

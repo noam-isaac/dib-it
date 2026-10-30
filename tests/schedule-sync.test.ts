@@ -21,8 +21,7 @@ const setup = (persisted?: { local: ReturnType<typeof workspace>; remote: Return
     ...persisted,
   }
   const read = () => ({
-    format: 2 as const, version: JSON.stringify(state.local), epoch: "session",
-    workspace: structuredClone(state.local), time: null, legacy: null,
+    version: JSON.stringify(state.local), workspace: structuredClone(state.local), time: null,
     sync: { uid: "test", base: state.base },
   })
   const review = () => ({ local: read(), remote: { workspace: structuredClone(state.remote), revision: state.writes, savedAt: null } })
@@ -180,7 +179,7 @@ test("permanent upload failures stop retries until the local data changes", asyn
   let status: SyncStatus = "connecting"
   const sync = startScheduleSync({
     uid: "test", prepare: value => value, accept: async () => true,
-    read: () => ({ format: 2, version: JSON.stringify(local), epoch: "test", workspace: local, time: null, legacy: null }),
+    read: () => ({ version: JSON.stringify(local), workspace: local, time: null }),
     exchange: async () => { calls++; throw new CloudScheduleError("Too large") },
     status: next => { status = next },
   })
@@ -211,7 +210,7 @@ test("a reviewed choice cannot overwrite a newer local copy", async () => {
 
 test("cloud success followed by local failure reports partial completion and does not auto-retry", async () => {
   let status: SyncStatus = "connecting", failure: unknown, writes = 0
-  const local = { format: 2 as const, version: "v1", epoch: "test", workspace: workspace(), time: null, legacy: null }
+  const local = { version: "v1", workspace: workspace(), time: null }
   const sync = startScheduleSync({
     uid: "test", read: () => local, prepare: value => value,
     accept: async () => { throw new Error("Quota exceeded") },

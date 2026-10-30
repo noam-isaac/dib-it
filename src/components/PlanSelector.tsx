@@ -1,28 +1,21 @@
 import { Button, Group, Select, Stack, Text, TextInput } from "@mantine/core"
 import { modals } from "@mantine/modals"
 import { useState } from "react"
-import { updateWorkspace, useWorkspace } from "../models"
+import { getWorkspace, setWorkspace, useWorkspace } from "../models"
 import { addPlan, deletePlan, renamePlan } from "../plans"
 
-const PlanNameForm = ({ initialName, onSave }: { initialName: string; onSave: (name: string) => Promise<unknown> }) => {
+const PlanNameForm = ({ initialName, onSave }: { initialName: string; onSave: (name: string) => void }) => {
   const [name, setName] = useState(initialName)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
   return (
-    <form onSubmit={async event => {
+    <form onSubmit={event => {
       event.preventDefault()
-      if (!name.trim() || busy) return
-      setBusy(true)
-      try { await onSave(name.trim()); modals.closeAll() }
-      catch (failure) { setError(failure instanceof Error ? failure.message : "השמירה נכשלה.") }
-      finally { setBusy(false) }
+      if (name.trim()) onSave(name.trim())
     }}>
       <Stack>
         <TextInput label="שם מערכת השעות" value={name} onChange={event => setName(event.currentTarget.value)} data-autofocus />
-        {error && <Text role="alert" c="red">{error}</Text>}
         <Group justify="flex-end">
           <Button variant="default" onClick={() => modals.closeAll()}>ביטול</Button>
-          <Button type="submit" loading={busy} disabled={!name.trim()}>שמירה</Button>
+          <Button type="submit" disabled={!name.trim()}>שמירה</Button>
         </Group>
       </Stack>
     </form>
@@ -38,7 +31,11 @@ const PlanSelector = () => {
       centered: true,
       children: <PlanNameForm
         initialName={action === "create" ? "" : action === "duplicate" ? `${active.name} — עותק` : active.name}
-        onSave={name => updateWorkspace(latest => action === "rename" ? renamePlan(latest, active.id, name) : addPlan(latest, name, action === "duplicate"))}
+        onSave={name => {
+          const latest = getWorkspace()
+          setWorkspace(action === "rename" ? renamePlan(latest, active.id, name) : addPlan(latest, name, action === "duplicate"))
+          modals.closeAll()
+        }}
       />,
     })
   }
@@ -52,12 +49,12 @@ const PlanSelector = () => {
         value={active.id}
         allowDeselect={false}
         data={workspace.plans.map(plan => ({ value: plan.id, label: plan.name }))}
-        onChange={async id => {
-          if (!id) return
-          try {
-            await updateWorkspace(latest => latest.plans.some(plan => plan.id === id) ? { ...latest, activePlanId: id } : latest)
+        onChange={id => {
+          const latest = getWorkspace()
+          if (id && latest.plans.some(plan => plan.id === id)) {
+            setWorkspace({ ...latest, activePlanId: id })
             modals.closeAll()
-          } catch { /* The shared persistence notice explains the failure. */ }
+          }
         }}
       />
       <Group gap="xs">
@@ -70,11 +67,7 @@ const PlanSelector = () => {
           children: <Text>למחוק את ״{active.name}״ ואת בחירות הקורסים שלה בכל הסמסטרים? מערכות השעות האחרות יישמרו.</Text>,
           labels: { confirm: "מחיקת מערכת השעות", cancel: "ביטול" },
           confirmProps: { color: "red" },
-          closeOnConfirm: false,
-          onConfirm: async () => {
-            try { await updateWorkspace(latest => deletePlan(latest, active.id)); modals.closeAll() }
-            catch { /* Keep the confirmation open; the shared notice explains the failure. */ }
-          },
+          onConfirm: () => setWorkspace(deletePlan(getWorkspace(), active.id)),
         })}>מחיקת מערכת השעות</Button>
       </Group>
     </Stack>

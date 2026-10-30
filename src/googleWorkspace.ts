@@ -2,7 +2,7 @@ import { doc, getDocFromServer, runTransaction, serverTimestamp, Timestamp } fro
 import { z } from "zod"
 import { auth, firestore } from "./firebase"
 import { cloudScheduleData, readCloudSchedule, startScheduleSync, type CloudCopy, type SyncChoice, type SyncOptions, type SyncReview } from "./scheduleSync"
-import { acceptCloud, captureWorkspace, readWorkspaceRecord, StaleWorkspaceError } from "./workspaceStore"
+import { acceptGoogleCopy, readLocalCopy, StaleWorkspaceError } from "./localSchedule"
 import { prepareWorkspace } from "./models"
 import type { PlanWorkspace } from "./plans"
 import { isScheduleBackup } from "./scheduleBackup"
@@ -41,14 +41,14 @@ export const exchangeGoogleCopy = (uid: string, decide: (remote: CloudCopy | nul
     return { before, after: { workspace, revision, savedAt: null } }
   })
 
-export const googleSyncOptions = (uid: string, status: SyncOptions["status"]): SyncOptions => ({
-  uid, read: readWorkspaceRecord, prepare: prepareWorkspace, status,
-  exchange: decide => exchangeGoogleCopy(uid, decide),
-  accept: (expected, copy, apply, active) => acceptCloud(expected, uid, copy.workspace, copy.revision, copy.savedAt, apply, () => active() && auth?.currentUser?.uid === uid),
+export const googleSyncOptions = (uid: string, status: SyncOptions["status"], enabled: () => boolean = () => true): SyncOptions => ({
+  uid, read: readLocalCopy, prepare: prepareWorkspace, status,
+  exchange: decide => exchangeGoogleCopy(uid, remote => { if (!enabled()) throw new Error("הסנכרון האוטומטי כבוי."); return decide(remote) }),
+  accept: async (expected, copy, apply, active) => acceptGoogleCopy(expected, uid, copy, apply, () => active() && enabled() && auth?.currentUser?.uid === uid),
 })
 export const loadSyncReview = async (uid: string): Promise<SyncReview> => {
   const remote = await fetchGoogleCopy(uid)
-  const local = await captureWorkspace()
+  const local = readLocalCopy()
   requireAccount(uid)
   return { local, remote }
 }

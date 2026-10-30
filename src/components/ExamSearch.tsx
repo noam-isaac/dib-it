@@ -12,18 +12,15 @@ import {
 import ExamDataNotice from "./ExamDataNotice"
 import { useMemo, useState } from "react"
 import { useCourseInfo } from "../CourseInfoContext"
-import { useCourseFocus } from "../CourseFocusContext"
 import { collectExams, filterExamDates, isCourseScheduled } from "../exams"
 import { useDibIt } from "../models"
-import { activePlanView } from "../plans"
-import { getColor } from "../utilities"
+import { getColor, revealCourse } from "../utilities"
 import { searchItems } from "../search"
 
 const PAGE_SIZE = 30
 
 const ExamSearch = ({ initialDate }: { initialDate: string }) => {
   const info = useCourseInfo()
-  const { revealCourse } = useCourseFocus()
   const [dibIt, setDibIt] = useDibIt()
   const [start, setStart] = useState(initialDate)
   const [end, setEnd] = useState("")
@@ -61,22 +58,14 @@ const ExamSearch = ({ initialDate }: { initialDate: string }) => {
     (!faculty || info[exam.course.id]?.faculty === faculty) && matchingCourses.has(exam.course.id))
   const totalPages = Math.max(1, Math.ceil(results.length / PAGE_SIZE))
   const visiblePage = Math.min(page, totalPages)
-  const addCourse = async (id: string) => {
-    let interrupted = false
-    const cancel = () => { interrupted = true }
-    const events = ["focusin", "pointerdown", "keydown"]
-    events.forEach(event => document.addEventListener(event, cancel, true))
-    try {
-      const saved = await setDibIt(current => {
-        const courses = current.courses?.[semester] ?? []
-        return courses.some(course => course.id === id) ? current : {
-          ...current, courses: { ...current.courses, [semester]: [...courses, { id }] },
-        }
-      })
-      const view = activePlanView(saved.workspace)
-      if (!interrupted && view.activePlanId === dibIt.activePlanId && view.semester === semester) revealCourse(id)
-    } catch { /* The shared persistence notice explains why the course was not saved. */ }
-    finally { events.forEach(event => document.removeEventListener(event, cancel, true)) }
+  const addCourse = (id: string) => {
+    setDibIt(current => {
+      const courses = current.courses?.[semester] ?? []
+      return courses.some(course => course.id === id) ? current : {
+        ...current, courses: { ...current.courses, [semester]: [...courses, { id }] },
+      }
+    })
+    revealCourse(id)
   }
   return (
     <Stack gap="sm" className="exam-search">

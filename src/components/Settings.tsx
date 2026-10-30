@@ -72,7 +72,7 @@ const Settings = ({ hiddenTabs, onHiddenTabsChange }: {
               [file.name, semesterCoursesSchema.parse(JSON.parse(await file.text()) as unknown)] as const,
             )))
             if (!isScheduleBackup({ customCourses })) throw new Error("קובץ הקורסים אינו תקין.")
-            await setDibIt(current => ({ ...current, customCourses: { ...current.customCourses, ...customCourses } }))
+            setDibIt(current => ({ ...current, customCourses: { ...current.customCourses, ...customCourses } }))
           } catch (error) {
             notifications.show({ title: "ייבוא הקורסים נכשל", message: error instanceof Error ? error.message : "לא ניתן לקרוא את הקובץ.", color: "red" })
           }

@@ -1,4 +1,3 @@
-import { setChecked } from "./async-checkbox.mjs"
 import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { chromium } from "playwright"
@@ -22,7 +21,7 @@ try {
     page.setDefaultTimeout(10000)
     const errors = []
     page.on("pageerror", error => errors.push(error.message))
-    let failed = true, failedPlan = true, delayed, signalDelayed
+    let failed = true, failedPlan = true, delayed
     const requests = []
     page.on("request", request => requests.push(request.url()))
     await page.route("**/*", route => {
@@ -32,7 +31,7 @@ try {
       const filename = url.pathname.split("/").pop()
       if (failed && filename === failedResource) return route.fulfill({ status: 503, body: "Unavailable" })
       if (failedPlan && filename === "plans-2026.json") return route.fulfill({ status: 503, body: "Unavailable" })
-      if (filename === "plans-2024.json") { delayed = route; signalDelayed(); return }
+      if (filename === "plans-2024.json") { delayed = route; return }
       const json = filename === "info.json" ? info
         : filename.startsWith("courses-") ? catalog
         : filename.startsWith("plans-") ? { ...plans(filename === "plans-2025.json" ? "פקולטה חדשה" : "פקולטה לבדיקה"), ...plans("פקולטה אחרת") } : {}
@@ -61,18 +60,18 @@ try {
     const card = page.locator("#course-12345678")
     await card.getByText("ללא שעות במערכת", { exact: true }).waitFor()
     assert.equal(await card.evaluate(el => getComputedStyle(el).borderTopStyle), "dashed")
-    await setChecked(card.getByRole("checkbox", { name: "קבוצה 02", exact: true }))
+    await card.getByRole("checkbox", { name: "קבוצה 02", exact: true }).check()
     assert.equal(await card.getByText("ללא שעות במערכת", { exact: true }).count(), 0)
     assert.equal(await card.evaluate(el => getComputedStyle(el).borderTopStyle), "solid")
-    await setChecked(card.getByRole("checkbox", { name: "קבוצה 02", exact: true }), false)
+    await card.getByRole("checkbox", { name: "קבוצה 02", exact: true }).uncheck()
     await card.getByText("ללא שעות במערכת", { exact: true }).waitFor()
     // A workspace update must refresh other subscribers before the next edit.
     await page.evaluate(async () => {
       const { getDibIt, setDibIt } = await import("/src/models.ts")
-      await setDibIt({ ...getDibIt(), theme: "apple" })
+      setDibIt({ ...getDibIt(), theme: "apple" })
     })
     await page.getByRole("button", { name: "תוכנית", exact: true }).click()
-    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.theme), "apple")
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).theme), "apple")
     await page.getByRole("alert").filter({ hasText: "לא ניתן לטעון את נתוני תוכניות" }).waitFor()
     failedPlan = false
     await page.getByRole("button", { name: "ניסיון נוסף", exact: true }).click()
@@ -80,11 +79,10 @@ try {
     await page.getByRole("heading", { name: "קורסי חובה", exact: true }).waitFor()
     const year = page.getByRole("textbox", { name: "שנת התחלת התואר", exact: true })
     await year.click()
-    const requested = new Promise(resolve => { signalDelayed = resolve })
+    const requested = page.waitForRequest(request => request.url().includes("plans-2024.json"))
     await page.getByRole("option", { name: "2024", exact: true }).click()
     await requested
     assert.ok(delayed)
-    assert.ok(delayed.request().url().includes("plans-2024.json"))
     await year.click()
     await page.getByRole("option", { name: "2025", exact: true }).click()
     const program = page.getByRole("textbox", { name: "תוכנית לימוד", exact: true })
@@ -98,7 +96,7 @@ try {
     await program.fill("אחרת")
     await page.getByRole("option", { name: "תוכנית בדיקה — פקולטה אחרת", exact: true }).click()
     await page.getByRole("button", { name: "שמירה למעבר מהיר", exact: true }).click()
-    const readView = () => page.evaluate(async () => { await (await import("/src/workspaceStore.ts")).captureWorkspace(); return (await import("/src/models.ts")).getDibIt() })
+    const readView = () => page.evaluate(async () => (await import("/src/models.ts")).getDibIt())
     assert.equal((await readView()).school, "פקולטה אחרת", "duplicate program names retain faculty identity")
     const coursesBefore = (await readView()).courses
     await page.getByRole("textbox", { name: "מעבר מהיר בין תוכניות", exact: true }).click()
@@ -112,23 +110,21 @@ try {
     assert.equal(await page.getByRole("option", { name: /פקולטה חדשה/ }).count(), 0)
     await page.getByRole("option", { name: "תוכנית בדיקה — פקולטה אחרת", exact: true }).click()
     await page.getByRole("button", { name: "הסרה מהמעבר המהיר", exact: true }).click()
-    await page.getByRole("textbox", { name: "מעבר מהיר בין תוכניות", exact: true }).waitFor({ state: "hidden" })
     assert.equal(await page.getByRole("textbox", { name: "מעבר מהיר בין תוכניות", exact: true }).count(), 0)
     await page.getByRole("button", { name: "הגדרות", exact: true }).click()
-    await page.locator('#content input[type="file"]').waitFor()
-    const beforeImport = await page.evaluate(() => localStorage.getItem("Dib It Workspace v2"))
+    const beforeImport = await page.evaluate(() => localStorage.getItem("Dib It"))
     await page.locator('#content input[type="file"]').setInputFiles({
       name: "bad.json", mimeType: "application/json", buffer: Buffer.from('{"bad":{"groups":2}}'),
     })
     await page.getByText("ייבוא הקורסים נכשל", { exact: true }).waitFor()
-    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It Workspace v2")), beforeImport)
+    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), beforeImport)
     await page.locator('#content input[type="file"]').setInputFiles({
       name: "valid.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(catalog)),
     })
     await page.getByRole("button", { name: /valid.json/ }).waitFor()
-    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.customCourses["valid.json"]), catalog)
+    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).customCourses["valid.json"]), catalog)
     // Optional preferences heal without replacing any workspace data.
-    const preserved = await page.evaluate(() => localStorage.getItem("Dib It Workspace v2"))
+    const preserved = await page.evaluate(() => localStorage.getItem("Dib It"))
     await page.evaluate(() => {
       localStorage.setItem("Compact View", "broken-json")
       localStorage.setItem("Sidebar Compact", "broken-json")
@@ -147,12 +143,12 @@ try {
       }, invalid)
       assert.equal(await page.evaluate(() => localStorage.getItem("Sidebar Compact")), null)
     }
-    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace), { ...JSON.parse(preserved).workspace, tab: "schedule" })
+    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It"))), { ...JSON.parse(preserved), tab: "schedule" })
     assert.equal(await page.evaluate(() => localStorage.getItem("unrelated-setting")), "keep")
     // Crash recovery downloads raw workspace data and cancellation never wipes it.
     const before = await page.evaluate(() => {
       const raw = JSON.stringify({ plans: [], activePlanId: "bad" })
-      localStorage.setItem("Dib It Workspace v2", raw)
+      localStorage.setItem("Dib It", raw)
       localStorage.setItem("unrelated-setting", "keep")
       return raw
     })
@@ -169,12 +165,12 @@ try {
     // Recovery offers a way out that does not cost the user their schedules.
     await page.getByRole("button", { name: "איפוס העדפות התצוגה", exact: true }).click()
     await page.getByRole("heading", { name: "לא ניתן להציג את המערכת", exact: true }).waitFor()
-    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It Workspace v2")), before,
+    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), before,
       "resetting preferences must never delete schedules")
     assert.equal(await page.evaluate(() => localStorage.getItem("unrelated-setting")), "keep")
     page.once("dialog", dialog => dialog.dismiss())
     await page.getByRole("button", { name: "איפוס המערכות במכשיר", exact: true }).click()
-    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It Workspace v2")), before)
+    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), before)
     page.once("dialog", dialog => dialog.accept())
     await page.getByRole("button", { name: "איפוס המערכות במכשיר", exact: true }).click()
     await page.locator("#schedule-container").waitFor()

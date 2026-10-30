@@ -17,16 +17,16 @@ export const useCatalog = (semester?: string, custom?: Record<string, SemesterCo
         const info = await loadGeneralInfo()
         const currentSemester = info.currentSemester
         if (!currentSemester) throw new Error("Missing current semester")
-        if (!cancelled) await updateDibIt(current => current.semester ? current : { ...current, semester: currentSemester }, activePlanId)
+        if (!cancelled) updateDibIt(current => current.semester ? current : { ...current, semester: currentSemester }, activePlanId)
         return
       }
       await loadSemesterCourses(semester)
       if (cancelled) return
       setResult({ semester, attempt, failed: false })
       if (active) {
-        await reconcileCatalogs()
+        reconcileCatalogs()
         const other = semester.slice(0, 4) + (semester.endsWith("a") ? "b" : "a")
-        void loadSemesterCourses(other).then(() => cancelled ? undefined : reconcileCatalogs()).catch(() => {})
+        void loadSemesterCourses(other).then(() => { if (!cancelled) reconcileCatalogs() }).catch(() => {})
       }
     }
     void load().catch(() => { if (!cancelled) setResult({ semester: semester ?? "", attempt, failed: true }) })

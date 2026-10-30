@@ -13,11 +13,10 @@ import "@mantine/dates/styles.css"
 import "@mantine/notifications/styles.css"
 import "@mantine/dropzone/styles.css"
 
+import { notifications } from "@mantine/notifications"
 import { getLocalStorage } from "./hooks.ts"
 import { resetPreferences } from "./preferences.ts"
-import { DibIt, DibItCourse } from "./models.ts"
-import { normalizePlans } from "./plans.ts"
-import { initializeWorkspace, resetWorkspace, workspaceRecoveryData } from "./workspaceStore.ts"
+import { DibIt, DibItCourse, setDibIt } from "./models.ts"
 import { downloadBlob } from "./utilities.ts"
 
 const handleDeprecation = () => {
@@ -118,13 +117,22 @@ const handleDeprecation = () => {
       }
     }
 
-    // Preserve the original keys for recovery; older open tabs do not know the new store.
-    return normalizePlans(result)
+    setDibIt({ ...result })
+    for (const key of Object.keys(data)) localStorage.removeItem(key)
+    for (const key of ["Semester", "Courses", "Groups", "Colors"]) localStorage.removeItem(key)
+    notifications.show({
+      title: "עדכון ה-Dib It בוצע בהצלחה",
+      message:
+        "המערכת שלכם שודרגה לפורמט חדש ותתאים לפיצ׳רים חדשים שאנחנו עובדים עליהם!",
+      style: { direction: "rtl" },
+      icon: <i className="fa-solid fa-check" />,
+      color: "green",
+    })
   }
-  return undefined
 }
 
 let migrationError: unknown
+try { handleDeprecation() } catch (error) { migrationError = error }
 const InitializedApp = () => {
   if (migrationError) throw migrationError
   return <App />
@@ -162,7 +170,7 @@ const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
         </p>
         <Button my={10} onClick={() => window.location.reload()}>טעינה מחדש</Button>
         <Button variant="default" onClick={() => downloadBlob("dibit-recovery.json", new Blob([
-          workspaceRecoveryData(),
+          localStorage.getItem("Dib It") ?? "{}",
         ], { type: "application/json" }))}>הורדת הנתונים לפני איפוס</Button>
         <Button
           my={10}
@@ -179,10 +187,12 @@ const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
           color="red"
           variant="light"
           leftSection={<i className="fa-solid fa-trash" aria-hidden="true" />}
-          onClick={async () => {
-            if (!window.confirm("למחוק את מערכות השעות מהמכשיר? הורידו קודם עותק של הנתונים. הסנכרון האוטומטי יכובה; הגיבוי בגוגל לא יימחק.")) return
-            try { await resetWorkspace(); window.location.reload() }
-            catch (failure) { window.alert(failure instanceof Error ? failure.message : "האיפוס לא הושלם.") }
+          onClick={() => {
+            if (!window.confirm("למחוק את מערכות השעות מהמכשיר? הורידו קודם עותק של הנתונים. הפעולה אינה מוחקת את הגיבוי בגוגל.")) return
+            localStorage.removeItem("Dib It")
+            localStorage.removeItem("Dib It Sync")
+            localStorage.removeItem("Hidden Tabs")
+            window.location.reload()
           }}
         >
           איפוס המערכות במכשיר
@@ -205,10 +215,10 @@ const ErrorFallback: React.FC<FallbackProps> = ({ error }) => {
   )
 }
 
-void initializeWorkspace(handleDeprecation).catch(error => { migrationError = error }).then(() => ReactDOM.createRoot(document.getElementById("root")!).render(
+ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary FallbackComponent={ErrorFallback}>
       <InitializedApp />
     </ErrorBoundary>
   </React.StrictMode>
-))
+)

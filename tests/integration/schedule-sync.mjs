@@ -28,7 +28,7 @@ test("real Firestore clients sync, reconnect, and preserve competing edits", { t
       const database = environment.authenticatedContext("sync-emulator").firestore()
       const reference = doc(database, "users", "sync-emulator")
       const client = { local, base: undefined, status: "connecting", database, reference }
-      const read = () => ({ format: 2, version: JSON.stringify(client.local), epoch: "session", workspace: structuredClone(client.local), time: null, legacy: null, sync: { uid: "sync-emulator", base: client.base } })
+      const read = () => ({ version: JSON.stringify(client.local), workspace: structuredClone(client.local), time: null, sync: { uid: "sync-emulator", base: client.base } })
       const sync = startScheduleSync({
         uid: "sync-emulator", read, prepare: value => value,
         accept: async (expected, copy, apply, active) => {

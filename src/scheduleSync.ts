@@ -1,14 +1,13 @@
 import { workspaceSchema } from "./schemas"
 import { normalizePlans, type PlanWorkspace } from "./plans"
 import { isScheduleBackup } from "./scheduleBackup"
-import type { WorkspaceRecord } from "./workspaceStore"
 
 export class CloudScheduleError extends Error {}
 export class LocalSyncSaveError extends Error {
   constructor(uploaded: boolean, readonly cause: unknown) {
     super(uploaded
-      ? "העותק נשמר בגוגל, אך השמירה במכשיר נכשלה. העותק המקומי הקודם נשמר; רעננו את ההשוואה לפני ניסיון נוסף."
-      : "השמירה במכשיר נכשלה. העותק המקומי הקודם נשמר; רעננו את ההשוואה לפני ניסיון נוסף.")
+      ? "העותק נשמר בגוגל, אך השלמת הסנכרון במכשיר נכשלה. הורידו גיבוי ורעננו את ההשוואה לפני ניסיון נוסף."
+      : "השלמת הסנכרון במכשיר נכשלה. הורידו גיבוי ורעננו את ההשוואה לפני ניסיון נוסף.")
   }
 }
 
@@ -82,21 +81,25 @@ export const withLocalNavigation = (remote: PlanWorkspace, local: PlanWorkspace)
 })
 
 export type CloudCopy = { workspace: PlanWorkspace; revision: number; savedAt: number | null }
-export type SyncReview = { local: WorkspaceRecord; remote: CloudCopy | null }
+export type LocalCopy = {
+  workspace: PlanWorkspace; version: string; time: { at: number; source: "device" | "google" } | null
+  sync?: { uid: string; base?: string | null | undefined; revision?: number | undefined; savedAt?: number | null | undefined } | undefined
+}
+export type SyncReview = { local: LocalCopy; remote: CloudCopy | null }
 export type SyncStatus = "connecting" | "syncing" | "synced" | "conflict" | "pending" | "error"
 export type SyncChoice = "upload" | "download" | "merge"
 export const cloudCopyKey = (copy: CloudCopy | null) => JSON.stringify([copy?.revision ?? null, scheduleKey(copy?.workspace ?? null)])
-export const baseForAccount = (record: WorkspaceRecord, uid: string) => record.sync && record.sync.uid !== uid ? "different-account" : record.sync?.base
+export const baseForAccount = (record: LocalCopy, uid: string) => record.sync && record.sync.uid !== uid ? "different-account" : record.sync?.base
 export type SyncOptions = {
   uid: string
-  read: () => WorkspaceRecord
-  accept: (expected: WorkspaceRecord, copy: CloudCopy, apply: "download" | "merge" | false, active: () => boolean) => Promise<boolean>
+  read: () => LocalCopy
+  accept: (expected: LocalCopy, copy: CloudCopy, apply: "download" | "merge" | false, active: () => boolean) => Promise<boolean>
   exchange: (decide: (remote: CloudCopy | null) => PlanWorkspace | undefined) => Promise<{ before: CloudCopy | null; after: CloudCopy | null }>
   prepare: (workspace: PlanWorkspace) => PlanWorkspace
   status: (status: SyncStatus, review?: SyncReview, error?: unknown) => void
 }
 
-/** Each tab has a queue; cloud revisions and the local store's lock protect the shared boundaries. */
+/** Each tab has a queue; cloud transactions protect devices. Local-tab serialization is deferred. */
 export const startScheduleSync = (options: SyncOptions) => {
   let stopped = false
   let busy = false

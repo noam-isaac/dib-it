@@ -1,4 +1,3 @@
-import { setChecked } from "./async-checkbox.mjs"
 import assert from "node:assert/strict"
 import { chromium, firefox, webkit } from "playwright"
 import { createServer } from "vite"
@@ -31,7 +30,7 @@ const server = await createServer({
   define: { "import.meta.env.VITE_ENABLE_GOOGLE_SYNC": '"false"' },
   server: { host: "127.0.0.1", port: 0 },
 })
-const read = page => page.evaluate(async () => (await (await import("/src/workspaceStore.ts")).captureWorkspace()).workspace)
+const read = page => page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")))
 const selected = workspace => workspace.plans.find(plan => plan.id === workspace.activePlanId).courses["2026a"]
 const groups = (workspace, id) => selected(workspace).find(course => course.id === id)?.groups
 const checkbox = (page, id, group) => page.locator(`#course-${id}`).getByRole("checkbox", { name: `קבוצה ${group}`, exact: true })
@@ -73,7 +72,7 @@ try {
         globalThis.__heldStorage = []
         globalThis.__delayStorage = false
         window.addEventListener("storage", event => {
-          if (globalThis.__delayStorage && event.key === "Dib It Workspace v2") {
+          if (globalThis.__delayStorage && event.key === "Dib It") {
             event.stopImmediatePropagation()
             globalThis.__heldStorage.push(event)
           }
@@ -94,10 +93,12 @@ try {
     await ready(page)
     await ready(other)
     const reset = async () => {
-      await page.evaluate(async initial => {
+      await page.evaluate(initial => {
         globalThis.__delayStorage = false
         globalThis.__heldStorage = []
-        await (await import("/src/models.ts")).setWorkspace(initial)
+        const serialized = JSON.stringify(initial)
+        localStorage.setItem("Dib It", serialized)
+        window.dispatchEvent(new StorageEvent("storage", { key: "Dib It", newValue: serialized }))
       }, initial)
       await ready(page)
       await ready(other)
@@ -114,7 +115,7 @@ try {
 
     // Real page B writes are visible in localStorage while page A still renders old data.
     await hold()
-    await setChecked(checkbox(other, ids[0], "02"))
+    await checkbox(other, ids[0], "02").check()
     await delivered()
     assert.equal(await checkbox(page, ids[0], "02").isChecked(), false)
     await checkbox(page, ids[0], "01").click()
@@ -179,7 +180,7 @@ try {
         await plans(page)
         await page.getByRole("button", { name: "מחיקת מערכת השעות", exact: true }).click()
         await page.getByRole("dialog").last().getByRole("button", { name: "מחיקת מערכת השעות", exact: true }).click()
-        await page.waitForFunction(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.activePlanId === "second")
+        await page.waitForFunction(() => JSON.parse(localStorage.getItem("Dib It")).activePlanId === "second")
         await page.keyboard.press("Escape")
       }
       const before = await read(page)
@@ -191,22 +192,22 @@ try {
     }
 
     await reset()
-    const saved = await page.evaluate(() => localStorage.getItem("Dib It Workspace v2"))
+    const saved = await page.evaluate(() => localStorage.getItem("Dib It"))
     await page.evaluate(() => {
       const original = Storage.prototype.setItem
       Storage.prototype.setItem = function (key, value) {
-        if (key === "Dib It Workspace v2") throw new DOMException("Atomic stress: storage quota exceeded", "QuotaExceededError")
+        if (key === "Dib It") throw new DOMException("Atomic stress: storage quota exceeded", "QuotaExceededError")
         return original.call(this, key, value)
       }
     })
     await checkbox(page, ids[0], "01").click()
     await page.waitForFunction(id => document.querySelector(`#course-${id} input[type=checkbox]`).checked, ids[0])
-    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It Workspace v2")), saved, "failed write keeps saved bytes")
+    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), saved, "failed write keeps saved bytes")
     assert.equal(await checkbox(page, ids[0], "01").isChecked(), true, "failed write keeps the rendered selection")
     await page.getByRole("button", { name: "הגדרות", exact: true }).click()
     assert.equal(await page.locator("#export-content input[type=file]").count(), 0, "failed tab write keeps the rendered screen")
-    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It Workspace v2")), saved)
-    assert.equal(await page.getByText("Atomic stress: storage quota exceeded", { exact: true }).count(), 1, "the failure is reported to the user")
+    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), saved)
+    assert.ok(errors.some(message => message.includes("Atomic stress: storage quota exceeded")), "the failure injection reached the real storage write")
     assert.deepEqual(errors.filter(message => !message.includes("Atomic stress: storage quota exceeded")), [])
     await context.close()
     console.log(`PASS ${engine} ${width}px: delayed two-tab events, rapid controls, stale removals, plan switches/imports and rejected writes`)

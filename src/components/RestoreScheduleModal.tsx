@@ -2,7 +2,7 @@ import { Alert, Button, Group, Stack, Text } from "@mantine/core"
 import { modals } from "@mantine/modals"
 import { notifications } from "@mantine/notifications"
 import { useState } from "react"
-import { getWorkspace, replaceWorkspace } from "../models"
+import { getWorkspace, setWorkspace } from "../models"
 import { normalizePlans, type PlanWorkspace } from "../plans"
 import { isScheduleBackup } from "../scheduleBackup"
 import { downloadBlob } from "../utilities"
@@ -12,7 +12,6 @@ export const downloadWorkspaceBackup = (filename = "dibit.json") =>
 
 const RestoreScheduleModal = ({ backup, source }: { backup: PlanWorkspace; source: "file" | "google" }) => {
   const [error, setError] = useState("")
-  const [busy, setBusy] = useState(false)
   return (
     <Stack dir="rtl">
       <Alert color="yellow" title="השחזור מחליף את כל המערכות הנוכחיות">
@@ -38,19 +37,19 @@ const RestoreScheduleModal = ({ backup, source }: { backup: PlanWorkspace; sourc
       {error && <Text role="alert" c="red" size="sm">{error}</Text>}
       <Group justify="space-between">
         <Button variant="default" data-autofocus onClick={() => modals.closeAll()}>ביטול</Button>
-        <Button color="red" loading={busy} onClick={async () => {
-          setBusy(true)
+        <Button color="red" onClick={() => {
           try {
-            await replaceWorkspace(latest => ({
+            const latest = getWorkspace()
+            setWorkspace({
               ...backup,
               semester: source === "google" ? latest.semester ?? backup.semester : backup.semester || latest.semester,
               tab: source === "google" ? latest.tab ?? backup.tab : backup.tab,
-            }))
+            })
             modals.closeAll()
             notifications.show({ title: "השחזור הושלם", message: `שוחזרו ${backup.plans.length} מערכות שעות.`, color: "green" })
           } catch {
             setError("לא ניתן לשמור את השחזור בדפדפן. המערכות הנוכחיות נשארו כפי שהן.")
-          } finally { setBusy(false) }
+          }
         }}>החלפת כל המערכות ושחזור</Button>
       </Group>
     </Stack>

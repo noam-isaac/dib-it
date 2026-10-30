@@ -50,17 +50,17 @@ try {
   await page.locator(`#course-${ids[0]} input[type=checkbox]`).first().waitFor()
   await page.evaluate(async () => {
     const { getWorkspace, setWorkspace } = await import("/src/models.ts")
-    await setWorkspace(getWorkspace())
+    setWorkspace(getWorkspace())
   })
-  const read = () => page.evaluate(async () => { await (await import("/src/workspaceStore.ts")).captureWorkspace(); return (await import("/src/models.ts")).getDibIt() })
+  const read = () => page.evaluate(async () => (await import("/src/models.ts")).getDibIt())
 
   // An external write is intentionally delivered before React receives its storage event.
   // The already-rendered handler must read that latest data itself.
   await page.evaluate(ids => {
-    const workspace = JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace
+    const workspace = JSON.parse(localStorage.getItem("Dib It"))
     workspace.plans[0].courses["2026a"].push({ id: ids[2], groups: ["02"] })
     workspace.theme = "google"
-    localStorage.setItem("Dib It Workspace v2", JSON.stringify({ ...JSON.parse(localStorage.getItem("Dib It Workspace v2")), workspace, version: crypto.randomUUID() }))
+    localStorage.setItem("Dib It", JSON.stringify(workspace))
     ;[...document.querySelectorAll("button")].find(button => button.textContent === "הגדרות").click()
   }, ids)
   assert.equal((await read()).tab, "settings")
@@ -69,10 +69,10 @@ try {
   await page.getByRole("button", { name: "מערכת", exact: true }).click()
 
   await page.evaluate(id => {
-    const workspace = JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace
+    const workspace = JSON.parse(localStorage.getItem("Dib It"))
     workspace.plans[0].courses["2026a"].find(course => course.id === id).groups.push("02")
     workspace.practicedExams = { [id]: ["2025aa"] }
-    localStorage.setItem("Dib It Workspace v2", JSON.stringify({ ...JSON.parse(localStorage.getItem("Dib It Workspace v2")), workspace, version: crypto.randomUUID() }))
+    localStorage.setItem("Dib It", JSON.stringify(workspace))
     document.querySelector(`#course-${id} input[type=checkbox]`).click()
   }, ids[0])
   assert.deepEqual((await read()).courses["2026a"][0].groups, ["02"])
@@ -80,20 +80,20 @@ try {
 
   // A stale card index must not reorder or remove the course now occupying that index.
   await page.evaluate(ids => {
-    const workspace = JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace
+    const workspace = JSON.parse(localStorage.getItem("Dib It"))
     const courses = workspace.plans[0].courses["2026a"]
     workspace.plans[0].courses["2026a"] = [courses[2], courses[0], courses[1]]
-    localStorage.setItem("Dib It Workspace v2", JSON.stringify({ ...JSON.parse(localStorage.getItem("Dib It Workspace v2")), workspace, version: crypto.randomUUID() }))
+    localStorage.setItem("Dib It", JSON.stringify(workspace))
     document.querySelector(`#course-${ids[1]} [aria-label="הזזת הקורס למעלה"]`).click()
   }, ids)
   assert.deepEqual((await read()).courses["2026a"].map(course => course.id), [ids[2], ids[1], ids[0]])
 
   // A control belongs to its rendered semester even when persistence has navigated away.
   await page.evaluate(id => {
-    const workspace = JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace
+    const workspace = JSON.parse(localStorage.getItem("Dib It"))
     workspace.semester = "2026b"
     workspace.plans[0].courses["2026b"] = [{ id, groups: ["01"] }]
-    localStorage.setItem("Dib It Workspace v2", JSON.stringify({ ...JSON.parse(localStorage.getItem("Dib It Workspace v2")), workspace, version: crypto.randomUUID() }))
+    localStorage.setItem("Dib It", JSON.stringify(workspace))
     document.querySelector(`#course-${id} [aria-label="הסרת הקורס"]`).click()
   }, ids[0])
   assert.equal((await read()).semester, "2026b")
@@ -103,9 +103,9 @@ try {
 
   // Editing a stale card never resurrects a course deleted by another writer.
   await page.evaluate(id => {
-    const workspace = JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace
+    const workspace = JSON.parse(localStorage.getItem("Dib It"))
     workspace.plans[0].courses["2026b"] = []
-    localStorage.setItem("Dib It Workspace v2", JSON.stringify({ ...JSON.parse(localStorage.getItem("Dib It Workspace v2")), workspace, version: crypto.randomUUID() }))
+    localStorage.setItem("Dib It", JSON.stringify(workspace))
     document.querySelector(`#course-${id} input[type=checkbox]`).click()
   }, ids[0])
   assert.deepEqual((await read()).courses["2026b"], [])
@@ -116,7 +116,7 @@ try {
       const { getWorkspace, setWorkspace } = await import("/src/models.ts")
       const workspace = getWorkspace()
       const annual = { id, groups: ["01"] }
-      await setWorkspace({ ...workspace, semester: "2026a", customCourses: {
+      setWorkspace({ ...workspace, semester: "2026a", customCourses: {
         "annual.json": { [id]: { name: "Annual course", groups: [{ group: "01", lessons: [{ type: "שנתי" }] }] } },
       }, plans: workspace.plans.map(plan => plan.id === workspace.activePlanId ? { ...plan,
         courses: { "2026a": [annual], "2026b": [annual] },
@@ -124,10 +124,10 @@ try {
     }, ids[0])
     await page.locator(`#course-${ids[0]} input[type=checkbox]`).first().waitFor()
     await page.evaluate(({ id, semester, remove }) => {
-      const workspace = JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace
+      const workspace = JSON.parse(localStorage.getItem("Dib It"))
       workspace.semester = semester
       workspace.theme = "apple"
-      localStorage.setItem("Dib It Workspace v2", JSON.stringify({ ...JSON.parse(localStorage.getItem("Dib It Workspace v2")), workspace, version: crypto.randomUUID() }))
+      localStorage.setItem("Dib It", JSON.stringify(workspace))
       document.querySelector(remove ? `#course-${id} [aria-label="הסרת הקורס"]` : `#course-${id} input[type=checkbox]`).click()
     }, { id: ids[0], semester, remove })
     const latest = await read()
@@ -144,7 +144,7 @@ try {
       const { storedWorkspaceSchema } = await import("/src/schemas.ts")
       const workspace = getWorkspace()
       const annual = { id, groups: ["01"] }
-      await setWorkspace(storedWorkspaceSchema.parse({ ...workspace, semester: "2026b", plans: workspace.plans.map(plan =>
+      setWorkspace(storedWorkspaceSchema.parse({ ...workspace, semester: "2026b", plans: workspace.plans.map(plan =>
         plan.id === workspace.activePlanId ? { ...plan, semester: "2026a",
           courses: { "2026a": [annual], "2026b": [annual] },
         } : plan),
@@ -163,9 +163,9 @@ try {
     const { addPlan } = await import("/src/plans.ts")
     const previous = getWorkspace().activePlanId
     const oldCallback = globalThis.__planUpdaters[previous]
-    await setWorkspace(addPlan(getWorkspace(), "Another plan"))
+    setWorkspace(addPlan(getWorkspace(), "Another plan"))
     const before = JSON.stringify(getWorkspace())
-    await oldCallback(current => ({ ...current, theme: "apple", courses: {} }))
+    oldCallback(current => ({ ...current, theme: "apple", courses: {} }))
     return { unchanged: JSON.stringify(getWorkspace()) === before, active: getDibIt().activePlanId, previous }
   })
   assert.equal(guard.unchanged, true, "hook callbacks captured before a plan switch must be rejected")

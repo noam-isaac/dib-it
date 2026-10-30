@@ -5,7 +5,6 @@ import { ModalsProvider } from "@mantine/modals"
 import { Notifications } from "@mantine/notifications"
 import { useEffect } from "react"
 import CourseInfoContext from "./CourseInfoContext"
-import { CourseFocusProvider } from "./CourseFocusContext"
 import Exams from "./components/Exams"
 import Footer from "./components/Footer"
 import Guide from "./components/Guide"
@@ -15,7 +14,6 @@ import Schedule from "./components/Schedule"
 import Settings from "./components/Settings"
 import Sidebar from "./components/Sidebar"
 import GoogleScheduleSync from "./components/GoogleScheduleSync"
-import WorkspaceNotice from "./components/WorkspaceNotice"
 import StudyPlan from "./components/StudyPlan"
 import { useLocalStorage } from "./hooks"
 import { visibleTabs } from "./tabs"
@@ -70,10 +68,7 @@ const App = () => {
             }}
           >
             <Header />
-            <WorkspaceNotice />
             <GoogleScheduleSync />
-            <CourseFocusProvider scope={`${dibIt.activePlanId}:${dibIt.semester}:${tab}`}
-              courseIds={(dibIt.courses?.[dibIt.semester ?? ""] ?? []).map(course => course.id)}>
             <div
                 id="main"
                 style={{
@@ -132,7 +127,6 @@ const App = () => {
             </div>
 
             <Footer />
-            </CourseFocusProvider>
           </div>
         </ModalsProvider>
       </CourseInfoContext.Provider>

@@ -7,7 +7,7 @@ import { auth, firestore } from "../firebase"
 import { useLocalStorage } from "../hooks"
 import { modals } from "@mantine/modals"
 import { loadSyncReview } from "../googleWorkspace"
-import { coordinationAvailable } from "../workspaceStore"
+import { scheduleKey } from "../scheduleSync"
 import ScheduleConflict from "./ScheduleConflict"
 
 const EnabledGoogleSaveButtons = () => {
@@ -51,12 +51,24 @@ const EnabledGoogleSaveButtons = () => {
       setBusy(false)
     }
   }
+  const enable = async () => {
+    setBusy(true)
+    try {
+      const review = await loadSyncReview(currentUser.uid)
+      modals.open({ title: "השוואה לפני הפעלת סנכרון אוטומטי", size: "xl", centered: true,
+        children: <ScheduleConflict uid={currentUser.uid} initial={review} resumeAutomatic
+          initialChoice={!review.remote || scheduleKey(review.local.workspace) === scheduleKey(review.remote.workspace) ? "upload" : undefined}
+          onClose={() => modals.closeAll()} /> })
+    } catch (error) {
+      notifications.show({ title: "הסנכרון האוטומטי נשאר כבוי", message: error instanceof Error ? error.message : "לא ניתן לפתוח השוואה.", color: "yellow" })
+    } finally { setBusy(false) }
+  }
   return (
     <>
       <Tooltip label={automatic
         ? "כל שינוי במערכות נשמר בגוגל ומתעדכן במכשירים המחוברים. לחצו כדי לכבות."
-        : "לחצו כדי להפעיל שמירה ועדכון אוטומטיים של המערכות בגוגל."}>
-        <Menu.Item disabled={!coordinationAvailable()} renderRoot={props => <button {...props} role="menuitemcheckbox" aria-checked={automatic} />} closeMenuOnClick={false}
+        : "השוו ואשרו את העותקים לפני הפעלת שמירה ועדכון אוטומטיים."}>
+        <Menu.Item disabled={busy} renderRoot={props => <button {...props} role="menuitemcheckbox" aria-checked={automatic} />} closeMenuOnClick={!automatic}
           leftSection={<i className="fa-solid fa-cloud" aria-hidden="true" />}
           rightSection={
             // The state is spelled out as well as drawn: the switch alone read as decoration.
@@ -66,16 +78,16 @@ const EnabledGoogleSaveButtons = () => {
                 style={{ fontSize: 20, color: `var(--mantine-color-${automatic ? "cyan-6" : "dimmed"})` }} />
             </Group>
           }
-          onClick={() => setAutomatic(!automatic)}>
+          onClick={() => automatic ? setAutomatic(false) : void enable()}>
           סנכרון אוטומטי עם גוגל
         </Menu.Item>
       </Tooltip>
       <Tooltip label="פעולה זו תחליף את כל מערכות השעות ששמורות בגוגל">
-        <Menu.Item disabled={busy || !coordinationAvailable()} leftSection={<i className="fa-solid fa-save" aria-hidden="true" />} onClick={save}>
+        <Menu.Item disabled={busy} leftSection={<i className="fa-solid fa-save" aria-hidden="true" />} onClick={save}>
           גיבוי בגוגל
         </Menu.Item>
       </Tooltip>
-      <Menu.Item disabled={busy || !coordinationAvailable()} leftSection={<i className="fa-solid fa-sync" aria-hidden="true" />} onClick={restore}>
+      <Menu.Item disabled={busy} leftSection={<i className="fa-solid fa-sync" aria-hidden="true" />} onClick={restore}>
         שחזור מגוגל
       </Menu.Item>
     </>

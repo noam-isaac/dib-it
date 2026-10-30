@@ -1,4 +1,3 @@
-import { setChecked } from "./async-checkbox.mjs"
 import { prepareAnnualFeed } from "./annual-fixture.mjs"
 import assert from "node:assert/strict"
 import { chromium } from "playwright"
@@ -108,7 +107,7 @@ try {
     for await (const chunk of calendar) chunks.push(chunk)
     assert.equal(Buffer.concat(chunks).toString().match(/BEGIN:VEVENT/g).length, 17) // 14 Sundays + 3 exams
 
-    const before = await page.evaluate(() => localStorage.getItem("Dib It Workspace v2"))
+    const before = await page.evaluate(() => localStorage.getItem("Dib It"))
     for (const invalid of [
       { unrelated: true },
       { ...initial, practicedExams: { [courseId]: {} } },
@@ -119,20 +118,20 @@ try {
       await page.getByRole("menuitem").filter({ hasText: /^שחזור$/ }).click()
       await (await chooser).setFiles({ name: "invalid.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(invalid)) })
       await page.getByText("הקובץ אינו גיבוי תקין של Dib It.", { exact: true }).first().waitFor()
-      assert.equal(await page.evaluate(() => localStorage.getItem("Dib It Workspace v2")), before)
+      assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), before)
       const notice = page.locator(".mantine-Notification-root").filter({ hasText: "השחזור נכשל" })
       await notice.getByRole("button").click()
       await notice.waitFor({ state: "detached" })
     }
     await page.reload()
     await page.waitForSelector(`#course-${courseId}`)
-    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.plans.length), 2)
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).plans.length), 2)
 
-    await page.evaluate(async () => {
-      const workspace = JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace
+    await page.evaluate(() => {
+      const workspace = JSON.parse(localStorage.getItem("Dib It"))
       const plan = workspace.plans.find(plan => plan.id === workspace.activePlanId)
       plan.courses["2026a"].push({ id: "L1", groups: ["01"] }, { id: "L2", groups: ["01"] })
-      await (await import("/src/models.ts")).setWorkspace(workspace)
+      localStorage.setItem("Dib It", JSON.stringify(workspace))
     })
     await page.reload()
     await page.waitForSelector(`#course-${courseId}`)
@@ -171,7 +170,7 @@ try {
     for await (const chunk of await word.createReadStream()) wordChunks.push(chunk)
     assert.deepEqual([...Buffer.concat(wordChunks).subarray(0, 8)], [208, 207, 17, 224, 161, 177, 26, 225])
     await page.keyboard.press("Escape")
-    await page.evaluate(raw => localStorage.setItem("Dib It Workspace v2", raw), before)
+    await page.evaluate(raw => localStorage.setItem("Dib It", raw), before)
     await page.reload()
     await page.waitForSelector(`#course-${courseId}`)
 
@@ -192,9 +191,9 @@ try {
     const dialog = page.getByRole("dialog", { name: "שחזור מקובץ" })
     await dialog.getByText("משוחזרת — תיפתח לאחר השחזור", { exact: true }).waitFor()
     if (process.env.DIBIT_SCREENSHOT_DIR) await dialog.screenshot({ path: `${process.env.DIBIT_SCREENSHOT_DIR}/restore-${viewport.width}.png`, animations: "disabled" })
-    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It Workspace v2")), before)
+    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), before)
     await dialog.getByRole("button", { name: "ביטול", exact: true }).click()
-    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It Workspace v2")), before)
+    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), before)
     await restore(incoming)
     const recoveryDownload = page.waitForEvent("download")
     await dialog.getByRole("button", { name: "הורדת גיבוי של המערכות הנוכחיות", exact: true }).click()
@@ -203,18 +202,18 @@ try {
     const savedChunks = []
     for await (const chunk of await recovery.createReadStream()) savedChunks.push(chunk)
     const savedWorkspace = JSON.parse(Buffer.concat(savedChunks).toString())
-    assert.deepEqual(savedWorkspace, JSON.parse(before).workspace)
+    assert.deepEqual(savedWorkspace, JSON.parse(before))
     await page.evaluate(() => {
       const setItem = Storage.prototype.setItem
       window.restoreStorageWrites = () => { Storage.prototype.setItem = setItem }
       Storage.prototype.setItem = function (key, value) {
-        if (key === "Dib It Workspace v2") throw new DOMException("Storage full", "QuotaExceededError")
+        if (key === "Dib It") throw new DOMException("Storage full", "QuotaExceededError")
         return setItem.call(this, key, value)
       }
     })
     await dialog.getByRole("button", { name: "החלפת כל המערכות ושחזור", exact: true }).click()
     await dialog.getByText("לא ניתן לשמור את השחזור בדפדפן. המערכות הנוכחיות נשארו כפי שהן.", { exact: true }).waitFor()
-    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It Workspace v2")), before)
+    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), before)
     await page.evaluate(() => window.restoreStorageWrites())
     await dialog.getByRole("button", { name: "החלפת כל המערכות ושחזור", exact: true }).click()
     await page.getByText("השחזור הושלם", { exact: true }).waitFor()
@@ -228,7 +227,7 @@ try {
     await dialog.getByRole("button", { name: "החלפת כל המערכות ושחזור", exact: true }).click()
     await checkActivePlan("בדיקה")
     await page.locator(`#course-${courseId}`).getByText(`קורס בדיקה (${courseId})`, { exact: true }).waitFor()
-    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace), savedWorkspace)
+    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It"))), savedWorkspace)
     await page.reload()
     await checkActivePlan("בדיקה")
     if (server) {
@@ -239,29 +238,29 @@ try {
       }, incoming)
       const googleDialog = page.getByRole("dialog", { name: "שחזור מגוגל", exact: true })
       await googleDialog.waitFor()
-      assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace), savedWorkspace)
+      assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It"))), savedWorkspace)
       await googleDialog.getByRole("button", { name: "החלפת כל המערכות ושחזור", exact: true }).click()
       await checkActivePlan("משוחזרת")
-      const googleResult = await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace)
+      const googleResult = await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")))
       assert.equal(googleResult.semester, initial.semester)
       assert.equal(googleResult.tab, initial.tab)
     }
     await restore({ courses: initial.plans[0].courses })
     await dialog.getByRole("button", { name: "החלפת כל המערכות ושחזור", exact: true }).click()
     await checkActivePlan("מערכת השעות שלי")
-    const legacyResult = await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace)
+    const legacyResult = await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")))
     assert.equal(legacyResult.semester, initial.semester)
     assert.equal(legacyResult.plans.length, 1)
     assert.deepEqual(legacyResult.plans[0].courses, initial.plans[0].courses)
     for (const semester of ["2026a", "2026b"]) {
-      await page.evaluate(async semester => (await import("/src/models.ts")).setWorkspace({
+      await page.evaluate(semester => localStorage.setItem("Dib It", JSON.stringify({
         semester, tab: "schedule", courses: {},
-      }), semester)
+      })), semester)
       await page.reload()
       for (const [id, name] of [["L1", "סמינר לאוטמן"], ["L2", "מחקר מודרך לאוטמן"]]) {
         await page.getByPlaceholder("חיפוש קורסים להוספה").fill(name)
         await page.getByRole("option", { name: `${name} (${id})`, exact: true }).click()
-        await setChecked(page.locator(`#course-${id}`).getByRole("checkbox"))
+        await page.locator(`#course-${id}`).getByRole("checkbox").check()
         await page.locator("#schedule-container").getByText(`${name} (שנתי)`, { exact: true }).waitFor()
       }
       await page.getByText("שעות: 4", { exact: true }).waitFor()
