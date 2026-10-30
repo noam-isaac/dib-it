@@ -144,7 +144,7 @@ try {
       const { storedWorkspaceSchema } = await import("/src/schemas.ts")
       const workspace = getWorkspace()
       const annual = { id, groups: ["01"] }
-      setWorkspace(storedWorkspaceSchema.parse({ ...workspace, semester: "2026b", plans: workspace.plans.map(plan =>
+      await setWorkspace(storedWorkspaceSchema.parse({ ...workspace, semester: "2026b", plans: workspace.plans.map(plan =>
         plan.id === workspace.activePlanId ? { ...plan, semester: "2026a",
           courses: { "2026a": [annual], "2026b": [annual] },
         } : plan),

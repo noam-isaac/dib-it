@@ -43,6 +43,7 @@ test("plan deletion versus editing, missing baseline, duplicate IDs and all-plan
   remote.plans[1]!.name = "Edited"
   expect(compareSchedules(base, local, remote).unresolved[0]?.kind).toBe("plan")
   expect(compareSchedules(undefined, local, remote).workspace).toBeUndefined()
+  expect(compareSchedules(undefined, local, local).changes).toHaveLength(0)
   expect(compareSchedules(base, workspace("math", "math"), remote).reason).toContain("יותר מפעם")
   expect(compareSchedules(base, local, { ...base, activePlanId: "second", plans: [base.plans[1]!] }).workspace).toBeUndefined()
 })

@@ -1,6 +1,6 @@
 import { Alert, Button, Group, Text } from "@mantine/core"
 import { useEffect, useState } from "react"
-import { acknowledgeLegacy, coordinationAvailable, LEGACY_KEY, readWorkspaceRecord } from "../workspaceStore"
+import { acknowledgeLegacy, coordinationAvailable, LEGACY_KEY, readWorkspaceRecord, WORKSPACE_KEY } from "../workspaceStore"
 import { useWorkspace } from "../models"
 import { downloadBlob } from "../utilities"
 import { openScheduleRestore } from "./RestoreScheduleModal"
@@ -14,7 +14,10 @@ export default function WorkspaceNotice() {
       const value: unknown = (event as CustomEvent).detail
       setFailure(value instanceof Error ? value.message : "לא ניתן לשמור. הנתונים האחרונים שנשמרו עדיין זמינים.")
     }
-    const changed = () => setLegacy(localStorage.getItem(LEGACY_KEY))
+    const changed = (event: StorageEvent) => {
+      setLegacy(localStorage.getItem(LEGACY_KEY))
+      if (event.key === WORKSPACE_KEY) setFailure("")
+    }
     window.addEventListener("workspace-error", error)
     window.addEventListener("storage", changed)
     return () => { window.removeEventListener("workspace-error", error); window.removeEventListener("storage", changed) }

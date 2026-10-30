@@ -166,6 +166,7 @@ try {
   await dialog.getByRole("button", { name: "שמירת המיזוג", exact: true }).click()
   await page.waitForFunction(() => window.syncTest.committed)
   assert.equal(await page.evaluate(async () => (await navigator.locks.query()).held.length), 0, "network completion never holds a local lock")
+  assert.equal(await dialog.getByRole("button", { name: "שימוש בעותק מהמכשיר", exact: true }).isDisabled(), true, "a confirmed save keeps the reviewed choice fixed until it completes")
   await page.evaluate(async () => {
     await (await import("/src/models.ts")).updateWorkspace(w => ({ ...w, theme: "apple" }))
     window.syncTest.releaseApplication()
@@ -257,7 +258,7 @@ try {
   await page.waitForTimeout(1200)
   assert.equal(await page.evaluate(() => window.syncTest.writes), writes)
   assert.deepEqual(errors, [])
-  console.log("PASS: manual default, backup/restore/cancel, persistent toggle, navigation without sync, automatic upload/download, offline conflicts, mobile resolution, sign-out cleanup, legible toggle state (synthetic Firebase)")
+  console.log("PASS: reviewed merges and copy details, stale previews, conflicting choices, delayed completion, manual backup/restore, automatic sync, offline recovery and sign-out (synthetic Firebase)")
 } catch (error) {
   console.error(await page?.locator("body").innerText())
   console.error(await page?.locator("#header").ariaSnapshot())

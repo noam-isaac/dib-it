@@ -97,6 +97,7 @@ export const compareSchedules = (base: PlanWorkspace | undefined, local: PlanWor
   const shared = [baseline, local, remote].map(value => without(value, ["plans", "activePlanId", "semester", "tab"]))
   const settings = union(...shared.map(value => Object.keys(value))).map(key => ({ key, result: choose(shared[0]![key], shared[1]![key], shared[2]![key], { key: JSON.stringify(["setting", key]), label: fieldNames[key] ?? `נתונים נוספים: ${key}`, kind: "setting" }) }))
   const changes = [...plans.flatMap(part => part.changes), ...planOrder.changes, ...settings.flatMap(item => item.result.changes)]
+    .filter(change => base || !same(change.local, change.remote))
   const unresolved = changes.filter(change => change.conflict && !choices[change.key])
   const list = (planOrder.value ?? keptPlans.map(plan => plan.id)).map(id => keptPlans.find(plan => plan.id === id)!)
   const parsed = workspaceSchema.safeParse({

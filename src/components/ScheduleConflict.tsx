@@ -21,12 +21,15 @@ const courseName = (id: string, copies: PlanWorkspace[], catalog: CatalogCourses
 const description = (value: unknown, kind: ScheduleChange["kind"], names: (id: string) => string): string => {
   if (value === undefined) return "לא כלול בעותק"
   if (kind === "course") {
-    const bundle = value as { courses: Record<string, { groups?: string[]; color?: string; studyPlanCategory?: string }>; pending: unknown[] }
-    return Object.entries(bundle.courses).map(([semester, course]) => `${semester}: ${course.groups?.length ? `קבוצות ${course.groups.join(", ")}` : "ללא קבוצה"}${course.color ? ` · צבע ${course.color}` : ""}${course.studyPlanCategory ? ` · ${course.studyPlanCategory}` : ""}`).join("; ") + (bundle.pending.length ? ` · ${bundle.pending.length} שינויים שנתיים ממתינים` : "")
+    const bundle = value as { courses: Record<string, { groups?: string[]; color?: string; studyPlanCategory?: string }>; pending: { semester: string; groups: string[] | null; changedGroups?: string[] }[] }
+    return Object.entries(bundle.courses).map(([semester, course]) => [
+      `${semester}: ${course.groups?.length ? `קבוצות ${course.groups.join(", ")}` : "ללא קבוצה"}${course.color ? ` · צבע ${course.color}` : ""}${course.studyPlanCategory ? ` · ${course.studyPlanCategory}` : ""}`,
+      ...Object.entries(course).filter(([key]) => !["id", "groups", "color", "studyPlanCategory"].includes(key)).map(([key, value]) => `${key}: ${JSON.stringify(value)}`),
+    ].join(" · ")).join("; ") + (bundle.pending.length ? ` · שינויים שנתיים ממתינים: ${bundle.pending.map(change => `${change.semester}: ${change.groups === null ? "הסרת הקורס" : `קבוצות ${change.groups.join(", ") || "ללא בחירה"}`}${change.changedGroups ? `; קבוצות שהשתנו: ${change.changedGroups.join(", ")}` : ""}`).join("; ")}` : "")
   }
   if (kind === "plan") {
-    const plan = value as { name?: string; courses?: Record<string, { id: string }[]> }
-    return [plan.name, ...Object.entries(plan.courses ?? {}).map(([semester, courses]) => `${semester}: ${courses.map(course => names(course.id)).join(", ") || "ללא קורסים"}`)].filter(Boolean).join(" · ")
+    const plan = value as { name?: string; courses?: Record<string, { id: string; groups?: string[] }[]> }
+    return [plan.name, ...Object.entries(plan.courses ?? {}).map(([semester, courses]) => `${semester}: ${courses.map(course => `${names(course.id)} — קבוצות ${course.groups?.join(", ") || "ללא בחירה"}`).join("; ") || "ללא קורסים"}`)].filter(Boolean).join(" · ")
   }
   if (kind === "order" && Array.isArray(value)) return (value as string[]).map(names).join(" ← ") || "ריק"
   return typeof value === "string" ? value : JSON.stringify(value)
@@ -95,11 +98,12 @@ export default function ScheduleConflict({ uid, initial, initialChoice, onClose 
     </details>}
     {choice === "merge" && change.conflict && <Radio.Group mt="xs" label={`בחירה עבור ${change.courseId ? names(change.courseId) : change.label}`} value={choices[change.key] ?? ""}
       onChange={value => setChoices(current => ({ ...current, [change.key]: value as MergeChoice }))}>
-      <Group><Radio value="local" label="הבחירה במכשיר" /><Radio value="remote" label="הבחירה בגוגל" /></Group>
+      <Group><Radio disabled={busy} value="local" label="הבחירה במכשיר" /><Radio disabled={busy} value="remote" label="הבחירה בגוגל" /></Group>
     </Radio.Group>}
   </Paper>
   return <Stack dir="rtl">
     <Text>השוו את כל המערכות וההגדרות בשני העותקים לפני בחירה. זמן מאוחר יותר אינו מעיד שהעותק שלם יותר.</Text>
+    <Text size="sm">זמן העדכון המקומי תלוי בשעון המכשיר. שמות הקורסים מוצגים לפי המידע הזמין במכשיר.</Text>
     <SimpleGrid cols={{ base: 1, sm: 2 }}>
       <CopyContents title="העותק במכשיר" time={`${review.local.time?.source === "google" ? "תוכן שהגיע מגוגל" : "עדכון מקומי"}: ${date(review.local.time?.at)}`} workspace={local} names={names} />
       <CopyContents title="העותק בגוגל" time={`נשמר בגוגל: ${date(review.remote?.savedAt)}`} workspace={remote} names={names} />
@@ -109,13 +113,14 @@ export default function ScheduleConflict({ uid, initial, initialChoice, onClose 
       {remote && <Button variant="default" onClick={() => download(remote, "dibit-google-before-sync.json")}>הורדת העותק מגוגל</Button>}
     </Group>
     <Text fw={500}>{base ? "השינויים מאז העותק המשותף האחרון" : "הבדלים בין העותקים — ללא היסטוריה משותפת"}</Text>
+    {!!changes.length && <Text size="sm">{changes.length} סעיפים להשוואה · {comparison?.unresolved.length ?? 0} בחירות מתחרות שטרם הוכרעו</Text>}
     {!changes.length && <Text>אין הבדלי תוכן להצגה.</Text>}
     {changes.slice(0, 5).map(row)}
     {changes.length > 5 && <details open={choice === "merge"}><summary>כל ההבדלים ({changes.length})</summary><Stack mt="sm">{changes.slice(5).map(row)}</Stack></details>}
     <Group>
-      <Button variant={choice === "merge" ? "filled" : "default"} disabled={!remote || !!comparison?.reason} onClick={() => setChoice("merge")}>בדיקת מיזוג</Button>
-      <Button variant={choice === "upload" ? "filled" : "default"} onClick={() => setChoice("upload")}>שימוש בעותק מהמכשיר</Button>
-      {remote && <Button variant={choice === "download" ? "filled" : "default"} onClick={() => setChoice("download")}>שימוש בעותק מגוגל</Button>}
+      <Button variant={choice === "merge" ? "filled" : "default"} disabled={busy || !remote || !!comparison?.reason} onClick={() => setChoice("merge")}>בדיקת מיזוג</Button>
+      <Button disabled={busy} variant={choice === "upload" ? "filled" : "default"} onClick={() => setChoice("upload")}>שימוש בעותק מהמכשיר</Button>
+      {remote && <Button disabled={busy} variant={choice === "download" ? "filled" : "default"} onClick={() => setChoice("download")}>שימוש בעותק מגוגל</Button>}
     </Group>
     {comparison?.reason && <Text size="sm">{comparison.reason}</Text>}
     {choice === "merge" && <>

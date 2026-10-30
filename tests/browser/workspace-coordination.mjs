@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { chromium } from "playwright"
+import { chromium, firefox, webkit } from "playwright"
 import { createServer } from "vite"
 import { prepareAnnualFeed } from "./annual-fixture.mjs"
 
@@ -10,7 +10,7 @@ const server = await createServer({ define: { "import.meta.env.VITE_ENABLE_GOOGL
 let browser
 try {
   await server.listen()
-  browser = await chromium.launch()
+  browser = await ({ chromium, firefox, webkit })[process.env.DIBIT_BROWSER ?? "chromium"].launch()
   const context = await browser.newContext()
   await context.route("**/*", route => {
     const url = new URL(route.request().url())
@@ -84,6 +84,47 @@ try {
   assert.equal(await delayed, false)
   assert.equal((await read()).workspace.theme, "google")
   assert.equal((await read()).sync, undefined)
+
+  // Explicit replacements keep their meaning in either lock order.
+  await Promise.all(pages.map(page => page.evaluate(() => {
+    window.savedDuringReplacement = []
+    const setItem = Storage.prototype.setItem
+    Storage.prototype.setItem = function(key, value) {
+      if (key === "Dib It Workspace v2") window.savedDuringReplacement.push(JSON.parse(value))
+      return setItem.call(this, key, value)
+    }
+  })))
+  for (const replacement of ["restore", "reset"]) for (const editFirst of [true, false]) {
+    await reset()
+    await b.evaluate(() => {
+      window.releaseLock = null
+      void navigator.locks.request("dibit:workspace", () => new Promise(resolve => { window.releaseLock = resolve }))
+    })
+    await b.waitForFunction(() => !!window.releaseLock)
+    const edit = () => a.evaluate(id => document.querySelector(`#course-${id} input[type=checkbox]`).click(), ids[0])
+    const replace = () => b.evaluate(async ({ replacement, initial }) => {
+      if (replacement === "reset") await (await import("/src/workspaceStore.ts")).resetWorkspace()
+      else await (await import("/src/models.ts")).setWorkspace({ ...initial, theme: "google" })
+    }, { replacement, initial })
+    const first = editFirst ? edit() : replace()
+    if (editFirst) await first
+    await a.waitForFunction(async () => (await navigator.locks.query()).pending.length === 1)
+    const second = editFirst ? replace() : edit()
+    if (!editFirst) await second
+    await a.waitForFunction(async () => (await navigator.locks.query()).pending.length === 2)
+    await b.evaluate(() => window.releaseLock())
+    await Promise.all([first, second])
+    const result = (await read()).workspace
+    const evidence = JSON.stringify({ replacement, editFirst, result, writes: await Promise.all(pages.map(page => page.evaluate(() => window.savedDuringReplacement.slice(-4)))) })
+    if (replacement === "reset") {
+      assert.equal(Object.values(result.plans[0].courses ?? {}).flat().length, 0, evidence)
+      assert.equal((await read()).sync, undefined)
+    } else {
+      assert.equal(result.theme, "google", evidence)
+      assert.deepEqual(result.plans[0].courses["2026a"][0].groups, editFirst ? [] : ["01"], evidence)
+    }
+  }
+  await reset()
 
   // Closing a lock holder releases the browser lock; a waiting real edit completes.
   await b.evaluate(async () => {

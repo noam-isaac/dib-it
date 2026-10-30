@@ -38,7 +38,11 @@ const persist = (record: WorkspaceRecord): WorkspaceRecord => {
 }
 export const withWorkspaceLock = <T>(operation: () => T): Promise<T> => {
   const task = coordinationAvailable()
-    ? navigator.locks.request(WORKSPACE_LOCK, operation)
+    ? navigator.locks.request(WORKSPACE_LOCK, () => {
+      // Firefox reports rejected lock callbacks globally even when the request is caught.
+      // Carry the failure out of the callback, then reject the caller's promise normally.
+      try { return { value: operation() } } catch (error) { return { error } }
+    }).then((result: { value: T } | { error: unknown }) => { if ("error" in result) throw result.error; return result.value })
     : Promise.reject<T>(new Error("הדפדפן אינו תומך בשמירה מתואמת. אפשר לצפות ולהוריד גיבוי; כדי לערוך, פתחו בדפדפן עדכני."))
   // Event handlers may intentionally ignore completion; awaited callers still receive the rejection.
   void task.catch((error: unknown) => window.dispatchEvent(new CustomEvent("workspace-error", { detail: error })))

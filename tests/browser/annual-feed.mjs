@@ -36,7 +36,7 @@ try {
   const card = page.locator("#course-12345678")
   await card.waitFor()
   await card.getByRole("button", { name: /הסרת/ }).click()
-  const plan = () => page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.plans[0])
+  const plan = () => page.evaluate(async () => (await (await import("/src/workspaceStore.ts")).captureWorkspace()).workspace.plans[0])
   assert.equal((await plan()).pendingAnnualChanges[0].awaitingClassification, true)
   await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.includes("courses-2026b")))
   assert.ok(pendingFeed)

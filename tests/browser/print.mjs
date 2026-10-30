@@ -159,6 +159,7 @@ try {
     await page.keyboard.press("Escape")
     if (theme === "apple") {
       await page.getByRole("button", { name: "מבחנים", exact: true }).click()
+      await page.waitForFunction(() => JSON.parse(localStorage.getItem("Dib It Workspace v2")).workspace.tab === "exams")
       const examsBefore = await page.evaluate(() => localStorage.getItem("Dib It Workspace v2"))
       await page.evaluate(() => {
         HTMLCanvasElement.prototype.toBlob = function (...args) {
