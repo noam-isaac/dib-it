@@ -375,6 +375,8 @@ try {
   await resetPage.getByRole("menuitem", { name: "שחזור מגוגל", exact: true }).click()
   const catalogDialog = resetPage.getByRole("dialog")
   await catalogDialog.getByText("קורסים אישיים", { exact: true }).waitFor()
+  await catalogDialog.getByText("מקור שנתי (12345678) · סדר קבצים · 2026", { exact: true }).waitFor()
+  assert.equal(await catalogDialog.getByText("מקור סמסטריאלי (12345678) · סדר קבצים · 2026", { exact: true }).count(), 0)
   assert.equal(await catalogDialog.getByRole("button", { name: "בדיקת מיזוג", exact: true }).isDisabled(), true)
   await catalogDialog.getByText(/שינוי בקורסים האישיים עשוי להשפיע/).waitFor()
   assert.deepEqual(await resetPage.evaluate(() => ({ raw: localStorage.getItem("Dib It"), cloud: window.syncTest.cloud, writes: window.syncTest.writes })), beforeCatalogReview)
@@ -387,6 +389,36 @@ try {
   assert.equal(await resetPage.evaluate(() => window.syncTest.writes), beforeCatalogReview.writes)
   assert.deepEqual(resetErrors, [])
   console.log("PASS: catalog source reordering is visible, unsafe merge is disabled, and whole-copy download preserves semester intent")
+  // Matching current catalogs must show their last source in rows, contents and preview.
+  await resetPage.getByRole("checkbox", { name: "קבוצה 01", exact: true }).uncheck()
+  await resetPage.getByRole("button", { name: "פעולות", exact: true }).click()
+  await resetPage.getByRole("menuitem", { name: "שחזור מגוגל", exact: true }).click()
+  await catalogDialog.getByText("מקור סמסטריאלי (12345678) · סדר קבצים · 2026", { exact: true }).waitFor()
+  await catalogDialog.getByRole("button", { name: "בדיקת מיזוג", exact: true }).click()
+  for (const details of await catalogDialog.locator("details").all()) await details.locator("summary").click()
+  assert.equal(await catalogDialog.getByText("מקור סמסטריאלי (12345678) — ללא קבוצה", { exact: true }).count(), 2)
+  assert.equal(await catalogDialog.getByText("מקור סמסטריאלי (12345678) — קבוצות 01", { exact: true }).count(), 1)
+  await catalogDialog.getByRole("button", { name: "ביטול", exact: true }).click()
+  // An unnamed winning definition must not revive an earlier source's obsolete name.
+  await resetPage.evaluate(async () => {
+    const { getWorkspace, setWorkspace } = await import("/src/models.ts")
+    const w = getWorkspace()
+    const winner = w.customCourses["z-semester.json"]["12345678"]
+    const { name, ...unnamed } = winner
+    const customCourses = { ...w.customCourses, "z-semester.json": { "12345678": unnamed } }
+    setWorkspace({ ...w, customCourses })
+    const remote = structuredClone(window.syncTest.cloud)
+    remote.workspace.customCourses = customCourses
+    remote.revision++
+    window.syncTest.remote(remote)
+  })
+  await resetPage.getByRole("button", { name: "פעולות", exact: true }).click()
+  await resetPage.getByRole("menuitem", { name: "שחזור מגוגל", exact: true }).click()
+  await catalogDialog.getByText("12345678 (12345678) · סדר קבצים · 2026", { exact: true }).waitFor()
+  assert.equal(await catalogDialog.getByText("מקור שנתי (12345678) · סדר קבצים · 2026", { exact: true }).count(), 0)
+  await catalogDialog.getByRole("button", { name: "ביטול", exact: true }).click()
+  assert.deepEqual(resetErrors, [])
+  console.log("PASS: comparison names use each copy's winning catalog definition, including unnamed replacements")
   await resetPage.close()
   console.log("PASS: reviewed merges and copy times/details, archived cloud original download, automatic conflict popup and pause, explicit resume/cancel, stale cloud/local choices, delayed completion, offline recovery and sign-out without Web Locks (synthetic Firebase)")
 } catch (error) {

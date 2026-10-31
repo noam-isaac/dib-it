@@ -17,7 +17,9 @@ const date = (at: number | null | undefined) => at == null ? "זמן לא זמי
   year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short",
 }).format(at)
 const courseName = (id: string, copies: PlanWorkspace[], catalog: CatalogCourses) => {
-  const custom = copies.flatMap(copy => Object.values(copy.customCourses ?? {})).find(catalog => catalog[id]?.name)?.[id]?.name
+  // Resolve the winning definition first; an unnamed override retires earlier names.
+  const custom = copies.map(copy => Object.values(copy.customCourses ?? {})
+    .reduce<SemesterCourseInfo | undefined>((winner, source) => source[id] ?? winner, undefined)?.name).find(Boolean)
   const official = catalog[id]?.name
   return custom ?? official ?? id
 }
