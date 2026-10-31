@@ -13,14 +13,16 @@ import ExamDataNotice from "./ExamDataNotice"
 import { useMemo, useState } from "react"
 import { useCourseInfo } from "../CourseInfoContext"
 import { collectExams, filterExamDates, isCourseScheduled } from "../exams"
-import { getDibIt, useDibIt } from "../models"
-import { getColor, revealCourse } from "../utilities"
+import { useDibIt } from "../models"
+import { getColor } from "../utilities"
 import { searchItems } from "../search"
+import { useCourseFocus } from "../CourseFocusContext"
 
 const PAGE_SIZE = 30
 
 const ExamSearch = ({ initialDate }: { initialDate: string }) => {
   const info = useCourseInfo()
+  const { revealCourse } = useCourseFocus()
   const [dibIt, setDibIt] = useDibIt()
   const [start, setStart] = useState(initialDate)
   const [end, setEnd] = useState("")
@@ -59,14 +61,12 @@ const ExamSearch = ({ initialDate }: { initialDate: string }) => {
   const totalPages = Math.max(1, Math.ceil(results.length / PAGE_SIZE))
   const visiblePage = Math.min(page, totalPages)
   const addCourse = (id: string) => {
-    const latest = getDibIt()
-    const courses = latest.courses?.[semester] ?? []
-    if (!courses.some((course) => course.id === id)) {
-      setDibIt({
-        ...latest,
-        courses: { ...latest.courses, [semester]: [...courses, { id }] },
-      })
-    }
+    setDibIt(current => {
+      const courses = current.courses?.[semester] ?? []
+      return courses.some(course => course.id === id) ? current : {
+        ...current, courses: { ...current.courses, [semester]: [...courses, { id }] },
+      }
+    })
     revealCourse(id)
   }
   return (

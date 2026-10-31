@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react"
+import { useCourseFocus } from "../CourseFocusContext"
 import { dataUrls } from "../dataUrls"
 import { allTimeCoursesSchema, gradesSchema } from "../schemas"
 import { ActionIcon, Alert, Loader, Badge, Button, Checkbox, ColorInput, Tooltip } from "@mantine/core"
@@ -32,6 +34,20 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
   const course = courses[index]
 
   const courseInfo = useCourseInfo()
+  const cardRef = useRef<HTMLDivElement>(null)
+  const groupRef = useRef<HTMLInputElement>(null)
+  const { request, complete } = useCourseFocus()
+  const ready = !loadingCourses && !loadingGrades && !courseLoad.failed && !gradeLoad.failed
+  useEffect(() => {
+    if (!ready || !request || request.courseId !== course?.id || !cardRef.current) return
+    // A later interaction (including opening a dialog) cancels the pending focus.
+    if (document.activeElement === request.origin) {
+      cardRef.current.scrollIntoView({ behavior: "smooth", block: "center" })
+      groupRef.current?.focus({ preventScroll: true })
+      if (request.highlight) cardRef.current.animate([{ scale: 1 }, { scale: 1.03 }, { scale: 1 }], { duration: 500 })
+    }
+    complete(request)
+  }, [ready, request, course?.id, complete])
   if (!course) return null
   const annualGroups = annualGroupIds(dibIt, semester, course.id)
   if (courseLoad.failed || gradeLoad.failed) return <Alert color="red" role="alert">
@@ -73,6 +89,7 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
 
   return (
     <div
+      ref={cardRef}
       id={`course-${course.id}`}
       key={course.id}
       className="card"
@@ -109,12 +126,17 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
               className="fa-solid fa-chevron-up"
               style={{ cursor: "pointer" }}
               onClick={() => {
-                const previous = courses[index - 1]
-                const current = courses[index]
-                if (!previous || !current) return
-                courses[index] = previous
-                courses[index - 1] = current
-                setDibIt({ ...dibIt })
+                setDibIt(current => {
+                  const latest = current.courses?.[semester] ?? []
+                  const position = latest.findIndex(item => item.id === course.id)
+                  const adjacent = position - 1
+                  const selected = latest[position]
+                  const neighbor = latest[adjacent]
+                  if (!selected || !neighbor) return current
+                  return { ...current, courses: { ...current.courses,
+                    [semester]: latest.map((item, index) => index === position ? neighbor : index === adjacent ? selected : item),
+                  } }
+                })
               }}
             />
           )}
@@ -126,12 +148,17 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
                 cursor: "pointer",
               }}
               onClick={() => {
-                const next = courses[index + 1]
-                const current = courses[index]
-                if (!next || !current) return
-                courses[index] = next
-                courses[index + 1] = current
-                setDibIt({ ...dibIt })
+                setDibIt(current => {
+                  const latest = current.courses?.[semester] ?? []
+                  const position = latest.findIndex(item => item.id === course.id)
+                  const adjacent = position + 1
+                  const selected = latest[position]
+                  const neighbor = latest[adjacent]
+                  if (!selected || !neighbor) return current
+                  return { ...current, courses: { ...current.courses,
+                    [semester]: latest.map((item, index) => index === position ? neighbor : index === adjacent ? selected : item),
+                  } }
+                })
               }}
             />
           )}
@@ -142,8 +169,9 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
             className="fa-solid fa-trash"
             style={{ cursor: "pointer" }}
             onClick={() => {
-              courses.splice(index, 1)
-              setDibIt({ ...dibIt })
+              setDibIt(current => ({ ...current, courses: { ...current.courses,
+                [semester]: (current.courses?.[semester] ?? []).filter(item => item.id !== course.id),
+              } }))
             }}
           />
         </Tooltip>
@@ -178,23 +206,24 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
           )}
         </div>
       )}
-      {[...courseInfo[course.id]?.groups.values() ?? []].map((group) => (
+      {[...courseInfo[course.id]?.groups.values() ?? []].map((group, groupIndex) => (
         <div
           key={group.group}
           style={{ display: "flex", alignItems: "center" }}
         >
           <Checkbox
+            ref={groupIndex === 0 ? groupRef : undefined}
             aria-label={`קבוצה ${group.group}${annualGroups.includes(group.group!) ? " — שנתית, מסונכרנת בין סמסטר א׳ וב׳" : ""}`}
             styles={{ input: { cursor: "pointer" } }}
             ml={10}
             checked={course.groups?.includes(group.group) ?? false}
-            onChange={() => {
-              const groups = course.groups?.includes(group.group)
-                ? course.groups.filter(id => id !== group.group)
-                : [...course.groups ?? [], group.group]
-              setDibIt({ ...dibIt, courses: { ...dibIt.courses,
-                [semester]: courses.map(item => item.id === course.id ? { ...item, groups } : item),
-              } })
+            onChange={(event) => {
+              const checked = event.currentTarget.checked
+              setDibIt(current => ({ ...current, courses: { ...current.courses,
+                [semester]: (current.courses?.[semester] ?? []).map(item => item.id === course.id ? { ...item,
+                  groups: checked ? [...new Set([...item.groups ?? [], group.group])] : item.groups?.filter(id => id !== group.group) ?? [],
+                } : item),
+              } }))
             }}
           />
           {group.status === "ready" ? <span>{group.group} ({group.data.lessons?.[0]?.type ?? ""}): {group.data.lecturer}</span>
@@ -215,8 +244,10 @@ const CourseCard = ({ index, semester, compactView }: CourseCardProps) => {
               size="md"
               value={courseColor}
               onChange={(color) => {
-                course.color = color === "" ? getDefaultColor(course) : color
-                setDibIt({ ...dibIt })
+                setDibIt(current => ({ ...current, courses: { ...current.courses,
+                  [semester]: (current.courses?.[semester] ?? []).map(item => item.id === course.id
+                    ? { ...item, color: color === "" ? getDefaultColor(item) : color } : item),
+                } }))
               }}
             />
           </div>

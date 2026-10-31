@@ -148,18 +148,30 @@ const annualChangeSchema = z.looseObject({
   changedGroups: z.array(z.string()).optional(),
   awaitingClassification: z.literal(true).optional(),
 })
-export const schedulePlanSchema = dibItSchema.extend({
+export const navigationSchema = dibItSchema.pick({ tab: true, semester: true })
+export const sharedSettingsSchema = dibItSchema.pick({
+  openedPracticeCourses: true, practicedExams: true, theme: true, customCourses: true,
+})
+export const planDataSchema = dibItSchema.pick({
+  courses: true, school: true, studyPlan: true, savedStudyPlans: true, degreeStartYear: true,
+})
+// Wrong-owner historical fields are retained by looseObject, but never validated or used as live fields.
+export const schedulePlanSchema = z.looseObject({
+  ...planDataSchema.shape,
   id: z.string().refine(s => !!s.trim()),
   name: z.string().refine(s => !!s.trim()),
   pendingAnnualChanges: z.array(annualChangeSchema).optional(),
   plans: z.never().optional(),
 })
-export const workspaceSchema = dibItSchema.extend({
+export const workspaceSchema = z.looseObject({
+  ...navigationSchema.shape,
+  ...sharedSettingsSchema.shape,
+  schemaVersion: z.literal(1).optional(),
   plans: z.array(schedulePlanSchema).min(1),
   activePlanId: z.string(),
 }).refine(value => new Set(value.plans.map(plan => plan.id)).size === value.plans.length &&
   value.plans.some(plan => plan.id === value.activePlanId))
-export const storedWorkspaceSchema = z.union([workspaceSchema, dibItSchema.extend({ plans: z.never().optional() })])
+export const storedWorkspaceSchema = z.union([workspaceSchema, dibItSchema.extend({ plans: z.never().optional(), schemaVersion: z.never().optional() })])
 export const scheduleBackupSchema = storedWorkspaceSchema.refine(value =>
   "plans" in value && value.plans !== undefined || [
     "courses", "semester", "tab", "school", "studyPlan", "degreeStartYear", "theme",

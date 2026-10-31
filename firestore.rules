@@ -3,8 +3,43 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // A user may access one private backup, never another user's data.
     match /users/{userId} {
-      allow get, create, update, delete:
-        if request.auth != null && request.auth.uid == userId;
+      function owner() { return request.auth != null && request.auth.uid == userId; }
+      function coordinated() {
+        return request.resource.data.keys().hasOnly(['protocol', 'revision', 'savedAt', 'workspace', 'migrationOriginal'])
+          && request.resource.data.protocol == 2
+          && request.resource.data.revision is int
+          && request.resource.data.workspace is map
+          && request.resource.data.workspace.schemaVersion == 1
+          && (!request.resource.data.keys().hasAny(['migrationOriginal']) || request.resource.data.migrationOriginal is map)
+          && request.resource.data.savedAt == request.time;
+      }
+      function envelope(data) {
+        return data.keys().hasAll(['protocol', 'revision', 'savedAt', 'workspace']);
+      }
+      function supported(data) {
+        return data is map && (!data.keys().hasAny(['schemaVersion']) || data.schemaVersion == 1);
+      }
+      function preservesOriginal() {
+        let source = envelope(resource.data) ? resource.data.workspace : resource.data;
+        return envelope(resource.data) && resource.data.keys().hasAny(['migrationOriginal'])
+          ? request.resource.data.keys().hasAny(['migrationOriginal'])
+            && request.resource.data.migrationOriginal == resource.data.migrationOriginal
+          : (!source.keys().hasAny(['schemaVersion'])
+            ? request.resource.data.keys().hasAny(['migrationOriginal']) && request.resource.data.migrationOriginal == source
+            : !request.resource.data.keys().hasAny(['migrationOriginal']));
+      }
+      allow get: if owner();
+      allow create: if owner() && coordinated() && request.resource.data.revision == 1
+        && !request.resource.data.keys().hasAny(['migrationOriginal']);
+      allow update: if owner() && coordinated()
+        && preservesOriginal()
+        && (envelope(resource.data)
+          ? resource.data.keys().hasOnly(['protocol', 'revision', 'savedAt', 'workspace', 'migrationOriginal'])
+            && resource.data.protocol == 2 && supported(resource.data.workspace)
+            && request.resource.data.revision == resource.data.revision + 1
+          : supported(resource.data) && request.resource.data.revision == 1);
+      // Local recovery never deletes the cloud backup. Reject obsolete deletes and unversioned writes.
+      allow delete: if false;
     }
     // All other documents, subcollections and collection queries are denied.
   }

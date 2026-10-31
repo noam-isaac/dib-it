@@ -3,7 +3,7 @@ import { Button, Select, Switch } from "@mantine/core"
 import { useLocalStorage } from "../hooks"
 import { useState } from "react"
 import { annualYear } from "../annualRegistry"
-import { refreshAnnualClassification, getDibIt, useDibIt } from "../models"
+import { refreshAnnualClassification, useDibIt } from "../models"
 import { isScheduleBackup } from "../scheduleBackup"
 import { notifications } from "@mantine/notifications"
 import { Dropzone } from "@mantine/dropzone"
@@ -62,8 +62,7 @@ const Settings = ({ hiddenTabs, onHiddenTabsChange }: {
         ]}
         value={dibIt.theme ?? "apple"}
         onChange={(v) => {
-          dibIt.theme = v === "google" ? "google" : "apple"
-          setDibIt({ ...dibIt })
+          setDibIt(current => ({ ...current, theme: v === "google" ? "google" : "apple" }))
         }}
       />
       <Dropzone
@@ -73,8 +72,7 @@ const Settings = ({ hiddenTabs, onHiddenTabsChange }: {
               [file.name, semesterCoursesSchema.parse(JSON.parse(await file.text()) as unknown)] as const,
             )))
             if (!isScheduleBackup({ customCourses })) throw new Error("קובץ הקורסים אינו תקין.")
-            const latest = getDibIt()
-            setDibIt({ ...latest, customCourses: { ...latest.customCourses, ...customCourses } })
+            setDibIt(current => ({ ...current, customCourses: { ...current.customCourses, ...customCourses } }))
           } catch (error) {
             notifications.show({ title: "ייבוא הקורסים נכשל", message: error instanceof Error ? error.message : "לא ניתן לקרוא את הקובץ.", color: "red" })
           }
@@ -98,9 +96,9 @@ const Settings = ({ hiddenTabs, onHiddenTabsChange }: {
           ml={5}
           rightSection={<i className="fa-solid fa-trash" />}
           onClick={() => {
-            const customCourses = { ...dibIt.customCourses }
-            delete customCourses[filename]
-            setDibIt({ ...dibIt, customCourses })
+            setDibIt(current => ({ ...current,
+              customCourses: Object.fromEntries(Object.entries(current.customCourses ?? {}).filter(([name]) => name !== filename)),
+            }))
           }}
         >
           {filename}

@@ -7,12 +7,14 @@ import { refreshAnnualFeed } from "./annualRegistry"
 let catalogs: Record<string, CatalogCourses> = {}
 let version = 0
 let annualFeedFailed = false
+let defaultSemester: string | undefined
 const listeners = new Set<() => void>()
 const changed = () => { version += 1; listeners.forEach(listener => listener()) }
 export const subscribeCatalog = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } }
 export const catalogVersion = () => version
 export const getSemesterCatalogs = () => catalogs
 export const hasAnnualFeedFailed = () => annualFeedFailed
+export const getDefaultSemester = () => defaultSemester
 export const cacheSemesterCourses = (semester: string, source: unknown) => {
   const imported = importSemesterCourses(semester, source)
   catalogs = { ...catalogs, [semester]: imported }
@@ -25,7 +27,10 @@ export const loadSemesterCourses = async (semester: string) => {
     semesterCoursesSchema, assertCourseCatalog)
   return cacheSemesterCourses(semester, source)
 }
-export const loadGeneralInfo = () => cachedFetch(dataUrls.info, generalInfoSchema)
+export const loadGeneralInfo = () => cachedFetch(dataUrls.info, generalInfoSchema).then(info => {
+  if (defaultSemester !== info.currentSemester) { defaultSemester = info.currentSemester; changed() }
+  return info
+})
 export const refreshAnnualData = async () => {
   try {
     await refreshAnnualFeed()

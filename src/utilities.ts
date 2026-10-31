@@ -71,9 +71,7 @@ export const downloadBlob = (filename: string, blob: Blob) => {
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
-export const createExportImage = async () => {
-  const content = document.getElementById("export-content")
-  const element = content?.querySelector<HTMLElement>("#schedule-container") ?? content
+export const createExportImage = async (element: HTMLElement | null, timetable: boolean) => {
   if (!element) throw new Error("אין תוכן לייצוא. נסו שוב לאחר טעינת הנתונים.")
   // Reflow a DOM copy of the displayed content; never resize the live page.
   const wrapper = document.createElement("div")
@@ -83,7 +81,7 @@ export const createExportImage = async () => {
   const copy = element.cloneNode(true) as HTMLElement
   Object.assign(copy.style, { width: "1400px", maxWidth: "none", overflowWrap: "anywhere" })
   copy.querySelectorAll(".dont-print").forEach(control => control.remove())
-  if (element === content) Object.assign(copy.style, { padding: "16px", boxSizing: "border-box" })
+  if (!timetable) Object.assign(copy.style, { padding: "16px", boxSizing: "border-box" })
   copy.style.setProperty("--schedule-hour-height", "100px")
   wrapper.append(copy)
   document.body.append(wrapper)
@@ -108,7 +106,7 @@ export const createExportImage = async () => {
   }
 }
 
-export const uploadJson = (): Promise<unknown> => {
+export const uploadJson = (): Promise<{ data: unknown; raw: string }> => {
   return new Promise((resolve, reject) => {
     const element = document.getElementById("upload") as HTMLInputElement
     element.value = ""
@@ -117,7 +115,8 @@ export const uploadJson = (): Promise<unknown> => {
       const reader = new FileReader()
       reader.addEventListener("load", (e) => {
         try {
-          resolve(JSON.parse(e.target!.result as string))
+          const raw = e.target!.result as string
+          resolve({ data: JSON.parse(raw) as unknown, raw })
         } catch (error) {
           reject(error)
         }
@@ -166,15 +165,6 @@ export const sumHours = (info: CatalogCourses, view: DibIt) =>
       const start = parseTime(times[0]), end = parseTime(times[1])
       return minutes + (start !== undefined && end !== undefined && end > start ? end - start : 0)
     }, 0) / 60
-
-/** Scroll to a course and focus its group control after rendering. */
-export const revealCourse = (id: string) => {
-  requestAnimationFrame(() => {
-    const card = document.getElementById(`course-${id}`)
-    card?.scrollIntoView({ behavior: "smooth", block: "center" })
-    card?.querySelector<HTMLElement>('input[type="checkbox"]')?.focus({ preventScroll: true })
-  })
-}
 
 export const getPastAndPresentCourses = (dibIt: DibIt, until?: string) => {
   const pastCourses = new Set<string>()

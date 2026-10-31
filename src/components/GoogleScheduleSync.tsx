@@ -1,126 +1,87 @@
-import { z } from "zod"
 import { booleanSchema } from "../schemas"
-import { Alert, Button, Group, Modal, Stack, Text } from "@mantine/core"
-import { doc, onSnapshot, runTransaction } from "firebase/firestore"
-import { useEffect, useRef, useState } from "react"
+import { Button, Modal, Text } from "@mantine/core"
+import { onSnapshot } from "firebase/firestore"
+import { useEffect, useState } from "react"
 import { useAuthState } from "react-firebase-hooks/auth"
 import { auth, firestore } from "../firebase"
 import { useLocalStorage } from "../hooks"
-import { getWorkspace, setWorkspace } from "../models"
-import type { PlanWorkspace } from "../plans"
-import { cloudScheduleData, readCloudSchedule, scheduleKey, startScheduleSync, type SyncStatus } from "../scheduleSync"
-import { downloadBlob } from "../utilities"
+import { scheduleKey, startScheduleSync, type SyncReview, type SyncStatus } from "../scheduleSync"
+import { readLocalCopy } from "../localSchedule"
+import { googleReference, googleSyncOptions, loadSyncReview } from "../googleWorkspace"
+import ScheduleConflict from "./ScheduleConflict"
 
 const EnabledGoogleScheduleSync = () => {
   const [user] = useAuthState(auth!)
-  const [automatic] = useLocalStorage({ key: "Automatic Google Sync", schema: booleanSchema, defaultValue: false })
+  const [automatic, setAutomatic] = useLocalStorage({ key: "Automatic Google Sync", schema: booleanSchema, defaultValue: false })
   const [status, setStatus] = useState<SyncStatus>("connecting")
-  const [remote, setRemote] = useState<PlanWorkspace | null>(null)
-  const [opened, setOpened] = useState(false)
+  const [review, setReview] = useState<SyncReview>()
   const [error, setError] = useState("")
   const [retry, setRetry] = useState(0)
-  const controller = useRef<ReturnType<typeof startScheduleSync> | null>(null)
-
+  useEffect(() => { setReview(undefined); setStatus("connecting") }, [user?.uid])
   useEffect(() => {
-    setOpened(false)
     if (!user || !automatic) return
     setStatus("connecting")
     const uid = user.uid
-    const reference = doc(firestore!, "users", uid)
-    let listenerFailed = false
     let listenerTimer: ReturnType<typeof setTimeout> | undefined
     let unsubscribe: (() => void) | undefined
-    const sync = startScheduleSync({
-      read: getWorkspace,
-      apply: setWorkspace,
-      base: () => {
-        const saved = z.object({ uid: z.string(), base: z.string().nullable().optional() }).nullable().parse(
-          JSON.parse(localStorage.getItem("Dib It Sync") ?? "null") as unknown)
-        if (!saved) localStorage.setItem("Dib It Sync", JSON.stringify({ uid }))
-        // Switching accounts requires a choice before uploading the previous account's schedules.
-        return saved && saved.uid !== uid ? "different-account" : saved?.base
-      },
-      remember: base => localStorage.setItem("Dib It Sync", JSON.stringify({ uid, base })),
-      exchange: decide => runTransaction(firestore!, async transaction => {
-        const snapshot = await transaction.get(reference)
-        if (auth!.currentUser?.uid !== uid) throw new Error("Account changed")
-        const cloud = readCloudSchedule(snapshot.data())
-        const upload = decide(cloud)
-        if (upload) transaction.set(reference, cloudScheduleData(upload, uid))
-        return cloud
-      }),
-      status: (next, cloud, failure) => {
-        if (listenerFailed) return
-        setStatus(next)
-        if (next === "conflict") setRemote(cloud ?? null)
-        if (failure) setError(failure instanceof Error ? failure.message : "נסו שוב מאוחר יותר.")
-      },
-    })
-    controller.current = sync
-    sync.schedule(0)
+    let listenerFailed = false, stopped = false
+    const sync = startScheduleSync(googleSyncOptions(uid, (next, comparison, failure) => {
+      if (next === "conflict") {
+        stopped = true; sync.stop(); clearTimeout(listenerTimer); unsubscribe?.()
+        setStatus("conflict"); setReview(comparison); setError("")
+        try { setAutomatic(false) }
+        catch { setError("הסנכרון נעצר בלשונית זו, אך לא ניתן לשמור את הכיבוי בדפדפן. בדקו שוב לפני טעינה מחדש.") }
+        return
+      }
+      if (listenerFailed) return
+      setStatus(next)
+      if (failure) setError(failure instanceof Error ? failure.message : "נסו שוב מאוחר יותר.")
+    }, () => !stopped && localStorage.getItem("Automatic Google Sync") === "true"))
     const listen = () => {
-      clearTimeout(listenerTimer)
-      unsubscribe?.()
-      unsubscribe = onSnapshot(reference, { includeMetadataChanges: true }, snapshot => {
+      if (stopped) return
+      clearTimeout(listenerTimer); unsubscribe?.()
+      unsubscribe = onSnapshot(googleReference(uid), { includeMetadataChanges: true }, snapshot => {
         if (!snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites) {
-          listenerFailed = false
-          sync.schedule(0)
+          listenerFailed = false; sync.schedule(0)
         }
       }, failure => {
-        listenerFailed = true
-        setError(failure.message)
-        setStatus("error")
+        listenerFailed = true; setError(failure.message); setStatus("error")
         listenerTimer = setTimeout(listen, 30000)
       })
     }
-    listen()
-    let localKey = scheduleKey(getWorkspace())
+    sync.schedule(0); listen()
+    let content = scheduleKey(readLocalCopy().workspace)
     const changed = (event: StorageEvent) => {
       if (event.key !== "Dib It" && event.key !== null) return
-      const nextKey = scheduleKey(getWorkspace())
-      if (nextKey !== localKey) { localKey = nextKey; sync.schedule() }
+      try {
+        const next = scheduleKey(readLocalCopy().workspace)
+        if (next !== content) { content = next; sync.schedule() }
+      } catch { setStatus("error"); setError("לא ניתן לקרוא את המערכות במכשיר. הורידו גיבוי לפני שחזור.") }
     }
     const resume = () => { if (listenerFailed) listen(); sync.schedule(0) }
     window.addEventListener("storage", changed)
     window.addEventListener("online", resume)
     window.addEventListener("focus", resume)
     return () => {
-      sync.stop()
-      clearTimeout(listenerTimer)
-      unsubscribe?.()
-      controller.current = null
+      stopped = true; sync.stop(); clearTimeout(listenerTimer); unsubscribe?.()
       window.removeEventListener("storage", changed)
       window.removeEventListener("online", resume)
       window.removeEventListener("focus", resume)
     }
   }, [user?.uid, automatic, retry])
-
-  if (!user || !automatic || (status !== "conflict" && status !== "error")) return null
-  const download = (workspace: PlanWorkspace, name: string) =>
-    downloadBlob(name, new Blob([JSON.stringify(workspace)], { type: "application/json" }))
-  return (
-    <div className="dont-print" dir="rtl" style={{ textAlign: "center", padding: 4 }}>
-      <Text size="sm" role="status">{status === "conflict" ? "העותקים במכשיר ובגוגל שונים — בחרו איזה מהם לשמור." : "המערכות נשמרו במכשיר. הסנכרון לגוגל לא הושלם."}</Text>
-      {status === "error" && <Text size="sm" dir="auto">{error}</Text>}
-      {status === "conflict" && <Button size="compact-xs" variant="subtle" color="gray" onClick={() => setOpened(true)}>בחירת המערכות לסנכרון</Button>}
-      {status === "error" && <Button size="compact-xs" variant="subtle" color="gray" title={error} onClick={() => setRetry(value => value + 1)}>ניסיון נוסף</Button>}
-      <Modal opened={opened} onClose={() => setOpened(false)} title="בחירת המערכות לסנכרון" centered>
-        <Stack dir="rtl">
-          <Alert color="yellow">המערכות במכשיר ובגוגל שונות. הסנכרון ממתין לבחירתכם כדי לא לדרוס שינויים. הבחירה תחליף את כל המערכות בעותק השני ותסתנכרן למכשירים המחוברים.</Alert>
-          <Text size="sm">אפשר להוריד את שני העותקים כגיבוי לפני הבחירה.</Text>
-          <Group>
-            <Button variant="default" onClick={() => download(getWorkspace(), "dibit-local-before-sync.json")}>הורדת העותק המקומי</Button>
-            {remote && <Button variant="default" onClick={() => download(remote, "dibit-google-before-sync.json")}>הורדת העותק מגוגל</Button>}
-          </Group>
-          <Text>במכשיר: {getWorkspace().plans.map(plan => plan.name).join(", ")}</Text>
-          <Text>בגוגל: {remote?.plans.map(plan => plan.name).join(", ") || "אין גיבוי"}</Text>
-          <Button variant="light" color="red" onClick={() => { controller.current?.resolve("upload", remote); setOpened(false) }}>החלפת גוגל במערכות מהמכשיר</Button>
-          {remote && <Button variant="light" color="red" onClick={() => { controller.current?.resolve("download", remote); setOpened(false) }}>החלפת המערכות במכשיר בעותק מגוגל</Button>}
-        </Stack>
-      </Modal>
-    </div>
-  )
+  if (!user || (!review && status !== "conflict" && !(automatic && ["error", "pending"].includes(status)))) return null
+  return <div className="dont-print" dir="rtl" style={{ textAlign: "center", padding: 4 }}>
+    <Text size="sm" role="status">{status === "conflict" ? "הסנכרון האוטומטי במכשיר הזה כובה בעקבות הבדלים בין העותקים. השוו את הקורסים והבחירות לפני הפעלה מחדש." : status === "pending" ? "השינויים הנוספים במכשיר נשמרו וממתינים לסנכרון." : status === "error" ? "הסנכרון לגוגל לא הושלם. הנתונים במכשיר נשמרו." : "השוואת העותקים שנפתחו לבדיקה — אפשר לרענן כדי לקבל את העדכון האחרון."}</Text>
+    {error && ["error", "conflict"].includes(status) && <Text size="sm" dir="auto">{error}</Text>}
+    {status === "error" && automatic && <Button size="compact-xs" variant="subtle" onClick={() => setRetry(value => value + 1)}>ניסיון נוסף</Button>}
+    <Button size="compact-xs" variant="subtle" onClick={async () => {
+      try { setReview(await loadSyncReview(user.uid)) }
+      catch (failure) { setError(failure instanceof Error ? failure.message : "לא ניתן לפתוח השוואה."); setStatus("error") }
+    }}>השוואה ומיזוג מערכות</Button>
+    <Modal opened={!!review} onClose={() => setReview(undefined)} title="השוואה ומיזוג מערכות" size="xl" centered>
+      {review && <ScheduleConflict uid={user.uid} initial={review} onClose={() => setReview(undefined)} />}
+    </Modal>
+  </div>
 }
-
 const GoogleScheduleSync = () => auth && firestore ? <EnabledGoogleScheduleSync /> : null
 export default GoogleScheduleSync

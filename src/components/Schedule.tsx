@@ -1,4 +1,5 @@
 import { booleanSchema } from "../schemas"
+import { type Ref } from "react"
 import { selectedGroups, selectedCatalogConflicts } from "../catalog"
 import { useColorScheme } from "@mantine/hooks"
 import {
@@ -11,7 +12,8 @@ import {
 import { useCourseInfo } from "../CourseInfoContext"
 import { useLocalStorage } from "../hooks"
 import { useDibIt } from "../models"
-import { getColor, parseTime, revealCourse } from "../utilities"
+import { getColor, parseTime } from "../utilities"
+import { useCourseFocus } from "../CourseFocusContext"
 
 const googleWideScheduleTheme = createTheme("google", {
   hourHeight: "var(--schedule-hour-height, 85px)",
@@ -45,7 +47,8 @@ const themes: Record<
   apple: [compactScheduleTheme, wideScheduleTheme],
 }
 
-const Schedule = () => {
+const Schedule = ({ exportRef }: { exportRef: Ref<HTMLDivElement> }) => {
+  const { revealCourse } = useCourseFocus()
   const courseInfo = useCourseInfo()
   const [compactView] = useLocalStorage({
     schema: booleanSchema,
@@ -92,6 +95,7 @@ const Schedule = () => {
       <div
         dir="rtl"
         id="schedule-container"
+        ref={exportRef}
         className={compactView ? "" : "wide"}
         style={{ minWidth: compactView ? undefined : 600, maxWidth: "100%" }}
       >
@@ -109,16 +113,7 @@ const Schedule = () => {
           daySchedules={data}
           viewStartTime={8}
           viewEndTime={20}
-          handleEventClick={(event) => {
-            const id: string = event.id
-
-            const card = document.getElementById(`course-${id}`)
-            if (card) {
-              revealCourse(id)
-              card.style.scale = "1.03"
-              setTimeout(() => (card.style.scale = "1"), 500)
-            }
-          }}
+          handleEventClick={event => revealCourse(event.id, true)}
         />
       </div>
     </div>

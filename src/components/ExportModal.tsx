@@ -1,8 +1,13 @@
-import { Button, Stack, Text } from "@mantine/core"
-import { useState } from "react"
+import { Button, Modal, Stack, Text } from "@mantine/core"
+import { useState, type RefObject } from "react"
 import { createExportImage, downloadBlob } from "../utilities"
 
-export default function ExportModal({ semester }: { semester: string }) {
+export default function ExportModal({ semester, target, timetable, onClose }: {
+  semester: string
+  target: RefObject<HTMLDivElement | null>
+  timetable: boolean
+  onClose: () => void
+}) {
   const [working, setWorking] = useState(false)
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
@@ -16,13 +21,13 @@ export default function ExportModal({ semester }: { semester: string }) {
           throw new Error("הדפדפן לא תומך בהעתקת תמונות. אפשר לבחור בשמירה כתמונה.")
         }
         // Start the clipboard write during the click; Safari requires user activation.
-        const image = createExportImage()
+        const image = createExportImage(target.current, timetable)
         try {
           await navigator.clipboard.write([new ClipboardItem({ "image/png": image })])
         } finally { await image.catch(() => {}) }
         setMessage("התמונה הועתקה — אפשר להדביק אותה כעת.")
       } else {
-        downloadBlob(`dibit-${semester}.png`, await createExportImage())
+        downloadBlob(`dibit-${semester}.png`, await createExportImage(target.current, timetable))
         setMessage("התמונה נשמרה.")
       }
     } catch (error) {
@@ -30,12 +35,14 @@ export default function ExportModal({ semester }: { semester: string }) {
         : "לא ניתן להעתיק ללוח. אפשר לנסות שוב או לבחור בשמירה כתמונה.")
     } finally { setWorking(false) }
   }
-  return <Stack dir="rtl" className="dont-print">
-    <Button variant="default" disabled={working} onClick={() => window.print()}>הדפסה / PDF</Button>
-    <Button variant="default" disabled={working} onClick={() => exportImage(true)}>העתקת תמונה</Button>
-    <Button variant="default" disabled={working} onClick={() => exportImage(false)}>שמירת תמונה (PNG)</Button>
-    {working && <Text size="sm" role="status">מכין את התמונה…</Text>}
-    {message && <Text size="sm" role="status">{message}</Text>}
-    {error && <Text size="sm" c="red" role="alert">{error}</Text>}
-  </Stack>
+  return <Modal opened onClose={onClose} title="ייצוא ל־PDF או לתמונה" centered>
+    <Stack dir="rtl" className="dont-print">
+      <Button variant="default" disabled={working} onClick={() => window.print()}>הדפסה / PDF</Button>
+      <Button variant="default" disabled={working} onClick={() => exportImage(true)}>העתקת תמונה</Button>
+      <Button variant="default" disabled={working} onClick={() => exportImage(false)}>שמירת תמונה (PNG)</Button>
+      {working && <Text size="sm" role="status">מכין את התמונה…</Text>}
+      {message && <Text size="sm" role="status">{message}</Text>}
+      {error && <Text size="sm" c="red" role="alert">{error}</Text>}
+    </Stack>
+  </Modal>
 }

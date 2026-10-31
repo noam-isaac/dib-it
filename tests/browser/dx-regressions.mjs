@@ -57,6 +57,7 @@ try {
     assert.equal(await page.getByRole("textbox", { name: "סמסטר:" }).inputValue() !== "", true)
     await page.getByPlaceholder("חיפוש קורסים להוספה", { exact: true }).fill("ללא מידע על מבחן (12345678)")
     assert.equal(await page.locator("#course-12345678").count(), 1, "pasting an existing course must not duplicate it")
+    await page.keyboard.press("Escape")
     const card = page.locator("#course-12345678")
     await card.getByText("ללא שעות במערכת", { exact: true }).waitFor()
     assert.equal(await card.evaluate(el => getComputedStyle(el).borderTopStyle), "dashed")
@@ -161,7 +162,10 @@ try {
     await page.getByRole("button", { name: "הורדת הנתונים לפני איפוס", exact: true }).click()
     const chunks = []
     for await (const chunk of await (await download).createReadStream()) chunks.push(chunk)
-    assert.equal(Buffer.concat(chunks).toString(), before)
+    assert.deepEqual(JSON.parse(Buffer.concat(chunks).toString()), {
+      format: "dibit-storage-recovery", version: 1,
+      storage: { "Dib It": before, "Dib It Migration Recovery": await page.evaluate(() => localStorage.getItem("Dib It Migration Recovery")) },
+    }, "recovery includes both the malformed current bytes and the preserved migration original")
     // Recovery offers a way out that does not cost the user their schedules.
     await page.getByRole("button", { name: "איפוס העדפות התצוגה", exact: true }).click()
     await page.getByRole("heading", { name: "לא ניתן להציג את המערכת", exact: true }).waitFor()
@@ -183,6 +187,169 @@ try {
     assert.deepEqual(errors, [])
     await page.close()
     console.log(`PASS ${failedResource}: retry, backup access, shared state, missing exams, year race, recovery`)
+  }
+  // Storage denial must not make the recovery screen fail while enumerating old keys.
+  for (const denied of ["storage", "enumeration"]) {
+    const page = await browser.newPage()
+    const errors = []
+    page.on("pageerror", error => errors.push(error.message))
+    await page.addInitScript(denied => {
+      if (denied === "storage") Object.defineProperty(window, "localStorage", {
+        get() { throw new DOMException("Storage denied", "SecurityError") },
+      })
+      else Object.defineProperty(Storage.prototype, "length", {
+        get() { throw new DOMException("Enumeration denied", "SecurityError") },
+      })
+    }, denied)
+    await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
+    await page.getByRole("heading", { name: "לא ניתן להציג את המערכת", exact: true }).waitFor()
+    assert.equal(await page.getByRole("button", { name: "טעינה מחדש", exact: true }).isEnabled(), true)
+    if (denied === "enumeration") {
+      assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), null)
+      assert.equal(await page.evaluate(async () => {
+        try { (await import("/src/preferences.ts")).legacyWorkspaceKeys(); return false }
+        catch { return true }
+      }), true, "migration, backup and reset must not treat failed enumeration as empty storage")
+    }
+    await page.getByRole("button", { name: "הורדת הנתונים לפני איפוס", exact: true }).click()
+    await page.getByRole("alert").filter({ hasText: "לא ניתן להוריד את נתוני השחזור" }).waitFor()
+    page.once("dialog", dialog => dialog.accept())
+    await page.getByRole("button", { name: "איפוס המערכות במכשיר", exact: true }).click()
+    await page.getByRole("alert").filter({ hasText: "איפוס המערכות לא הושלם" }).waitFor()
+    if (denied === "storage") {
+      await page.getByRole("button", { name: "איפוס העדפות התצוגה", exact: true }).click()
+      await page.getByRole("alert").filter({ hasText: "איפוס העדפות התצוגה לא הושלם" }).waitFor()
+    }
+    assert.deepEqual(errors, [], "failed recovery actions must explain the failure without uncaught storage errors")
+    await page.close()
+    console.log(`PASS denied ${denied}: recovery remains visible`)
+  }
+  // A failed reset must stop before primary deletion and report any partial cleanup honestly.
+  for (const failedKey of ["Automatic Google Sync", "Dib It Updated", "Dib It"]) {
+    const page = await browser.newPage()
+    const errors = []
+    page.on("pageerror", error => errors.push(error.message))
+    const raw = '{"plans":[],"activePlanId":"invalid","note":"preserve these bytes"}'
+    await page.addInitScript(raw => {
+      if (sessionStorage.getItem("reset-seeded")) return
+      sessionStorage.setItem("reset-seeded", "true")
+      Object.entries({ "Dib It": raw, "Dib It Sync": "receipt", "Dib It Updated": "time",
+        "Dib It Migration Recovery": "original recovery", "Automatic Google Sync": "true",
+        "Dib It Fork Intro Seen": "true" }).forEach(([key, value]) => localStorage.setItem(key, value))
+    }, raw)
+    await page.route("**/*", route => {
+      const url = new URL(route.request().url())
+      if (url.hostname !== "127.0.0.1") return route.abort()
+      if (!url.pathname.startsWith("/data/")) return route.continue()
+      return route.fulfill({ json: url.pathname.endsWith("info.json") ? info : url.pathname.includes("courses-") ? catalog : {} })
+    })
+    await prepareAnnualFeed(page)
+    await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
+    await page.getByRole("heading", { name: "לא ניתן להציג את המערכת", exact: true }).waitFor()
+    await page.evaluate(failedKey => {
+      const remove = Storage.prototype.removeItem
+      window.removalAttempts = []
+      Storage.prototype.removeItem = function (key) {
+        window.removalAttempts = [...window.removalAttempts, key]
+        if (key === failedKey) throw new DOMException("Reset removal denied", "SecurityError")
+        return remove.call(this, key)
+      }
+      window.restoreRemoval = () => { Storage.prototype.removeItem = remove }
+    }, failedKey)
+    page.once("dialog", dialog => {
+      assert.match(dialog.message(), /הסנכרון האוטומטי יכובה/)
+      void dialog.accept()
+    })
+    await page.getByRole("button", { name: "איפוס המערכות במכשיר", exact: true }).click()
+    await page.getByRole("alert").filter({ hasText: "ייתכן שחלק מהנתונים כבר נמחקו" }).waitFor()
+    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), raw, "primary remains readable after incomplete reset")
+    const attempts = await page.evaluate(() => window.removalAttempts)
+    assert.equal(attempts[0], "Automatic Google Sync", "sync is disabled before deleting workspace data")
+    assert.equal(await page.evaluate(() => localStorage.getItem("Automatic Google Sync")), failedKey === "Automatic Google Sync" ? "true" : null)
+    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It Sync")), failedKey === "Automatic Google Sync" ? "receipt" : null)
+    const download = page.waitForEvent("download")
+    await page.getByRole("button", { name: "הורדת הנתונים לפני איפוס", exact: true }).click()
+    const chunks = []
+    for await (const chunk of await (await download).createReadStream()) chunks.push(chunk)
+    const recovered = Buffer.concat(chunks).toString()
+    assert.equal(failedKey === "Dib It" ? recovered : JSON.parse(recovered).storage["Dib It"], raw)
+    assert.equal(await page.getByRole("alert").count(), 0, "successful download clears the previous action failure")
+    await page.evaluate(() => window.restoreRemoval())
+    page.once("dialog", dialog => dialog.accept())
+    await page.getByRole("button", { name: "איפוס המערכות במכשיר", exact: true }).click()
+    await page.locator("#schedule-container").waitFor()
+    assert.equal(await page.evaluate(() => localStorage.getItem("Automatic Google Sync")), null)
+    assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), null)
+    assert.deepEqual(errors, [])
+    await page.close()
+    console.log(`PASS reset failure at ${failedKey}: visible failure, sync first, primary last, recovery download and retry`)
+  }
+  // Legacy recovery must survive reloads; never re-seed the failed data after reset.
+  for (const mode of ["valid", "legacy", "mixed"]) {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
+    page.setDefaultTimeout(10000)
+    const malformed = mode !== "valid"
+    const legacy = malformed ? {
+      "Courses 2026a": '["12345678"]', "Groups 2026a": '{broken\n',
+      "Colors 2026a": '{"12345678":"#001122"}',
+      "School (Dib It Serialize)": '"פקולטה"',
+    } : {
+      Semester: '"2026a"', Courses: '["12345678"]', Groups: '{"12345678":["02"]}',
+      Colors: '{"12345678":"#001122"}',
+    }
+    const unrelated = { "unrelated-setting": "keep", "Courses wishlist": "keep", "Groups notes": "keep" }
+    await page.route("**/*", route => {
+      const url = new URL(route.request().url())
+      if (url.hostname !== "127.0.0.1") return route.abort()
+      if (!url.pathname.startsWith("/data/")) return route.continue()
+      return route.fulfill({ json: url.pathname.endsWith("info.json") ? info
+        : url.pathname.includes("courses-") ? catalog : {} })
+    })
+    const modern = mode === "mixed" ? { "Dib It": '{"plans":[],"activePlanId":"invalid"}' } : {}
+    const original = { ...modern, ...legacy }
+    await page.addInitScript(({ legacy, unrelated, modern }) => {
+      if (sessionStorage.getItem("legacy-seeded")) return
+      sessionStorage.setItem("legacy-seeded", "true")
+      Object.entries({ ...legacy, ...modern, ...unrelated, "Dib It Fork Intro Seen": "true" })
+        .forEach(([key, value]) => localStorage.setItem(key, value))
+    }, { legacy, unrelated, modern })
+    await prepareAnnualFeed(page)
+    await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`)
+    if (malformed) {
+      const failure = page.getByRole("heading", { name: "לא ניתן להציג את המערכת", exact: true })
+      await failure.waitFor()
+      const pending = page.waitForEvent("download")
+      await page.getByRole("button", { name: "הורדת הנתונים לפני איפוס", exact: true }).click()
+      const chunks = []
+      for await (const chunk of await (await pending).createReadStream()) chunks.push(chunk)
+      assert.deepEqual(JSON.parse(Buffer.concat(chunks).toString()), {
+        format: "dibit-storage-recovery", version: 1, storage: original,
+      }, "legacy recovery preserves every original string, including invalid JSON")
+      await page.getByRole("button", { name: "איפוס העדפות התצוגה", exact: true }).click()
+      await failure.waitFor()
+      assert.deepEqual(await page.evaluate(keys => Object.fromEntries(keys.map(key => [key, localStorage.getItem(key)])), Object.keys(original)), original)
+      page.once("dialog", dialog => dialog.dismiss())
+      await page.getByRole("button", { name: "איפוס המערכות במכשיר", exact: true }).click()
+      assert.deepEqual(await page.evaluate(keys => Object.fromEntries(keys.map(key => [key, localStorage.getItem(key)])), Object.keys(original)), original, "cancellation keeps both storage formats")
+      page.once("dialog", dialog => dialog.accept())
+      await page.getByRole("button", { name: "איפוס המערכות במכשיר", exact: true }).click()
+    }
+    await page.locator("#schedule-container").waitFor()
+    assert.equal(await page.getByRole("heading", { name: "לא ניתן להציג את המערכת", exact: true }).count(), 0)
+    if (!malformed) {
+      assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), null, "reading legacy data alone does not rewrite it")
+      assert.deepEqual(await page.evaluate(keys => Object.fromEntries(keys.map(key => [key, localStorage.getItem(key)])), Object.keys(legacy)), legacy)
+      await page.locator("#course-12345678").getByRole("checkbox", { name: "קבוצה 01", exact: true }).check()
+      assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It Migration Recovery")).committed.storage), legacy,
+        "the first actual edit preserves the original legacy strings before conversion")
+    }
+    assert.deepEqual(await page.evaluate(keys => keys.map(key => localStorage.getItem(key)), Object.keys(legacy)), Object.keys(legacy).map(() => null))
+    assert.deepEqual(await page.evaluate(keys => Object.fromEntries(keys.map(key => [key, localStorage.getItem(key)])), Object.keys(unrelated)), unrelated)
+    if (!malformed) assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("Dib It")).plans[0].courses["2026a"]), [
+      { id: "12345678", groups: ["02", "01"], color: "#001122" },
+    ], "valid legacy migration retains the existing selection and colour while applying the new edit")
+    await page.close()
+    console.log(`PASS ${mode} storage: ${malformed ? "raw recovery, preference reset, cancellation and confirmed reset" : "migration"}; unrelated storage retained`)
   }
 } finally {
   await browser?.close()

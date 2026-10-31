@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { annualYear } from "./annualRegistry"
 import { resolveCatalog } from "./catalog"
 import { catalogVersion, getSemesterCatalogs, hasAnnualFeedFailed, loadGeneralInfo, loadSemesterCourses, subscribeCatalog } from "./catalogData"
-import { getDibIt, reconcileCatalogs, refreshAnnualClassification, setDibIt } from "./models"
+import { reconcileCatalogs, refreshAnnualClassification } from "./models"
 
 /** Both the current semester and historical course details use the same loading boundary. */
-export const useCatalog = (semester?: string, custom?: Record<string, SemesterCourses>, active = false) => {
+export const useCatalog = (semester?: string, custom?: Record<string, SemesterCourses>, active = false, activePlanId?: string) => {
   const version = useSyncExternalStore(subscribeCatalog, catalogVersion)
   const [attempt, setAttempt] = useState(0)
   const [result, setResult] = useState<{ semester: string; attempt: number; failed: boolean }>()
@@ -15,8 +15,8 @@ export const useCatalog = (semester?: string, custom?: Record<string, SemesterCo
       if (!semester) {
         if (!active) return
         const info = await loadGeneralInfo()
-        if (!info.currentSemester) throw new Error("Missing current semester")
-        if (!cancelled) setDibIt({ ...getDibIt(), semester: info.currentSemester })
+        const currentSemester = info.currentSemester
+        if (!currentSemester) throw new Error("Missing current semester")
         return
       }
       await loadSemesterCourses(semester)
@@ -30,7 +30,7 @@ export const useCatalog = (semester?: string, custom?: Record<string, SemesterCo
     }
     void load().catch(() => { if (!cancelled) setResult({ semester: semester ?? "", attempt, failed: true }) })
     return () => { cancelled = true }
-  }, [semester, attempt, active])
+  }, [semester, attempt, active, activePlanId])
   useEffect(() => {
     if (active) void refreshAnnualClassification().catch(() => {})
   }, [active])

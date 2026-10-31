@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test"
 import { normalizePlans } from "../src/plans"
-import { CloudScheduleError, cloudScheduleData, readCloudSchedule, scheduleKey, startScheduleSync, syncDecision, withLocalNavigation, type SyncStatus } from "../src/scheduleSync"
-import { isScheduleBackup } from "../src/scheduleBackup"
+import { CloudScheduleError, cloudScheduleData, assertCloudDocumentSize, readCloudSchedule, scheduleKey, startScheduleSync, syncDecision, withLocalNavigation, LocalSyncSaveError, baseForAccount, readSyncBase, cloudCopyKey, UNAVAILABLE_SYNC_HISTORY, type SyncStatus } from "../src/scheduleSync"
+import { Bytes, GeoPoint, Timestamp, vector } from "firebase/firestore"
+import { isScheduleBackup, readScheduleBackup } from "../src/scheduleBackup"
+import { UnsupportedWorkspaceVersionError, decodeWorkspace } from "../src/workspaceFormat"
 
 const workspace = (id = "one") => normalizePlans({ semester: "2026a", courses: { "2026a": [{ id, groups: ["01"] }] } })
 const pause = () => new Promise(resolve => setTimeout(resolve, 10))
@@ -20,22 +22,30 @@ const setup = (persisted?: { local: ReturnType<typeof workspace>; remote: Return
     hold: undefined as Promise<void> | undefined,
     ...persisted,
   }
+  const read = () => ({
+    version: JSON.stringify(state.local), workspace: structuredClone(state.local), time: null,
+    sync: { uid: "test", base: state.base },
+  })
+  const review = () => ({ local: read(), remote: { workspace: structuredClone(state.remote), revision: state.writes, savedAt: null } })
   const sync = startScheduleSync({
-    read: () => structuredClone(state.local),
-    apply: value => { state.local = value },
-    base: () => state.base,
-    remember: value => { state.base = value },
+    uid: "test", read, prepare: value => value,
+    accept: async (expected, copy, apply, active) => {
+      if (!active() || read().version !== expected.version) return false
+      if (apply) state.local = withLocalNavigation(copy.workspace, state.local)
+      state.base = scheduleKey(copy.workspace)
+      return true
+    },
     exchange: async decide => {
       if (state.offline) throw new Error("offline")
       if (state.hold) await state.hold
-      const remote = structuredClone(state.remote)
-      const upload = decide(remote)
+      const before = review().remote
+      const upload = decide(before)
       if (upload) { state.remote = upload; state.writes++ }
-      return remote
+      return { before, after: review().remote }
     },
     status: value => { state.status = value },
   })
-  return { state, sync }
+  return { state, sync, review }
 }
 
 test("first connection, offline divergence, deletions, account changes and navigation", () => {
@@ -103,20 +113,20 @@ test("offline edits survive a new session and retry without losing local data", 
 })
 
 test("concurrent edits pause; a choice cannot overwrite a newer cloud copy", async () => {
-  const { state, sync } = setup()
+  const { state, sync, review } = setup()
   try {
     state.local = workspace("local-edit")
     state.remote = workspace("remote-edit")
     sync.schedule(0)
     await until(() => state.status === "conflict")
     expect(state.writes).toBe(0)
-    const seen = state.remote
+    const seen = review()
     state.remote = workspace("newer-remote-edit")
     state.status = "connecting"
-    sync.resolve("upload", seen)
+    sync.resolve(seen, "upload")
     await until(() => state.status === "conflict")
     expect(state.writes).toBe(0)
-    sync.resolve("upload", state.remote)
+    sync.resolve(review(), "upload")
     await until(() => state.status === "synced")
     expect(state.remote).toEqual(workspace("local-edit"))
   } finally { sync.stop() }
@@ -170,7 +180,8 @@ test("permanent upload failures stop retries until the local data changes", asyn
   let calls = 0
   let status: SyncStatus = "connecting"
   const sync = startScheduleSync({
-    read: () => local, apply: () => {}, base: () => undefined, remember: () => {},
+    uid: "test", prepare: value => value, accept: async () => true,
+    read: () => ({ version: JSON.stringify(local), workspace: local, time: null }),
     exchange: async () => { calls++; throw new CloudScheduleError("Too large") },
     status: next => { status = next },
   })
@@ -185,4 +196,89 @@ test("permanent upload failures stop retries until the local data changes", asyn
     sync.schedule(0)
     await until(() => calls === 2)
   } finally { sync.stop() }
+})
+
+test("a reviewed choice cannot overwrite a newer local copy", async () => {
+  const { state, sync, review } = setup()
+  try {
+    const seen = review()
+    state.local = workspace("later-local-edit")
+    sync.resolve(seen, "upload")
+    await until(() => state.status === "conflict")
+    expect(state.writes).toBe(0)
+    expect(state.local).toEqual(workspace("later-local-edit"))
+  } finally { sync.stop() }
+})
+
+test("cloud success followed by local failure reports partial completion and does not auto-retry", async () => {
+  let status: SyncStatus = "connecting", failure: unknown, writes = 0
+  const local = { version: "v1", workspace: workspace(), time: null }
+  const sync = startScheduleSync({
+    uid: "test", read: () => local, prepare: value => value,
+    accept: async () => { throw new Error("Quota exceeded") },
+    exchange: async decide => {
+      const upload = decide(null)!
+      writes++
+      return { before: null, after: { workspace: upload, revision: writes, savedAt: null } }
+    },
+    status: (next, _review, error) => { status = next; failure = error },
+  })
+  try {
+    sync.schedule(0)
+    await until(() => status === "error")
+    expect(failure).toBeInstanceOf(LocalSyncSaveError)
+    expect((failure as Error).message).toContain("נשמר בגוגל")
+    sync.schedule(0)
+    await pause()
+    expect(writes).toBe(1)
+  } finally { sync.stop() }
+})
+
+test("safe historical baselines retain meaning without inventing active-plan context", () => {
+  const plans = [
+    { id: "first", name: "First", semester: "2026a", courses: { "2026a": [{ id: "one", groups: ["01"] }] } },
+    { id: "second", name: "Second", semester: "2026b", courses: {} },
+  ]
+  const legacyKey = JSON.stringify({ plans })
+  const base = readSyncBase(legacyKey)!
+  const otherActive = decodeWorkspace({ plans, activePlanId: "second" })
+  expect(scheduleKey(base)).toBe(scheduleKey(otherActive))
+  expect(JSON.parse(scheduleKey(base)!)).toHaveProperty("schemaVersion", 1)
+  const remote = { ...base, theme: "google" as const }
+  expect(syncDecision(base, remote, legacyKey)).toBe("download")
+  expect(syncDecision(remote, base, legacyKey)).toBe("upload")
+  expect(readSyncBase(JSON.stringify({ plans: plans.map((plan, index) => ({ ...plan, theme: index ? "apple" : "google" })) }))).toBeUndefined()
+})
+
+test("unusable history never becomes permission for a first-connection replacement", () => {
+  const empty = normalizePlans({}), remote = workspace("cloud")
+  const unavailable = baseForAccount({ workspace: empty, version: "v", time: null, historyUnavailable: true }, "test")
+  expect(unavailable).toBe(UNAVAILABLE_SYNC_HISTORY)
+  expect(syncDecision(empty, remote, unavailable)).toBe("conflict")
+  expect(syncDecision(remote, null, unavailable)).toBe("conflict")
+  expect(syncDecision(remote, remote, unavailable)).toBe("equal")
+  expect(syncDecision(empty, remote, "{bad json")).toBe("conflict")
+  expect(syncDecision(empty, remote, JSON.stringify({ ...remote, schemaVersion: 2 }))).toBe("conflict")
+  expect(syncDecision(empty, remote, undefined)).toBe("download")
+})
+
+test("future backups fail before conversion and reviewed copies include archived changes", () => {
+  const local = workspace()
+  const future = { ...local, schemaVersion: 2 }
+  expect(() => readScheduleBackup(future)).toThrow(UnsupportedWorkspaceVersionError)
+  expect(() => readCloudSchedule(future)).toThrow(UnsupportedWorkspaceVersionError)
+  expect(isScheduleBackup(future)).toBe(false)
+  const retired = { ...local, plans: local.plans.map(plan => ({ ...plan, semester: "obsolete" })) }
+  expect(scheduleKey(local)).toBe(scheduleKey(retired))
+  const copy = (value: typeof local) => ({ workspace: value, revision: 0, savedAt: null })
+  expect(cloudCopyKey(copy(local))).not.toBe(cloudCopyKey(copy(retired)))
+})
+
+test("cloud capacity includes the retained original and native Firestore values", () => {
+  const migrationOriginal = { note: Bytes.fromUint8Array(new Uint8Array(500000)), point: new GeoPoint(1, 2), time: Timestamp.fromMillis(0), vector: vector([1, 2]) }
+  const envelope = { protocol: 2, revision: 1, savedAt: Timestamp.fromMillis(0), workspace: { note: "x".repeat(500000) }, migrationOriginal }
+  expect(() => assertCloudDocumentSize(envelope, "test")).not.toThrow()
+  expect(() => assertCloudDocumentSize({ ...envelope, migrationOriginal: { ...migrationOriginal, note: Bytes.fromUint8Array(new Uint8Array(600000)) } }, "test")).toThrow(CloudScheduleError)
+  expect(migrationOriginal.note.toUint8Array().byteLength).toBe(500000)
+  expect(migrationOriginal.time).toBeInstanceOf(Timestamp)
 })

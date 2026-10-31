@@ -15,13 +15,14 @@ import { notifications } from "@mantine/notifications"
 import { useEffect, useMemo, useState } from "react"
 import { useCourseInfo } from "../CourseInfoContext"
 import { useLocalStorage, useURLValue } from "../hooks"
-import { DibItCourse, setDibIt, useWorkspace } from "../models"
+import { DibItCourse, updateDibIt, useWorkspace } from "../models"
 import { activePlanView } from "../plans"
 import { prepareSearch, searchItems } from "../search"
 import { examDataWarnings } from "../exams"
 import { getICS } from "../serialize"
 import {
   downloadFile,
+  downloadBlob,
   FIRST_SEMESTER,
   formatSemesterInHebrew,
   uploadJson,
@@ -31,10 +32,10 @@ import CourseCard from "./CourseCard"
 import GoogleSaveButtons from "./GoogleSaveButtons"
 import RegistrationModal from "./RegistrationModal"
 import PlanSelector from "./PlanSelector"
-import ExportModal from "./ExportModal"
 import { downloadWorkspaceBackup, openScheduleRestore } from "./RestoreScheduleModal"
+import { MIGRATION_RECOVERY_KEY, recoveryData } from "../preferences"
 
-const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
+const Sidebar = ({ catalogReady, onExport }: { catalogReady: boolean; onExport: () => void }) => {
   const courseInfo = useCourseInfo()
   const courseOptions = useMemo(() => Object.keys(courseInfo).map(id => ({
     id, value: `${courseInfo[id]?.name} (${id})`, label: `${courseInfo[id]?.name} (${id})`,
@@ -110,8 +111,7 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
           value={loadingSemesters || semesterLoad.failed ? null : semester || null}
           onChange={(v) => {
             if (v) {
-              dibIt.semester = v
-              setDibIt({ ...dibIt })
+              updateDibIt(current => ({ ...current, semester: v }), workspace.activePlanId)
             }
           }}
           data={Object.keys(generalInfo.semesters ?? {})
@@ -150,13 +150,19 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
                 גיבוי
               </Menu.Item>
             </Tooltip>
+            {localStorage.getItem(MIGRATION_RECOVERY_KEY) !== null && <Tooltip label="כולל את הנתונים המקוריים לפני ההמרה האחרונה. הקובץ מיועד לשחזור ולתיקון, ואינו היסטוריה של כל העריכות.">
+              <Menu.Item leftSection={<i className="fa-solid fa-clock-rotate-left" aria-hidden="true" />} onClick={() => {
+                try { downloadBlob("dibit-recovery.json", new Blob([recoveryData()], { type: "application/json" })) }
+                catch { notifications.show({ title: "ההורדה נכשלה", message: "נתוני השחזור נשארו במכשיר. נסו שוב לפני איפוס.", color: "red" }) }
+              }}>הורדת נתוני השחזור שנשמרו</Menu.Item>
+            </Tooltip>}
             <Menu.Item
 
               leftSection={<i className="fa-solid fa-upload" aria-hidden="true" />}
               onClick={async () => {
                 try {
-                  const state = await uploadJson()
-                  openScheduleRestore(state, "file")
+                  const { data, raw } = await uploadJson()
+                  openScheduleRestore(data, "file", raw)
                 } catch (error) {
                   notifications.show({ title: "השחזור נכשל", message: error instanceof Error ? error.message : "לא ניתן לקרוא את הקובץ.", color: "red" })
                 }
@@ -235,10 +241,7 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
               disabled={!catalogReady || hasCatalogConflicts}
               leftSection={<i className="fa-solid fa-print" aria-hidden="true" />}
 
-              onClick={() => {
-                modals.open({ title: "ייצוא ל־PDF או לתמונה", centered: true,
-                  children: <ExportModal semester={semester} /> })
-              }}
+              onClick={onExport}
             >
               ייצוא ל־PDF או לתמונה
             </Menu.Item>
@@ -283,15 +286,12 @@ const Sidebar = ({ catalogReady }: { catalogReady: boolean }) => {
           const courseId = split[split.length - 1]?.split(")")[0]
           if (courseId && courseInfo[courseId] !== undefined) {
             setSearch("")
-            if (currentCourses.some(course => course.id === courseId)) return
-            if (!dibIt.courses) {
-              dibIt.courses = {}
-            }
-            if (!dibIt.courses[semester]) {
-              dibIt.courses[semester] = []
-            }
-            dibIt.courses[semester].push({ id: courseId })
-            setDibIt({ ...dibIt })
+            updateDibIt(current => {
+              const courses = current.courses?.[semester] ?? []
+              return courses.some(course => course.id === courseId) ? current : {
+                ...current, courses: { ...current.courses, [semester]: [...courses, { id: courseId }] },
+              }
+            }, workspace.activePlanId, semester)
           } else {
             setSearch(courseName)
           }

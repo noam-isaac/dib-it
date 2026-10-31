@@ -2,10 +2,12 @@ import { stringArraySchema } from "./schemas"
 import { Autocomplete, Button, Loader, MantineProvider, Select } from "@mantine/core"
 import { useColorScheme } from "@mantine/hooks"
 import { ModalsProvider } from "@mantine/modals"
-import { Notifications } from "@mantine/notifications"
-import { useEffect } from "react"
+import { Notifications, notifications } from "@mantine/notifications"
+import { useEffect, useRef, useState } from "react"
 import CourseInfoContext from "./CourseInfoContext"
+import { CourseFocusProvider } from "./CourseFocusContext"
 import Exams from "./components/Exams"
+import ExportModal from "./components/ExportModal"
 import Footer from "./components/Footer"
 import Guide from "./components/Guide"
 import Header from "./components/Header"
@@ -30,17 +32,27 @@ const App = () => {
     key: "Hidden Tabs", schema: stringArraySchema,
     defaultValue: [],
   })
-  const { courses, ready: catalogReady, failed: loadError, retry: retryCatalog, attempt: retry } = useCatalog(dibIt.semester, dibIt.customCourses, true)
+  const { courses, ready: catalogReady, failed: loadError, retry: retryCatalog, attempt: retry } = useCatalog(dibIt.semester, dibIt.customCourses, true, dibIt.activePlanId)
 
   const conflicts = selectedCatalogConflicts(dibIt.courses?.[dibIt.semester ?? ""] ?? [], courses)
   const hours = sumHours(courses, dibIt)
 
   const shownTabs = visibleTabs(hiddenTabs)
   const tab = shownTabs.find(({ id }) => id === dibIt.tab)?.id ?? shownTabs[0]!.id
+  const exportTarget = useRef<HTMLDivElement>(null)
+  const [exportContext, setExportContext] = useState<string | null>(null)
+  const viewContext = JSON.stringify([dibIt.activePlanId, dibIt.semester, tab, catalogReady, retry])
 
   useEffect(() => {
-    if (dibIt.tab && dibIt.tab !== tab) setDibIt({ ...dibIt, tab })
-  }, [dibIt.tab, tab])
+    const failed = (event: Event) => notifications.show({
+      id: "workspace-save-error", title: "השינוי לא נשמר", color: "red", autoClose: false,
+      message: (event as CustomEvent<string>).detail,
+    })
+    window.addEventListener("workspace-save-error", failed)
+    return () => window.removeEventListener("workspace-save-error", failed)
+  }, [])
+
+  useEffect(() => setExportContext(null), [viewContext])
 
   return (
     <MantineProvider
@@ -55,10 +67,9 @@ const App = () => {
           'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif',
       }}
     >
-      <ModalsProvider>
-        <Notifications zIndex={100001} />
-
-        <CourseInfoContext.Provider value={courses}>
+      <CourseInfoContext.Provider value={courses}>
+        <ModalsProvider>
+          <Notifications zIndex={100001} />
           <div
             style={{
               display: "flex",
@@ -70,6 +81,8 @@ const App = () => {
           >
             <Header />
             <GoogleScheduleSync />
+            <CourseFocusProvider scope={`${dibIt.activePlanId}:${dibIt.semester}:${tab}`}
+              courseIds={(dibIt.courses?.[dibIt.semester ?? ""] ?? []).map(course => course.id)}>
             <div
                 id="main"
                 style={{
@@ -79,7 +92,8 @@ const App = () => {
                   width: "calc(100% - 20px)",
                 }}
               >
-                <Sidebar key={`${dibIt.activePlanId}:${dibIt.semester}:${retry}`} catalogReady={catalogReady} />
+                <Sidebar key={`${dibIt.activePlanId}:${dibIt.semester}:${retry}`} catalogReady={catalogReady}
+                  onExport={() => setExportContext(viewContext)} />
                 <div id="content">
                   <div
                     className="adaptive-flex"
@@ -100,7 +114,7 @@ const App = () => {
                           size="md"
                           variant={tab === id ? "light" : "subtle"}
                           leftSection={<i className={`fa-solid fa-${icon}`} aria-hidden="true" />}
-                          onClick={() => setDibIt({ ...dibIt, tab: id })}
+                          onClick={() => setDibIt(current => ({ ...current, tab: id }))}
                         >
                           {label}
                         </Button>
@@ -114,8 +128,8 @@ const App = () => {
                       <p>{loadError ? "לא ניתן לטעון את נתוני הסמסטר. המערכות שלכם נשמרו במכשיר." : "טוען את הקורסים של הסמסטר..."}</p>
                       {loadError ? <Button mt="sm" onClick={retryCatalog}>ניסיון נוסף</Button> : <Loader mt="sm" />}
                     </div>
-                  ) : <div id="export-content" key={dibIt.activePlanId}>
-                    {tab === "schedule" && <Schedule />}
+                  ) : <div id="export-content" key={dibIt.activePlanId} ref={tab === "schedule" ? undefined : exportTarget}>
+                    {tab === "schedule" && <Schedule exportRef={exportTarget} />}
                     {tab === "exams" && <Exams key={dibIt.semester} />}
                     {tab === "study-plan" && <StudyPlan />}
                     {tab === "settings" && (
@@ -126,11 +140,15 @@ const App = () => {
                   </div>}
                 </div>
             </div>
+            </CourseFocusProvider>
 
             <Footer />
           </div>
-        </CourseInfoContext.Provider>
-      </ModalsProvider>
+          {catalogReady && exportContext === viewContext && <ExportModal
+            semester={dibIt.semester ?? ""} target={exportTarget} timetable={tab === "schedule"}
+            onClose={() => setExportContext(null)} />}
+        </ModalsProvider>
+      </CourseInfoContext.Provider>
     </MantineProvider>
   )
 }

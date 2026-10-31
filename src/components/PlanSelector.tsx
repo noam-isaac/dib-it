@@ -6,13 +6,18 @@ import { addPlan, deletePlan, renamePlan } from "../plans"
 
 const PlanNameForm = ({ initialName, onSave }: { initialName: string; onSave: (name: string) => void }) => {
   const [name, setName] = useState(initialName)
+  const [error, setError] = useState("")
   return (
     <form onSubmit={event => {
       event.preventDefault()
-      if (name.trim()) onSave(name.trim())
+      if (name.trim()) {
+        try { onSave(name.trim()) }
+        catch (failure) { setError(failure instanceof Error ? failure.message : "השינוי לא נשמר. נסו שוב.") }
+      }
     }}>
       <Stack>
         <TextInput label="שם מערכת השעות" value={name} onChange={event => setName(event.currentTarget.value)} data-autofocus />
+        {error && <Text role="alert" c="red">{error}</Text>}
         <Group justify="flex-end">
           <Button variant="default" onClick={() => modals.closeAll()}>ביטול</Button>
           <Button type="submit" disabled={!name.trim()}>שמירה</Button>
@@ -33,7 +38,9 @@ const PlanSelector = () => {
         initialName={action === "create" ? "" : action === "duplicate" ? `${active.name} — עותק` : active.name}
         onSave={name => {
           const latest = getWorkspace()
-          setWorkspace(action === "rename" ? renamePlan(latest, active.id, name) : addPlan(latest, name, action === "duplicate"))
+          if (!latest.plans.some(plan => plan.id === active.id))
+            throw new Error("מערכת השעות השתנתה או נמחקה. פתחו מחדש את בחירת המערכות.")
+          setWorkspace(action === "rename" ? renamePlan(latest, active.id, name) : addPlan(latest, name, action === "duplicate", active.id))
           modals.closeAll()
         }}
       />,
