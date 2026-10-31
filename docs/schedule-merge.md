@@ -16,7 +16,14 @@ remotely switched off. Canceling or manually resolving the comparison leaves thi
 browser's automatic sync off. Closing the popup leaves a reminder until reload;
 the off setting persists across reloads.
 
-Turning automatic sync on opens a fresh comparison first. It stays off until a
+If Google has no backup, automatic sync creates one from the local workspace
+without conflict review, even when the local receipt belongs to another account
+or its history is unavailable. Turning sync on checks Google first and enables
+directly when no copy exists. Failed reads are errors, not evidence of absence.
+The upload transaction rechecks the current Google copy on every attempt; a copy
+created by another device is evaluated normally before any replacement.
+
+Turning automatic sync on when a Google copy exists opens a fresh comparison first. It stays off until a
 reviewed result has been saved successfully and the user explicitly confirms
 enabling it. A stale copy, offline failure or newer local edit prevents enabling.
 The whole-copy warning explains that the displayed differing course choices may

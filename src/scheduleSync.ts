@@ -83,13 +83,14 @@ export const syncDecision = (local: PlanWorkspace, remote: PlanWorkspace | null,
   const localKey = scheduleKey(local)
   const remoteKey = scheduleKey(remote)
   if (localKey === remoteKey) return "equal"
+  // History can only conflict with an existing copy; the transaction rechecks absence.
+  if (!remote) return "upload"
   base = interpretedBase(base)
   if (base !== undefined) {
     if (localKey === base && remote) return "download"
     if (remoteKey === base) return "upload"
     return "conflict"
   }
-  if (!remote) return "upload"
   const empty = normalizePlans(local.plans[0]?.courses ? { courses: {} } : {})
   if (localKey === scheduleKey(empty)) return "download"
   return "conflict"
