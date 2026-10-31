@@ -316,6 +316,42 @@ try {
   await toggle().click()
   await page.getByRole("button", { name: "אישור התוצאה והפעלת סנכרון אוטומטי", exact: true }).click()
   await page.getByRole("dialog").waitFor({ state: "hidden" })
+  // A prior account's receipt must not turn a missing backup into a conflict.
+  const beforeMissingBackup = await page.evaluate(() => {
+    const local = localStorage.getItem("Dib It")
+    const receipt = JSON.parse(localStorage.getItem("Dib It Sync"))
+    localStorage.setItem("Dib It Sync", JSON.stringify({ ...receipt, uid: "previous-account" }))
+    const writes = window.syncTest.writes
+    window.syncTest.remote(undefined)
+    return { local, writes }
+  })
+  await page.waitForFunction(writes => window.syncTest.writes > writes &&
+    JSON.parse(localStorage.getItem("Dib It Sync")).uid === "test-user", beforeMissingBackup.writes)
+  assert.equal(await page.evaluate(() => localStorage.getItem("Automatic Google Sync")), "true", "missing backup keeps automatic sync enabled")
+  assert.equal(await page.getByRole("dialog").count(), 0, "missing backup never opens conflict review")
+  assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), beforeMissingBackup.local)
+  assert.deepEqual(await page.evaluate(() => window.syncTest.cloud.workspace), { ...JSON.parse(beforeMissingBackup.local), schemaVersion: 1 })
+
+  // Explicitly enabling into an empty account also skips review; a failed read does not.
+  await menu()
+  await toggle().click()
+  await page.keyboard.press("Escape")
+  await page.evaluate(() => { window.syncTest.remote(undefined); window.syncTest.offline(true) })
+  const beforeEnable = await page.evaluate(() => window.syncTest.writes)
+  await menu()
+  await toggle().click()
+  await page.getByText("הסנכרון האוטומטי נשאר כבוי", { exact: true }).waitFor()
+  assert.equal(await page.evaluate(() => localStorage.getItem("Automatic Google Sync")), "false", "failed read is not an absent backup")
+  assert.equal(await page.evaluate(() => window.syncTest.writes), beforeEnable)
+  await page.evaluate(() => window.syncTest.offline(false))
+  await menu()
+  await toggle().click()
+  await page.waitForFunction(writes => window.syncTest.writes > writes, beforeEnable)
+  assert.equal(await page.evaluate(() => localStorage.getItem("Automatic Google Sync")), "true")
+  assert.equal(await page.getByRole("dialog").count(), 0, "enabling with no backup needs no review")
+  assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), beforeMissingBackup.local)
+  assert.deepEqual(await page.evaluate(() => window.syncTest.cloud.workspace), { ...JSON.parse(beforeMissingBackup.local), schemaVersion: 1 })
+  console.log("PASS: absent backup uploads across account history without pausing, enabling skips review, and failed reads stay off")
   await page.getByRole("button", { name: /התנתק\/י/ }).click()
   const writes = await page.evaluate(() => window.syncTest.writes)
   await edit("אחרי התנתקות")

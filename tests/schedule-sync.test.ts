@@ -59,8 +59,6 @@ test("first connection, offline divergence, deletions, account changes and navig
   expect(syncDecision(local, remote, scheduleKey(local))).toBe("download")
   expect(syncDecision(local, remote, scheduleKey(remote))).toBe("upload")
   expect(syncDecision(local, remote, scheduleKey(workspace("three")))).toBe("conflict")
-  expect(syncDecision(local, null, scheduleKey(local))).toBe("conflict")
-  expect(syncDecision(local, null, "different-account")).toBe("conflict")
   expect(syncDecision(local, remote, "different-account")).toBe("conflict")
   expect(scheduleKey({ ...local, tab: "exams", semester: "2026b" })).toBe(scheduleKey(local))
   expect(scheduleKey({ plans: local.plans, activePlanId: local.activePlanId })).toBe(scheduleKey(local))
@@ -69,6 +67,35 @@ test("first connection, offline divergence, deletions, account changes and navig
   expect(withLocalNavigation(remote, navigation)).toMatchObject({ tab: "exams", semester: "2026b" })
   expect(() => readCloudSchedule({ plans: [] })).toThrow()
   expect(readCloudSchedule(undefined)).toBeNull()
+})
+
+test.each([undefined, null, scheduleKey(workspace()), "different-account", UNAVAILABLE_SYNC_HISTORY])(
+  "an absent Google backup uploads without conflict regardless of history (%p)", base => {
+    expect(syncDecision(workspace(), null, base)).toBe("upload")
+  },
+)
+
+test("a copy created during the first upload is rechecked on transaction retry", async () => {
+  const local = { workspace: workspace(), version: "v1", time: null, sync: { uid: "previous-account", base: scheduleKey(workspace()) } }
+  const remote = { workspace: workspace("created-on-another-device"), revision: 1, savedAt: null }
+  let status: SyncStatus = "connecting", accepted = false
+  let proposals: (ReturnType<typeof workspace> | undefined)[] = []
+  const sync = startScheduleSync({
+    uid: "new-account", read: () => local, prepare: value => value,
+    accept: async () => { accepted = true; return true },
+    exchange: async decide => {
+      // Firestore discards the first attempt when another device creates the document.
+      proposals = [decide(null), decide(remote)]
+      return { before: remote, after: remote }
+    },
+    status: next => { status = next },
+  })
+  try {
+    sync.schedule(0)
+    await until(() => status === "conflict")
+    expect(proposals).toEqual([local.workspace, undefined])
+    expect(accepted).toBe(false)
+  } finally { sync.stop() }
 })
 
 test("edits upload, remote changes download, and unchanged navigation does not write", async () => {
@@ -255,7 +282,6 @@ test("unusable history never becomes permission for a first-connection replaceme
   const unavailable = baseForAccount({ workspace: empty, version: "v", time: null, historyUnavailable: true }, "test")
   expect(unavailable).toBe(UNAVAILABLE_SYNC_HISTORY)
   expect(syncDecision(empty, remote, unavailable)).toBe("conflict")
-  expect(syncDecision(remote, null, unavailable)).toBe("conflict")
   expect(syncDecision(remote, remote, unavailable)).toBe("equal")
   expect(syncDecision(empty, remote, "{bad json")).toBe("conflict")
   expect(syncDecision(empty, remote, JSON.stringify({ ...remote, schemaVersion: 2 }))).toBe("conflict")

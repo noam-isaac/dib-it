@@ -55,9 +55,14 @@ const EnabledGoogleSaveButtons = () => {
     setBusy(true)
     try {
       const review = await loadSyncReview(currentUser.uid)
+      if (auth!.currentUser?.uid !== currentUser.uid) return
+      if (!review.remote) {
+        setAutomatic(true)
+        return
+      }
       modals.open({ title: "השוואה לפני הפעלת סנכרון אוטומטי", size: "xl", centered: true,
         children: <ScheduleConflict uid={currentUser.uid} initial={review} resumeAutomatic
-          initialChoice={!review.remote || scheduleKey(review.local.workspace) === scheduleKey(review.remote.workspace) ? "upload" : undefined}
+          initialChoice={scheduleKey(review.local.workspace) === scheduleKey(review.remote.workspace) ? "upload" : undefined}
           onClose={() => modals.closeAll()} /> })
     } catch (error) {
       notifications.show({ title: "הסנכרון האוטומטי נשאר כבוי", message: error instanceof Error ? error.message : "לא ניתן לפתוח השוואה.", color: "yellow" })
