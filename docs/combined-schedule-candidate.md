@@ -1,9 +1,14 @@
 # Combined schedule candidate
 
-This candidate brings PRs #32–38 together with the versioned workspace migration.
-The original PR branches remain unchanged. It is a local/review candidate, not a
-merge or deployment authorization. Automatic Vercel deployment is disabled for
-`codex/combined-schedule-migration`.
+This change brought PRs #32–38 together with the versioned workspace migration.
+[PR #39](https://github.com/noam-isaac/dib-it/pull/39) merged as `be62bc8` and was
+released on 2026-10-31, with the compatible Firestore rules published first.
+PRs #35–38 are closed as incorporated through #39; their original branches remain
+unchanged. [PR #40](https://github.com/noam-isaac/dib-it/pull/40) subsequently fixed
+the missing-backup conflict and was released as `3698591`.
+See [release and live verification](verification.md) for the completed checks and
+remaining limits. Automatic Vercel deployment remains disabled for the original
+`codex/combined-schedule-migration` branch.
 
 ## Inputs
 
@@ -92,7 +97,7 @@ The map is exact in Firestore. Its download is a JSON representation for recover
 native Firestore values in unfamiliar metadata are not a type-exact Firestore
 export/import format.
 
-## Required evidence before declaring the candidate ready
+## Review requirements used for the combined release
 
 - Every input PR is included at its verified head; integration preserves both the
   export lifecycle and course information inside comparison dialogs.
@@ -114,13 +119,14 @@ export/import format.
 The localStorage transaction rewrite remains deferred. Cross-tab writes can race;
 old JavaScript can interpret or overwrite retired fields using old rules. Retaining
 the original bytes and rechecking observed state do not provide cross-tab atomicity.
-Users must refresh older clients during a future release. The migration supplies
+Users must refresh older clients after the release. The migration supplies
 one consistent interpretation to this client and crash/failure recovery, not a
 history service or protection from noncooperating old code.
 
-No live account data is used for automated testing. Before a separately authorized
-release, publish compatible Firestore rules before the new client and verify real
-sign-in/cloud round trips. Existing previews do not prove this candidate works.
+No live account data is used for automated testing. Compatible Firestore rules
+were published before the #39 client. Subsequent real Chrome checks verified
+sign-in, automatic upload, explicit restore and persistence; see
+[verification](verification.md) for their exact scope and the #40 follow-up.
 
 ## Validation recorded on 2026-10-30 at `058dff2`
 
@@ -144,10 +150,10 @@ No test used live account data. Clipboard API calls were intercepted; native
 system clipboard behavior was not checked. Chromium PDF generation and all three
 engines' print layouts were checked; native Firefox/WebKit print dialogs were not.
 
-The original PR heads in the input table were rechecked and remain open and
-unchanged. The main checkout and original #38 worktree remain clean. A future
-release still requires separate authorization, the compatible server rules first,
-refreshed old clients, and a real-account sign-in/sync check.
+At this historical validation point, the original PR heads in the input table
+were still open and unchanged. They were later incorporated into #39; PRs #35–38
+are now closed. Release approval, the server-rules/client rollout and subsequent
+real-account sign-in/sync checks are recorded in [verification](verification.md).
 
 ## Custom-catalog and receipt-documentation follow-up
 

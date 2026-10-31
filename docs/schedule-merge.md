@@ -6,7 +6,11 @@ workspace/plan structure. The combined candidate adds a `schemaVersion: 1` marke
 and preserves retired fields at their original locations; see the
 [migration and integration review](combined-schedule-candidate.md). Ordinary edits, plan management, catalog reconciliation,
 initialization, file restores and resets retain their synchronous behavior.
-No dependency was added. Nothing is merged or deployed by this work.
+No dependency was added. This work was incorporated into
+[PR #39](https://github.com/noam-isaac/dib-it/pull/39), merged and deployed on
+2026-10-31. [PR #40](https://github.com/noam-isaac/dib-it/pull/40) then released the
+missing-backup correction described below. PRs #35–38 are closed as incorporated
+through #39. See [verification](verification.md) for release evidence and limits.
 
 ## User flow
 
@@ -123,10 +127,12 @@ Those forced-simultaneity results are not ordinary-use probabilities.
   `bun run test:deployments` checks exports across two local builds; it does not
   deploy anything.
 
-Before a separately authorized release, deploy the revised Firestore rules before
-the revised client. Older clients then lose cloud-write access until refreshed;
-their local copies remain available. Old local tabs are not isolated by this
-feature. Verify live sign-in and cloud round trips at release; local tests do not
-constitute a live-account check. Automatic Vercel deployment remains disabled for
-`codex/reviewed-schedule-merge`. PR #35 and other PRs remain unchanged.
-The same guard is present for `codex/combined-schedule-migration`.
+The revised Firestore rules were deployed before the #39 client. Older clients
+lose cloud-write access until refreshed; their local copies remain available.
+Old local tabs are not isolated by this feature. Real Chrome checks subsequently
+verified sign-in, automatic upload, explicit restore and persistence. #40's
+missing-backup path has automated regression coverage; the live post-release check
+used an existing matching backup. See [verification](verification.md) for details.
+Automatic Vercel deployment remains disabled for the original
+`codex/reviewed-schedule-merge`, `codex/combined-schedule-migration` and
+`codex/no-backup-sync-conflict` branches.

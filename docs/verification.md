@@ -1,5 +1,43 @@
 # UI and export verification
 
+## Schedule and Google sync releases — 2026-10-31
+
+- [PR #39](https://github.com/noam-isaac/dib-it/pull/39) combined PRs #32–38
+  and the recoverable workspace migration. It merged as `be62bc8`; compatible
+  Firestore rules were published before the client. PRs #35–38 are closed as
+  incorporated through #39, with their original branches preserved.
+- [PR #40](https://github.com/noam-isaac/dib-it/pull/40) fixed the false conflict
+  when Google has no backup. It merged as `3698591` and was deployed directly to
+  production with the user's preview waiver. No further Firestore rule changes
+  were required. On October 31, both production domains served READY deployment
+  `dpl_7wgdLp9ieguMQBcKo1gwCn7cekWr`, built from that exact merge commit, with
+  entry asset `/assets/index-BHrqsVdB.js`.
+- #39 passed 208 unit tests, all 20 Chromium application scripts, the focused
+  Chromium/Firefox/WebKit sync checks and 10 Firestore emulator tests. #40 passed
+  214 unit tests and [full CI](https://github.com/noam-isaac/dib-it/actions/runs/41221206100),
+  including the application and export checks. Its new unit/browser regressions
+  failed before the fix and passed afterward; focused sync checks passed in all
+  three engines. Independent reviews found no remaining actionable issues.
+- Real Chrome testing after #39 verified fresh Google sign-in, initial backup,
+  automatic upload of a temporary plan-name edit, explicit cloud-to-local restore,
+  and persistence after reload. The initial missing-backup conflict was reproduced
+  and manually resolved; #40 subsequently corrected that behavior. Test edits were
+  undone, and final local/Google exports exactly matched the pre-test workspace.
+- After #40, real Chrome loaded the released asset, retained sign-in and automatic
+  sync, and read the existing Google backup successfully. The comparison showed
+  matching local/cloud content; it was canceled without replacing either copy.
+- Verification limits: #40's missing-backup path was tested with synthetic cloud
+  data, not a newly empty live account. The live checks used one computer; real
+  cross-device propagation, conflicting merges and offline recovery remain outside
+  that live test. Automated browser/emulator checks cover those relevant failure
+  and transaction boundaries. Native file-picker/system-clipboard behavior and
+  Firefox/WebKit print dialogs were not rechecked for these releases.
+- Simultaneous local-tab writes remain deferred. Expanded custom-catalog details
+  still use dense JSON; recovery retains bounded originals rather than edit history.
+
+The sections below are dated verification snapshots. Their local-only and pending
+release statements describe those earlier checks, not the current release status.
+
 ## Shared export dialog — 2026-10-25
 
 - Removed the non-timetable shortcut to native printing. Every tab uses the same
@@ -270,7 +308,7 @@ The notes below record earlier checks against https://arazim-project.com/dib-it/
 - The configuration and backup payload handling are tested locally. All three Firestore emulator integration tests pass: private backup replacement/deletion, anonymous denial, and denial of access to other users, collection listing, subcollections and other paths.
 - Emulator tests use only `demo-dibit` on localhost and refuse to run without the expected emulator address. Java 21 was unpacked under `/tmp` after checking Adoptium's published SHA256; no system installation was changed.
 - Firebase project `dib-it-noam-isaac` is configured. Google sign-in is enabled for `dib-it.vercel.app`, `dib-it-noamisaacs-projects.vercel.app` and local `127.0.0.1`. The single Standard `(default)` Firestore database is in the user-selected Tel Aviv region (`me-west1`), reports `freeTier: true`, and has point-in-time recovery disabled. Firebase MCP reports billing disabled; no billing account, trial or paid service was enabled. The tested private rules are deployed, and a live unauthenticated document read returns 403.
-- The Firebase-enabled build is deployed at https://dib-it.vercel.app. At 390 × 844 it returns HTTP 200, opens the correct Google login screen, and has no page errors or horizontal overflow. The four Firebase web configuration values are set in Vercel Production/Preview and ignored local configuration. A signed-in backup/restore round trip remains unverified; no user account was impersonated.
+- The Firebase-enabled build was deployed at https://dib-it.vercel.app. At 390 × 844 it returned HTTP 200, opened the correct Google login screen, and had no page errors or horizontal overflow. The four Firebase web configuration values were set in Vercel Production/Preview and ignored local configuration. A signed-in backup/restore round trip was not exercised in this September check; the October 31 live verification is recorded above.
 
 ## Multiple saved plans
 

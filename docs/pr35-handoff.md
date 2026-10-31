@@ -1,10 +1,20 @@
 # PR #35 handoff
 
+## Release status — 2026-10-31
+
+PR #35's final head `b8deeaf` was incorporated into
+[PR #39](https://github.com/noam-isaac/dib-it/pull/39), merged as `be62bc8` and
+deployed. PRs #35–38 are closed as incorporated through that combined release;
+their original branches remain unchanged. See [verification](verification.md) for
+the release, real Google checks and the subsequent #40 missing-backup fix.
+The handoff below records the original scope and investigation. Its simultaneous
+local-write limitation and follow-up design constraints remain applicable.
+
 ## Agreed scope
 
 [PR #35](https://github.com/noam-isaac/dib-it/pull/35) prevents a stale rendered control from replacing newer, already-saved workspace edits. Keep that scope unchanged. Cross-tab transactional coordination is a separate architectural follow-up and is not part of this PR.
 
-The original production and regression-test baseline is commit `76c606ad7eca60cc386c746d28c1295a82efefa4`, validated by [CI run 40693989813](https://github.com/noam-isaac/dib-it/actions/runs/40693989813). The initial handoff added documentation and optional diagnostics only. A later independent review found that accepted backups can override the workspace semester inside a plan. `useDibIt` now binds its updater to the same active view it returns; the browser regression covers annual deselection and deletion with conflicting plan/workspace semesters. The saved-data shape is unchanged. Verify the current PR head before continuing, including when integrating the persistence follow-up.
+The original production and regression-test baseline is commit `76c606ad7eca60cc386c746d28c1295a82efefa4`, validated by [CI run 40693989813](https://github.com/noam-isaac/dib-it/actions/runs/40693989813). The initial handoff added documentation and optional diagnostics only. A later independent review found that accepted backups can override the workspace semester inside a plan. `useDibIt` now binds its updater to the same active view it returns; the browser regression covers annual deselection and deletion with conflicting plan/workspace semesters. PR #35 kept the saved-data shape unchanged; #39 subsequently added the versioned migration. Verify current `main` before continuing the persistence follow-up.
 
 The branch is `codex/atomic-workspace-updates`, based on `codex/immutable-react-state` / [PR #33](https://github.com/noam-isaac/dib-it/pull/33). Do not merge, retarget, delete dependency branches, or publish as part of taking over this investigation.
 
@@ -67,8 +77,8 @@ A queued cloud download must recheck its expected local key inside the lock, der
 
 Old already-open app versions will bypass a new cooperative lock. Browser support, unsupported-browser behavior, and an old-tab reload policy require explicit decisions; do not silently fall back to uncoordinated writes. The prototype covers ordinary edits only and settles none of these production decisions.
 
-## Remaining work outside this follow-up
+## Historical release checklist
 
-- PRs #32, #33, and #34 have passed their current-head CI and prior code review; no external review comments were open when this handoff was prepared.
-- The user approved the approaches for PRs #36 (React-owned exports) and #37 (course-focus readiness). Independent review subsequently found and prompted fixes for the accepted-backup issue above and #37's delayed-focus cancellation. Required checks and release review must cover those updated commits.
-- After approvals, prepare and show the working previews, handle dependency/retargeting and any real merge conflicts, rerun required checks on the resulting commits, and obtain release approval before merging/publishing.
+- PRs #32, #33, and #34 had passed their current-head CI and prior code review; no external review comments were open when this handoff was prepared.
+- Independent review prompted fixes for the accepted-backup issue above and #37's delayed-focus cancellation. Their updated heads, #36's React-owned exports and the other inputs were included in #39's combined checks and release review.
+- The combined preview, integration checks, approval, Firestore rules and production publication were completed through #39. This checklist no longer represents pending release work.
