@@ -100,7 +100,7 @@ Annual classification updates through the same static feed as the catalogs. TAU 
 
 Open the three-dot menu next to the semester and choose **מערכות שעות** to view the active schedule and switch schedules. The active name also appears in the registration export dialog. The dialog also creates, duplicates, renames, or deletes a schedule. Deletion requires confirmation, and the final schedule cannot be deleted. Each schedule keeps independent course/group selections, colors, and degree settings across all semesters. Theme, custom course catalogs, and exam practice history are shared.
 
-Existing schedules and older backups become the first plan automatically. Local JSON and Google backups include every plan and the active selection. Calendar and registration exports use only the active plan and selected semester. File and Google restore first list the incoming schedules and identify which one will open. The dialog explains that confirming replaces every local plan and shared settings, and offers a download of the current workspace before proceeding. Cancel leaves the workspace unchanged. To recover afterward, restore that downloaded `dibit-before-restore.json` file. A success message appears only after the replacement is saved; restored custom catalogs appear immediately.
+Existing schedules and older backups become the first plan automatically. Local JSON backups and the Google working copy include every plan and the active selection. Calendar and registration exports use only the active plan and selected semester. File restore lists the incoming schedules and identifies which one will open. Google sync updates unchanged devices automatically and preserves local navigation. The file-restore dialog explains that confirming replaces every local plan and shared settings, and offers a download of the current workspace before proceeding. Cancel leaves the workspace unchanged. To recover afterward, restore that downloaded `dibit-before-restore.json` file. A success message appears only after the replacement is saved; restored custom catalogs appear immediately.
 
 In the **תוכנית** tab, choose a degree start year and search programs across all faculties; each result includes its faculty. Click **שמירה למעבר מהיר** to bookmark the selected program. Save additional programs, then use **מעבר מהיר בין תוכניות** to restore their faculty and program without changing your courses or degree start year. Remove the selected shortcut with the × beside the quick-access selector; this preserves the active program and courses. These shortcuts are kept with each schedule and included in backups. Course cards with zero scheduled hours use a neutral background, dashed border, and **ללא שעות במערכת** label; selecting a timed group restores their course color.
 
@@ -126,7 +126,24 @@ The export module and template load only when requested. See [template provenanc
 
 ## Google compatibility
 
-While signed in, the three-dot menu offers manual Google backup and restore, plus an automatic-sync toggle. Automatic sync is off by default; the choice is saved in this browser. When enabled, all schedule plans and shared settings sync through the existing private Firebase document. Edits are batched after a one-second pause; server updates arrive through a realtime listener. The selected tab, semester and active plan stay local. Offline edits remain in localStorage and retry on reconnect, focus, or after 30 seconds following an error. On a new device an empty workspace loads the cloud schedules. If existing local and cloud schedules differ on first sign-in, or both have changed since the last sync, syncing pauses for a choice with downloads of both copies available. Transaction checks prevent a concurrent cloud edit from being silently overwritten. Switching accounts also requires a choice before uploading different local schedules. File restores sync to the other signed-in devices too. Routine syncing and success states take no space on the page; only errors and conflicts appear below the header.
+The three-dot menu separates **file backups** from **Google sync**. A downloaded JSON file is a saved version you can return to. Google holds the current shared copy, including deletions; it does not keep a history of edits. File restore previews the replacement, offers a backup of the current workspace, and propagates to other devices if automatic sync is enabled.
+
+Automatic sync is off by default and remembers your choice in this browser. Once enabled, all plans and shared settings sync through the existing private Firebase document. Edits wait for a one-second pause; cloud changes arrive through a realtime listener. The selected tab, semester and active plan stay local. Offline edits remain local and retry on reconnect, focus, or after 30 seconds following an error. A blank new device loads the shared copy; absent cloud data is created only after a successful server read.
+
+Matching copies, one-sided changes, and safe independent edits sync automatically.
+Only incompatible choices show a small notice. Opening it asks about the actual
+competing values; other changes are included automatically. There is no merge-mode
+selector, full-copy preview, or manual Google upload/download. Answers survive
+unrelated updates and connection retries, and are revalidated before saving. A
+changed alternative needs a new answer. Copies without usable shared history, or
+coupled custom catalogs, require a one-time choice of which schedules to continue
+with; that replacement is explicitly scoped and checked against current contents.
+
+A quiet status beside the signed-in account distinguishes sync off, waiting, and up to date. New edits show as waiting immediately, including before the upload starts. Connection failures retry without opening a decision prompt; details and retry are available from the status.
+Submitting choices resumes synchronization without another approval. New edits,
+transaction retries, stopped uploads, and failed local acknowledgement writes retain
+their overwrite protections. File backup/restore remains the independent recovery
+flow; it is never required before normal syncing.
 
 Google uploads are limited to one Firestore document (1 MiB, including field names,
 UTF-8 text and map overhead), field names of at most 1,500 bytes, and at most 20
@@ -145,6 +162,11 @@ For Google sign-in and schedule backup, copy `.env.example` to `.env.local` and 
 The Firebase project must allow authenticated users to read and write only their own `users/{uid}` document. Backups replace that document so deleted courses do not reappear; restore checks the payload and keeps the current semester and tab. Using a different Firebase project does not migrate backups from the old site's project; use file backup/restore to transfer them.
 
 `firestore.rules` permits access only to the signed-in user's own backup. Collection listing, other users' backups, and subcollections are denied. Run `bun run test:firebase` with Java 21 or newer to verify this against a local emulator. The suite uses the `demo-dibit` project and refuses to run without the expected localhost emulator address.
+
+Deploy the updated Firestore rules before this client. New writes use protocol 3
+to preserve custom-catalog source precedence across devices. Existing protocol-2
+copies remain readable; once upgraded, older clients must refresh and cannot
+overwrite the newer format. Local JSON backups keep their existing format.
 
 For this fork, Google backup uses an unbilled **Spark** project with one free-tier Standard database in Tel Aviv (`me-west1`), as specified in `firebase.json`. Local Google sign-in uses `http://127.0.0.1:5175`. Do not link a billing account, activate trial credits, upgrade to Blaze, or add paid services. On Spark, quota exhaustion can interrupt backup; do not resolve it by enabling billing. Local storage, file backup, and calendar export remain available. See [Firebase's pricing-plan documentation](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans). The local emulator tests neither create nor configure a cloud project.
 

@@ -29,7 +29,7 @@ import {
 } from "../utilities"
 import AutoBidModal from "./AutoBidModal"
 import CourseCard from "./CourseCard"
-import GoogleSaveButtons from "./GoogleSaveButtons"
+import GoogleSyncToggle from "./GoogleSyncToggle"
 import RegistrationModal from "./RegistrationModal"
 import PlanSelector from "./PlanSelector"
 import { downloadWorkspaceBackup, openScheduleRestore } from "./RestoreScheduleModal"
@@ -124,7 +124,7 @@ const Sidebar = ({ catalogReady, onExport }: { catalogReady: boolean; onExport: 
           leftSection={<i className="fa-solid fa-cloud-moon" aria-hidden="true" />}
         />
 
-        <Menu>
+        <Menu keepMounted>
           <Menu.Target>
             <Tooltip label="פעולות">
               <ActionIcon size="lg" variant="default" aria-label="פעולות">
@@ -141,13 +141,14 @@ const Sidebar = ({ catalogReady, onExport }: { catalogReady: boolean; onExport: 
               מערכות שעות
             </Menu.Item>
             <Menu.Divider />
-            <Tooltip label="הורידו קובץ JSON שמכיל את כל המערכות שלכם">
+            <Menu.Label>גיבוי ושחזור מקובץ</Menu.Label>
+            <Tooltip label="שמירת גרסה של כל המערכות שאפשר לחזור אליה גם אחרי עריכות ומחיקות">
               <Menu.Item
 
                 leftSection={<i className="fa-solid fa-download" aria-hidden="true" />}
                 onClick={() => downloadWorkspaceBackup()}
               >
-                גיבוי
+                גיבוי לקובץ
               </Menu.Item>
             </Tooltip>
             {localStorage.getItem(MIGRATION_RECOVERY_KEY) !== null && <Tooltip label="כולל את הנתונים המקוריים לפני ההמרה האחרונה. הקובץ מיועד לשחזור ולתיקון, ואינו היסטוריה של כל העריכות.">
@@ -168,10 +169,12 @@ const Sidebar = ({ catalogReady, onExport }: { catalogReady: boolean; onExport: 
                 }
               }}
             >
-              שחזור
+              שחזור מקובץ
             </Menu.Item>
 
-            <GoogleSaveButtons />
+            <Menu.Divider />
+            <GoogleSyncToggle />
+            <Menu.Divider />
 
             <Menu.Item
 

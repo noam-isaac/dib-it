@@ -21,7 +21,8 @@ try {
     page.setDefaultTimeout(10000)
     const errors = []
     page.on("pageerror", error => errors.push(error.message))
-    let failed = true, failedPlan = true, delayed
+    let failed = true, failedPlan = true
+    const delayed = Promise.withResolvers()
     const requests = []
     page.on("request", request => requests.push(request.url()))
     await page.route("**/*", route => {
@@ -31,7 +32,7 @@ try {
       const filename = url.pathname.split("/").pop()
       if (failed && filename === failedResource) return route.fulfill({ status: 503, body: "Unavailable" })
       if (failedPlan && filename === "plans-2026.json") return route.fulfill({ status: 503, body: "Unavailable" })
-      if (filename === "plans-2024.json") { delayed = route; return }
+      if (filename === "plans-2024.json") { delayed.resolve(route); return }
       const json = filename === "info.json" ? info
         : filename.startsWith("courses-") ? catalog
         : filename.startsWith("plans-") ? { ...plans(filename === "plans-2025.json" ? "פקולטה חדשה" : "פקולטה לבדיקה"), ...plans("פקולטה אחרת") } : {}
@@ -80,16 +81,14 @@ try {
     await page.getByRole("heading", { name: "קורסי חובה", exact: true }).waitFor()
     const year = page.getByRole("textbox", { name: "שנת התחלת התואר", exact: true })
     await year.click()
-    const requested = page.waitForRequest(request => request.url().includes("plans-2024.json"))
     await page.getByRole("option", { name: "2024", exact: true }).click()
-    await requested
-    assert.ok(delayed)
+    const delayedRoute = await delayed.promise
     await year.click()
     await page.getByRole("option", { name: "2025", exact: true }).click()
     const program = page.getByRole("textbox", { name: "תוכנית לימוד", exact: true })
     await program.fill("תוכנית")
     await page.getByRole("option", { name: "תוכנית בדיקה — פקולטה חדשה", exact: true }).waitFor()
-    await delayed.fulfill({ json: plans("פקולטה ישנה") })
+    await delayedRoute.fulfill({ json: plans("פקולטה ישנה") })
     await page.waitForTimeout(150)
     assert.equal(await page.getByRole("option", { name: /פקולטה ישנה/ }).count(), 0)
     await page.getByRole("option", { name: "תוכנית בדיקה — פקולטה חדשה", exact: true }).click()

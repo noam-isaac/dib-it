@@ -5,8 +5,11 @@ service cloud.firestore {
     match /users/{userId} {
       function owner() { return request.auth != null && request.auth.uid == userId; }
       function coordinated() {
-        return request.resource.data.keys().hasOnly(['protocol', 'revision', 'savedAt', 'workspace', 'migrationOriginal'])
-          && request.resource.data.protocol == 2
+        return request.resource.data.keys().hasOnly(['protocol', 'revision', 'savedAt', 'workspace', 'migrationOriginal', 'catalogSources'])
+          && (request.resource.data.protocol == 2 || request.resource.data.protocol == 3)
+          && (request.resource.data.protocol == 3
+            ? request.resource.data.catalogSources is list
+            : !request.resource.data.keys().hasAny(['catalogSources']))
           && request.resource.data.revision is int
           && request.resource.data.workspace is map
           && request.resource.data.workspace.schemaVersion == 1
@@ -34,8 +37,9 @@ service cloud.firestore {
       allow update: if owner() && coordinated()
         && preservesOriginal()
         && (envelope(resource.data)
-          ? resource.data.keys().hasOnly(['protocol', 'revision', 'savedAt', 'workspace', 'migrationOriginal'])
-            && resource.data.protocol == 2 && supported(resource.data.workspace)
+          ? resource.data.keys().hasOnly(['protocol', 'revision', 'savedAt', 'workspace', 'migrationOriginal', 'catalogSources'])
+            && (resource.data.protocol == 2 || resource.data.protocol == 3)
+            && request.resource.data.protocol >= resource.data.protocol && supported(resource.data.workspace)
             && request.resource.data.revision == resource.data.revision + 1
           : supported(resource.data) && request.resource.data.revision == 1);
       // Local recovery never deletes the cloud backup. Reject obsolete deletes and unversioned writes.

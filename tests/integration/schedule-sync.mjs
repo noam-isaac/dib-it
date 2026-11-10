@@ -22,7 +22,7 @@ test("real Firestore clients sync, reconnect, and preserve competing edits", { t
   })
   const clients = []
   try {
-    const { startScheduleSync, scheduleKey, withLocalNavigation } = await server.ssrLoadModule("/src/scheduleSync.ts")
+    const { scheduleKey, withLocalNavigation } = await server.ssrLoadModule("/src/scheduleSync.ts")
     const { readGoogleCopy } = await server.ssrLoadModule("/src/googleWorkspace.ts")
     const { normalizePlans } = await server.ssrLoadModule("/src/plans.ts")
     const legacy = { courses: { "2026a": [{ id: "legacy", groups: ["01"] }] }, extra: "preserved" }
@@ -35,7 +35,9 @@ test("real Firestore clients sync, reconnect, and preserve competing edits", { t
     assert.deepEqual(JSON.parse(versionedLegacy.source.raw), legacy)
     assert.throws(() => readGoogleCopy({ ...decodedLegacy.workspace, schemaVersion: 2 }), /גרסת הנתונים/)
     assert.throws(() => readGoogleCopy({ protocol: 2, revision: 4, savedAt: Timestamp.now(), workspace: { ...decodedLegacy.workspace, schemaVersion: 2 } }), /גרסת הנתונים/)
-    const createClient = (local = normalizePlans({})) => {
+    const createClient = async (local = normalizePlans({})) => {
+      // Separate browser devices must not share the same-tab completion queue.
+      const { startScheduleSync } = await server.ssrLoadModule(`/src/scheduleSync.ts?device=${clients.length}`)
       const database = environment.authenticatedContext("sync-emulator").firestore()
       const reference = doc(database, "users", "sync-emulator")
       const client = { local, base: undefined, status: "connecting", database, reference }
@@ -66,9 +68,9 @@ test("real Firestore clients sync, reconnect, and preserve competing edits", { t
       clients.push(client)
       return client
     }
-    const first = createClient(normalizePlans({ courses: { "2026a": [{ id: "12345678", groups: ["01"] }] } }))
+    const first = await createClient(normalizePlans({ courses: { "2026a": [{ id: "12345678", groups: ["01"] }] } }))
     await until(() => first.status === "synced")
-    const second = createClient()
+    const second = await createClient()
     await until(() => second.status === "synced")
     assert.equal(scheduleKey(second.local), scheduleKey(first.local))
 
@@ -88,6 +90,14 @@ test("real Firestore clients sync, reconnect, and preserve competing edits", { t
     first.sync.schedule(0)
     await until(() => second.local.plans[0].name === "Offline edit")
     await until(() => first.status === "synced" && second.status === "synced")
+
+    first.local.theme = "google"
+    second.local.plans[0].name = "Independent edit"
+    first.sync.schedule(0)
+    second.sync.schedule(0)
+    await until(() => clients.every(client => client.status === "synced" &&
+      client.local.theme === "google" && client.local.plans[0].name === "Independent edit"))
+    assert.equal(scheduleKey(first.local), scheduleKey(second.local))
 
     first.local.plans[0].name = "Concurrent A"
     second.local.plans[0].name = "Concurrent B"
