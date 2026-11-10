@@ -48,7 +48,7 @@ try {
       for (const name of ["ייצוא ל-Apple/Google Calendar", "יצירת טופס רישום ב-Word", "ייצוא ל־PDF או לתמונה"]) {
         assert.equal(await page.getByRole("menuitem", { name, exact: true }).isDisabled(), true)
       }
-      assert.equal(await page.getByRole("menuitem", { name: "גיבוי", exact: true }).isEnabled(), true)
+      assert.equal(await page.getByRole("menuitem", { name: "גיבוי לקובץ", exact: true }).isEnabled(), true)
       assert.equal(await page.getByRole("menuitem", { name: "מערכות שעות", exact: true }).isEnabled(), true)
       await page.getByRole("button", { name: "פעולות", exact: true }).click()
       await page.getByRole("menu").waitFor({ state: "hidden" })

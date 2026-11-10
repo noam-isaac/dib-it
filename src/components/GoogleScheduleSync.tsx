@@ -1,87 +1,219 @@
 import { booleanSchema } from "../schemas"
-import { Button, Modal, Text } from "@mantine/core"
-import { onSnapshot } from "firebase/firestore"
-import { useEffect, useState } from "react"
+import { Button, Popover, Stack, Text } from "@mantine/core"
+import { useEffect, useRef, useState } from "react"
 import { useAuthState } from "react-firebase-hooks/auth"
 import { auth, firestore } from "../firebase"
 import { useLocalStorage } from "../hooks"
-import { scheduleKey, startScheduleSync, type SyncReview, type SyncStatus } from "../scheduleSync"
+import {
+  baseForAccount,
+  scheduleKey,
+  startScheduleSync,
+  type SyncChoice,
+  type SyncReview,
+  type SyncStatus,
+} from "../scheduleSync"
+import type { MergeChoice } from "../scheduleMerge"
 import { readLocalCopy } from "../localSchedule"
-import { googleReference, googleSyncOptions, loadSyncReview } from "../googleWorkspace"
+import { watchGoogleCopy, googleSyncOptions } from "../googleWorkspace"
 import ScheduleConflict from "./ScheduleConflict"
+
+const statusMessages: Record<SyncStatus, string> = {
+  connecting: "ממתין לסנכרון",
+  syncing: "ממתין לסנכרון",
+  synced: "מעודכן בגוגל",
+  conflict: "נדרשת בחירה",
+  pending: "ממתין לסנכרון",
+  error: "הסנכרון לא הושלם",
+}
+const statusButtonStyles = {
+  root: { maxWidth: "100%", height: "auto", paddingBlock: 2 },
+  label: { whiteSpace: "normal" as const, textAlign: "start" as const },
+}
 
 const EnabledGoogleScheduleSync = () => {
   const [user] = useAuthState(auth!)
-  const [automatic, setAutomatic] = useLocalStorage({ key: "Automatic Google Sync", schema: booleanSchema, defaultValue: false })
+  const [automatic] = useLocalStorage({
+    key: "Automatic Google Sync",
+    schema: booleanSchema,
+    defaultValue: false,
+  })
   const [status, setStatus] = useState<SyncStatus>("connecting")
   const [review, setReview] = useState<SyncReview>()
+  const [opened, setOpened] = useState(false)
   const [error, setError] = useState("")
-  const [retry, setRetry] = useState(0)
-  useEffect(() => { setReview(undefined); setStatus("connecting") }, [user?.uid])
+  const controller = useRef<ReturnType<typeof startScheduleSync> | undefined>(
+    undefined,
+  )
+
   useEffect(() => {
+    setOpened(false)
+    setReview(undefined)
+    setError("")
     if (!user || !automatic) return
     setStatus("connecting")
     const uid = user.uid
-    let listenerTimer: ReturnType<typeof setTimeout> | undefined
-    let unsubscribe: (() => void) | undefined
-    let listenerFailed = false, stopped = false
-    const sync = startScheduleSync(googleSyncOptions(uid, (next, comparison, failure) => {
-      if (next === "conflict") {
-        stopped = true; sync.stop(); clearTimeout(listenerTimer); unsubscribe?.()
-        setStatus("conflict"); setReview(comparison); setError("")
-        try { setAutomatic(false) }
-        catch { setError("הסנכרון נעצר בלשונית זו, אך לא ניתן לשמור את הכיבוי בדפדפן. בדקו שוב לפני טעינה מחדש.") }
-        return
-      }
-      if (listenerFailed) return
-      setStatus(next)
-      if (failure) setError(failure instanceof Error ? failure.message : "נסו שוב מאוחר יותר.")
-    }, () => !stopped && localStorage.getItem("Automatic Google Sync") === "true"))
-    const listen = () => {
-      if (stopped) return
-      clearTimeout(listenerTimer); unsubscribe?.()
-      unsubscribe = onSnapshot(googleReference(uid), { includeMetadataChanges: true }, snapshot => {
-        if (!snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites) {
-          listenerFailed = false; sync.schedule(0)
-        }
-      }, failure => {
-        listenerFailed = true; setError(failure.message); setStatus("error")
-        listenerTimer = setTimeout(listen, 30000)
-      })
-    }
-    sync.schedule(0); listen()
-    let content = scheduleKey(readLocalCopy().workspace)
+    let stopped = false
+    let listenerFailed = false
+    const sync = startScheduleSync(
+      googleSyncOptions(
+        uid,
+        (next, comparison, failure) => {
+          if (stopped) return
+          if (next === "conflict" && comparison) setReview(comparison)
+          if (next === "synced") {
+            setReview(undefined)
+            setOpened(false)
+          }
+          if (listenerFailed) return
+          setStatus((previous) =>
+            next === "syncing" && previous === "conflict" ? previous : next,
+          )
+          setError(failure instanceof Error ? failure.message : "")
+        },
+        () =>
+          !stopped && localStorage.getItem("Automatic Google Sync") === "true",
+      ),
+    )
+    controller.current = sync
+    const unsubscribe = watchGoogleCopy(
+      uid,
+      () => {
+        listenerFailed = false
+        sync.schedule(0)
+      },
+      (failure) => {
+        listenerFailed = true
+        setError(failure.message)
+        setStatus("error")
+      },
+    )
+    sync.schedule(0)
+    const initial = readLocalCopy()
+    let content = scheduleKey(initial.workspace)
+    let base = baseForAccount(initial, uid)
     const changed = (event: StorageEvent) => {
-      if (event.key !== "Dib It" && event.key !== null) return
+      if (
+        event.key !== "Dib It" &&
+        event.key !== "Dib It Sync" &&
+        event.key !== null
+      )
+        return
       try {
-        const next = scheduleKey(readLocalCopy().workspace)
-        if (next !== content) { content = next; sync.schedule() }
-      } catch { setStatus("error"); setError("לא ניתן לקרוא את המערכות במכשיר. הורידו גיבוי לפני שחזור.") }
+        const local = readLocalCopy()
+        const next = scheduleKey(local.workspace)
+        const nextBase = baseForAccount(local, uid)
+        if (next !== content || nextBase !== base) {
+          content = next
+          base = nextBase
+          // A local edit is pending during the debounce too, before a request starts.
+          setStatus((previous) =>
+            previous === "conflict" || previous === "error"
+              ? previous
+              : "pending",
+          )
+          sync.schedule()
+        }
+      } catch {
+        setStatus("error")
+        setError("לא ניתן לקרוא את המערכות במכשיר.")
+      }
     }
-    const resume = () => { if (listenerFailed) listen(); sync.schedule(0) }
+    const resume = () => sync.retry()
     window.addEventListener("storage", changed)
     window.addEventListener("online", resume)
     window.addEventListener("focus", resume)
     return () => {
-      stopped = true; sync.stop(); clearTimeout(listenerTimer); unsubscribe?.()
+      stopped = true
+      controller.current = undefined
+      sync.stop()
+      unsubscribe()
       window.removeEventListener("storage", changed)
       window.removeEventListener("online", resume)
       window.removeEventListener("focus", resume)
     }
-  }, [user?.uid, automatic, retry])
-  if (!user || (!review && status !== "conflict" && !(automatic && ["error", "pending"].includes(status)))) return null
-  return <div className="dont-print" dir="rtl" style={{ textAlign: "center", padding: 4 }}>
-    <Text size="sm" role="status">{status === "conflict" ? "הסנכרון האוטומטי במכשיר הזה כובה בעקבות הבדלים בין העותקים. השוו את הקורסים והבחירות לפני הפעלה מחדש." : status === "pending" ? "השינויים הנוספים במכשיר נשמרו וממתינים לסנכרון." : status === "error" ? "הסנכרון לגוגל לא הושלם. הנתונים במכשיר נשמרו." : "השוואת העותקים שנפתחו לבדיקה — אפשר לרענן כדי לקבל את העדכון האחרון."}</Text>
-    {error && ["error", "conflict"].includes(status) && <Text size="sm" dir="auto">{error}</Text>}
-    {status === "error" && automatic && <Button size="compact-xs" variant="subtle" onClick={() => setRetry(value => value + 1)}>ניסיון נוסף</Button>}
-    <Button size="compact-xs" variant="subtle" onClick={async () => {
-      try { setReview(await loadSyncReview(user.uid)) }
-      catch (failure) { setError(failure instanceof Error ? failure.message : "לא ניתן לפתוח השוואה."); setStatus("error") }
-    }}>השוואה ומיזוג מערכות</Button>
-    <Modal opened={!!review} onClose={() => setReview(undefined)} title="השוואה ומיזוג מערכות" size="xl" centered>
-      {review && <ScheduleConflict uid={user.uid} initial={review} onClose={() => setReview(undefined)} />}
-    </Modal>
-  </div>
+  }, [user?.uid, automatic])
+
+  if (!user) return null
+  const message = automatic ? statusMessages[status] : "הסנכרון כבוי"
+  const resolve = (
+    current: SyncReview,
+    choices: Record<string, MergeChoice> | SyncChoice,
+  ) => {
+    if (typeof choices === "string")
+      controller.current?.resolve(current, choices)
+    else controller.current?.resolveChanges(current, choices)
+    // Closing does not cancel the choice. The same controller retries it and
+    // only asks again if fresh contents contain an unanswered decision.
+    setOpened(false)
+    setStatus("syncing")
+  }
+
+  return (
+    <div
+      className="dont-print"
+      dir="rtl"
+      role="status"
+      style={{ textAlign: "start" }}
+    >
+      {automatic && status === "error" ? (
+        <Popover width={280} position="bottom" withArrow shadow="md">
+          <Popover.Target>
+            <Button
+              size="compact-xs"
+              variant="subtle"
+              color="orange"
+              styles={statusButtonStyles}
+            >
+              {message}
+            </Button>
+          </Popover.Target>
+          <Popover.Dropdown dir="rtl">
+            <Stack gap="xs">
+              <Text size="sm">
+                העדכונים עדיין לא סונכרנו. אפשר להמשיך לעבוד במכשיר.
+              </Text>
+              {error && (
+                <Text size="sm" dir="auto">
+                  {error}
+                </Text>
+              )}
+              <Button
+                size="compact-xs"
+                variant="subtle"
+                onClick={() => controller.current?.retry()}
+              >
+                ניסיון נוסף
+              </Button>
+            </Stack>
+          </Popover.Dropdown>
+        </Popover>
+      ) : automatic && status === "conflict" && review ? (
+        <Button
+          size="compact-xs"
+          variant="subtle"
+          color="orange"
+          styles={statusButtonStyles}
+          aria-label="בחירת השינויים לשמירה"
+          onClick={() => setOpened(true)}
+        >
+          {message}
+        </Button>
+      ) : (
+        <Text size="xs">{message}</Text>
+      )}
+      {automatic && opened && review && (
+        <ScheduleConflict
+          key={user.uid}
+          uid={user.uid}
+          review={review}
+          onResolve={resolve}
+          onClose={() => setOpened(false)}
+        />
+      )}
+    </div>
+  )
 }
-const GoogleScheduleSync = () => auth && firestore ? <EnabledGoogleScheduleSync /> : null
+
+const GoogleScheduleSync = () =>
+  auth && firestore ? <EnabledGoogleScheduleSync /> : null
 export default GoogleScheduleSync

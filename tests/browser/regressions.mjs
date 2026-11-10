@@ -115,7 +115,7 @@ try {
     ]) {
       await actions()
       const chooser = page.waitForEvent("filechooser")
-      await page.getByRole("menuitem").filter({ hasText: /^שחזור$/ }).click()
+      await page.getByRole("menuitem").filter({ hasText: /^שחזור מקובץ$/ }).click()
       await (await chooser).setFiles({ name: "invalid.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(invalid)) })
       await page.getByText("הקובץ אינו גיבוי תקין של Dib It.", { exact: true }).first().waitFor()
       assert.equal(await page.evaluate(() => localStorage.getItem("Dib It")), before)
@@ -177,7 +177,7 @@ try {
     const restore = async state => {
       await actions()
       const chooser = page.waitForEvent("filechooser")
-      await page.getByRole("menuitem").filter({ hasText: /^שחזור$/ }).click()
+      await page.getByRole("menuitem").filter({ hasText: /^שחזור מקובץ$/ }).click()
       await (await chooser).setFiles({ name: "backup.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(state)) })
       await page.getByRole("dialog", { name: "שחזור מקובץ" }).waitFor()
       await page.getByRole("dialog", { name: "שחזור מקובץ" }).getByRole("button", { name: "ביטול", exact: true }).click({ trial: true })

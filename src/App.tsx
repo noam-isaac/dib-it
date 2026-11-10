@@ -15,7 +15,6 @@ import Practice from "./components/Practice"
 import Schedule from "./components/Schedule"
 import Settings from "./components/Settings"
 import Sidebar from "./components/Sidebar"
-import GoogleScheduleSync from "./components/GoogleScheduleSync"
 import StudyPlan from "./components/StudyPlan"
 import { useLocalStorage } from "./hooks"
 import { visibleTabs } from "./tabs"
@@ -80,7 +79,6 @@ const App = () => {
             }}
           >
             <Header />
-            <GoogleScheduleSync />
             <CourseFocusProvider scope={`${dibIt.activePlanId}:${dibIt.semester}:${tab}`}
               courseIds={(dibIt.courses?.[dibIt.semester ?? ""] ?? []).map(course => course.id)}>
             <div

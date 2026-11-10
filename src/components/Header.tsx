@@ -4,6 +4,7 @@ import { useState } from "react"
 import { GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth"
 import { useAuthState } from "react-firebase-hooks/auth"
 import { auth } from "../firebase"
+import GoogleScheduleSync from "./GoogleScheduleSync"
 
 const google = new GoogleAuthProvider()
 
@@ -24,12 +25,18 @@ const Header = () => {
         alignItems: "center",
       }}
     >
-      <a href="/" aria-label="דיביט של נועם" style={{ color: "var(--mantine-color-text)", marginInline: 12 }}>
-        <i className="fa-solid fa-calendar-days" style={{ fontSize: 28 }} aria-hidden="true" />
-      </a>
-      <h3
-        style={{ fontWeight: "bold", fontSize: "1em", lineHeight: 1.3 }}
+      <a
+        href="/"
+        aria-label="דיביט של נועם"
+        style={{ color: "var(--mantine-color-text)", marginInline: 12 }}
       >
+        <i
+          className="fa-solid fa-calendar-days"
+          style={{ fontSize: 28 }}
+          aria-hidden="true"
+        />
+      </a>
+      <h3 style={{ fontWeight: "bold", fontSize: "1em", lineHeight: 1.3 }}>
         דיביט של נועם
       </h3>
       <a
@@ -39,7 +46,11 @@ const Header = () => {
       >
         <i
           className="fa-brands fa-github"
-          style={{ marginInlineStart: 10, fontSize: 24, color: "var(--mantine-color-text)" }}
+          style={{
+            marginInlineStart: 10,
+            fontSize: 24,
+            color: "var(--mantine-color-text)",
+          }}
         />
       </a>
       <div style={{ flexGrow: 1 }} />
@@ -98,20 +109,47 @@ const AuthControls = () => {
       )}
       {currentUser !== null && currentUser !== undefined && (
         <>
-          <p style={{ display: "flex", alignItems: "center" }}>
-            שלום,{" "}
-            <b style={{ marginInlineStart: 5 }}>{currentUser.displayName}</b>
-            {currentUser.photoURL !== null && (
-              <img
-                src={currentUser.photoURL}
-                height={30}
-                style={{ borderRadius: "50%", marginInlineStart: 5 }}
-              />
-            )}
-          </p>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              minWidth: 0,
+            }}
+          >
+            <p style={{ display: "flex", alignItems: "center", margin: 0 }}>
+              <span className="show-wide">שלום,&nbsp;</span>
+              <b
+                title={currentUser.displayName ?? undefined}
+                style={{
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {currentUser.displayName}
+              </b>
+              {currentUser.photoURL !== null && (
+                <img
+                  src={currentUser.photoURL}
+                  alt=""
+                  width={30}
+                  height={30}
+                  style={{
+                    borderRadius: "50%",
+                    marginInlineStart: 5,
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+            </p>
+            <GoogleScheduleSync />
+          </div>
           <Button
             mx="xs"
             variant="default"
+            style={{ flexShrink: 0 }}
             leftSection={<i className="fa-solid fa-sign-out" />}
             loading={busy}
             onClick={() => authenticate(true)}

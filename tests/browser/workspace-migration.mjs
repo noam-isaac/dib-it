@@ -53,7 +53,7 @@ const open = async (seed, width = 390) => {
 const importFile = async (page, value) => {
   await page.getByRole("button", { name: "פעולות", exact: true }).click()
   const chooser = page.waitForEvent("filechooser")
-  await page.getByRole("menuitem", { name: "שחזור", exact: true }).click()
+  await page.getByRole("menuitem", { name: "שחזור מקובץ", exact: true }).click()
   await (await chooser).setFiles({ name: "original.json", mimeType: "application/json", buffer: Buffer.from(value) })
 }
 try {
